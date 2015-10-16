@@ -1,0 +1,21 @@
+﻿<Page
+    x:Class="Libra.ViewerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Libra"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <Grid Background="Black">
+        <TextBlock x:Name="statusOutput" Foreground="White" Height="20" VerticalAlignment="Top" Canvas.ZIndex="100" Margin="200,0,0,0"/>
+        <ScrollViewer x:Name="scrollViewer" 
+                      ZoomMode="Enabled" 
+                      HorizontalScrollMode="Enabled" 
+                      VerticalScrollMode="Enabled"
+                      HorizontalScrollBarVisibility="Auto" MinZoomFactor="0.5" MaxZoomFactor="5" ViewChanging="scrollViewer_ViewChanging" ViewChanged="scrollViewer_ViewChanged">
+            <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,20,0,20">
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+
+</Page>
