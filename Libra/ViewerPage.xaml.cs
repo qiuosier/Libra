@@ -28,32 +28,30 @@ namespace Libra
     /// </summary>
     public sealed partial class ViewerPage : Page
     {
+        private static int SCROLLBAR_WIDTH = 10;
+        private static int PAGE_IMAGE_MARGIN = 15;
+        private static int PAGE_BUFFER = 3;
+
         private PdfDocument pdfDocument;
+        private DispatcherTimer myTimer;
+
         private int currentPageNumber;
         private int pageCount;
         private double pageHeight;
         private double pageWidth;
-        private static int SCROLLBAR_WIDTH = 10;
-        private static int PAGE_IMAGE_MARGIN = 15;
-        private static int PAGE_BUFFER = 3;
-        private DispatcherTimer myTimer; 
-
+        private bool fileLoaded;
+        
         public ViewerPage()
         {
             this.InitializeComponent();
             this.currentPageNumber = 0;
             this.pageHeight = 0;
             this.pageWidth = 0;
+            this.fileLoaded = false;
             this.myTimer = new DispatcherTimer();
             myTimer.Tick += MyTimer_Tick;
             myTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
             
-        }
-
-        private void MyTimer_Tick(object sender, object e)
-        {
-            myTimer.Stop();
-            this.RefreshViewer();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -89,6 +87,7 @@ namespace Libra
                 image = (Image)this.FindName("page1");
                 pageHeight = image.ActualHeight;
             }
+            // Add blank pages for the rest of the file
             for (int i = 6; i <= pageCount; i++)
             {
                 Image image = new Image();
@@ -96,7 +95,6 @@ namespace Libra
                 image.Margin = pageMargin;
                 image.Width = pageWidth;
                 image.Height = pageHeight;
-                
                 this.imagePanel.Children.Add(image);
                 //LoadPage(i, 10);
             }
@@ -104,7 +102,9 @@ namespace Libra
             this.statusOutput.Text = "Finished Loading in " + myWatch.Elapsed.TotalSeconds.ToString();
             // Show first page
             //PreparePages(1);
+            SetZoomFactor();
             currentPageNumber = 1;
+            this.fileLoaded = true;
         }
 
         private async void PreparePages(int newPageNumber)
@@ -124,10 +124,7 @@ namespace Libra
                 for (int i = 0; i < diff; i++)
                 {
                     // Remove pages
-                    //RemovePage(oldPageNumber - PAGE_BUFFER + i);
-                    // Move scroll offset
-                    //scrollViewer.ChangeView(0,scrollViewer.VerticalOffset - offset,scrollViewer.ZoomFactor);
-                    //scrollViewer.UpdateLayout();
+                    // RemovePage(oldPageNumber - PAGE_BUFFER + i);
                     // Add Pages
                     await LoadPage(oldPageNumber + PAGE_BUFFER + i + 1);
                 }
@@ -137,10 +134,7 @@ namespace Libra
                 for (int i = 0; i > diff; i--)
                 {
                     // Remove pages
-                    //RemovePage(oldPageNumber - PAGE_BUFFER + i);
-                    // Move scroll offset
-                    //scrollViewer.ChangeView(0,scrollViewer.VerticalOffset - offset,scrollViewer.ZoomFactor);
-                    //scrollViewer.UpdateLayout();
+                    // RemovePage(oldPageNumber - PAGE_BUFFER + i);
                     // Add Pages
                     await LoadPage(oldPageNumber - PAGE_BUFFER - i - 1);
                 }
@@ -204,7 +198,12 @@ namespace Libra
             if (IsPageVisible(currentPageNumber))
                 return;
             // Find out which page is visible
-            int p = (int)Math.Ceiling(scrollViewer.VerticalOffset / scrollViewer.ScrollableHeight * pageCount);
+            int p;
+            if (imagePanel.Orientation == Orientation.Vertical)
+                p = (int)Math.Ceiling(scrollViewer.VerticalOffset / scrollViewer.ScrollableHeight * pageCount);
+            else
+                p = (int)Math.Ceiling(scrollViewer.HorizontalOffset / scrollViewer.ScrollableWidth * pageCount);
+            if (p < 0) p = 1;
             for (int i = 0; i <= pageCount; i++)
                 if (IsPageVisible(p + i))
                 {
@@ -217,10 +216,25 @@ namespace Libra
                     return;
                 }
         }
+
+        private void SetZoomFactor()
+        {
+            double hZoomFactor = (this.scrollViewer.ActualHeight 
+                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / pageHeight;
+            double wZoomFactor = (this.scrollViewer.ActualWidth 
+                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / pageWidth;
+            this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
+        }
+
+        private void MyTimer_Tick(object sender, object e)
+        {
+            myTimer.Stop();
+            this.RefreshViewer();
+        }
+
         private void scrollViewer_ViewChanging(object sender, ScrollViewerViewChangingEventArgs e)
         {
-            //this.statusOutput.Text = "Scroll Offset: " + this.scrollViewer.VerticalOffset;
-            //if (!myTimer.IsEnabled) myTimer.Start;
+
         }
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -228,6 +242,22 @@ namespace Libra
             //this.RefreshViewer();
             myTimer.Stop();
             myTimer.Start();
+        }
+
+        private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            this.statusOutput.Text = "Zoom Factor: " + this.scrollViewer.ZoomFactor.ToString();
+            if (fileLoaded)
+            {
+                // Store current zoom factor
+                double factor = scrollViewer.ZoomFactor;
+                // Recalculate min and max zoom factor
+                SetZoomFactor();
+                // Recalculate offsets
+                factor = scrollViewer.ZoomFactor / factor;
+                scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset, 
+                    factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor,true);
+            }
         }
     }
 }
