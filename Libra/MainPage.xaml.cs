@@ -18,6 +18,7 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
+using NavigationMenu;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -28,6 +29,8 @@ namespace Libra
     /// </summary>
     public sealed partial class MainPage : Page
     {
+        private NavigationPage navPage;
+
         public MainPage()
         {
             this.InitializeComponent();
@@ -41,9 +44,15 @@ namespace Libra
             openPicker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
             openPicker.FileTypeFilter.Add(".pdf");
             StorageFile pdfFile = await openPicker.PickSingleFileAsync();
+            //this.Frame.Navigate(typeof(ViewerPage), pdfFile);
+            navPage.pdfFile = pdfFile;
+            this.Frame.Navigate(typeof(ViewerPage), navPage);
+        }
 
-            this.Frame.Navigate(typeof(ViewerPage), pdfFile);
-            
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            this.navPage = (NavigationPage)e.Parameter;
         }
     }
 }

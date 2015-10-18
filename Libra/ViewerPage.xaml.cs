@@ -18,6 +18,7 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
+using NavigationMenu;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -57,8 +58,10 @@ namespace Libra
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            StorageFile pdfFile = e.Parameter as StorageFile;
-            this.LoadFile(pdfFile);
+            //StorageFile pdfFile = e.Parameter as StorageFile;
+            //this.LoadFile(pdfFile);
+            NavigationPage navPage = (NavigationPage)e.Parameter;
+            this.LoadFile(navPage.pdfFile);
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -71,7 +74,7 @@ namespace Libra
             this.pdfDocument = await getPdfTask;
             this.pageCount = (int)pdfDocument.PageCount;
             // Add pages to scroll viewer
-            pageWidth = Window.Current.Bounds.Width - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
+            pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             Thickness pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
             System.Diagnostics.Stopwatch myWatch = new System.Diagnostics.Stopwatch();
             myWatch.Start();
@@ -105,6 +108,7 @@ namespace Libra
             SetZoomFactor();
             currentPageNumber = 1;
             this.fileLoaded = true;
+            
         }
 
         private async void PreparePages(int newPageNumber)
