@@ -45,7 +45,10 @@ namespace Libra
             openPicker.FileTypeFilter.Add(".pdf");
             StorageFile pdfFile = await openPicker.PickSingleFileAsync();
             //this.Frame.Navigate(typeof(ViewerPage), pdfFile);
-            navPage.pdfFile = pdfFile;
+            if (navPage.viewerState == null)
+            {
+                navPage.viewerState = new ViewerState(pdfFile);
+            }
             this.Frame.Navigate(typeof(ViewerPage), navPage);
         }
 

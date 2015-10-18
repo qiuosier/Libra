@@ -27,7 +27,7 @@ namespace NavigationMenu
     public sealed partial class NavigationPage : Page
     {
         // At this moment, allow keep only one file opened.
-        public StorageFile pdfFile;
+        public ViewerState viewerState;
 
         // Declare the top level nav items
         private List<NavMenuItem> navlist = new List<NavMenuItem>(

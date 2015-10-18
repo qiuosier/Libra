@@ -61,7 +61,7 @@ namespace Libra
             //StorageFile pdfFile = e.Parameter as StorageFile;
             //this.LoadFile(pdfFile);
             NavigationPage navPage = (NavigationPage)e.Parameter;
-            this.LoadFile(navPage.pdfFile);
+            this.LoadFile(navPage.viewerState.pdfFile);
         }
 
         private async void LoadFile(StorageFile pdfFile)
