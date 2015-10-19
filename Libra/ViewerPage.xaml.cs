@@ -19,6 +19,7 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
+using Windows.UI.Input.Inking;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -35,12 +36,14 @@ namespace Libra
 
         private PdfDocument pdfDocument;
         private DispatcherTimer myTimer;
+        private NavigationPage navPage;
 
         private int currentPageNumber;
         private int pageCount;
         private double pageHeight;
         private double pageWidth;
         private bool fileLoaded;
+        private int penSize;
         
         public ViewerPage()
         {
@@ -52,7 +55,17 @@ namespace Libra
             this.myTimer = new DispatcherTimer();
             myTimer.Tick += MyTimer_Tick;
             myTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
-            
+
+            penSize = 1;
+
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
+            drawingAttributes.Color = Windows.UI.Colors.Red;
+            drawingAttributes.Size = new Size(penSize, penSize);
+            drawingAttributes.IgnorePressure = false;
+            drawingAttributes.FitToCurve = true;
+
+            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+            inkCanvas.InkPresenter.InputDeviceTypes = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -60,8 +73,24 @@ namespace Libra
             base.OnNavigatedTo(e);
             //StorageFile pdfFile = e.Parameter as StorageFile;
             //this.LoadFile(pdfFile);
-            NavigationPage navPage = (NavigationPage)e.Parameter;
-            this.LoadFile(navPage.viewerState.pdfFile);
+            this.navPage = (NavigationPage)e.Parameter;
+            this.LoadFile(this.navPage.viewerState.pdfFile);
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            // Save the viewer state to navigation page
+            if (this.fileLoaded)
+            {
+                this.navPage.viewerState.fileLoaded = true;
+                this.navPage.viewerState.hOffset = this.scrollViewer.HorizontalOffset;
+                this.navPage.viewerState.vOffset = this.scrollViewer.VerticalOffset;
+                this.navPage.viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
+                this.navPage.viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
+                this.navPage.viewerState.zFactor = this.scrollViewer.ZoomFactor;
+            }
+            
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -102,13 +131,12 @@ namespace Libra
                 //LoadPage(i, 10);
             }
             myWatch.Stop();
-            this.statusOutput.Text = "Finished Loading in " + myWatch.Elapsed.TotalSeconds.ToString();
+            this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
             // Show first page
             //PreparePages(1);
             SetZoomFactor();
             currentPageNumber = 1;
             this.fileLoaded = true;
-            
         }
 
         private async void PreparePages(int newPageNumber)

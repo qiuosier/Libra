@@ -38,6 +38,7 @@ namespace NavigationMenu
                     Symbol = Symbol.Home,
                     Label = "Home Page",
                     DestPage = typeof(MainPage)
+                    //Arguments = this;
                 },
                 new NavMenuItem()
                 {
@@ -186,6 +187,7 @@ namespace NavigationMenu
                     item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
                     //this.AppFrame.Navigate(item.DestPage, item.Arguments);
+                    this.AppFrame.Navigate(item.DestPage, this);
                 }
             }
         }

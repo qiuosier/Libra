@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,7 +13,10 @@ namespace Libra
     /// </summary>
     public class ViewerState
     {
-        private bool fileLoaded;
+        public bool fileLoaded
+        {
+            get; set;
+        }
 
         public ViewerState (StorageFile pdf)
         {
@@ -29,6 +33,7 @@ namespace Libra
         public double vOffset { get; set; }
         public double hScrollableOffset { get; set; }
         public double vScrollableOffset { get; set; }
-        public double zFactor { get; set; }
+        public float zFactor { get; set; }
+        public int currentPageNumber { get; set; }
     }
 }

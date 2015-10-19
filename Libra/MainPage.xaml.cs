@@ -47,8 +47,15 @@ namespace Libra
             //this.Frame.Navigate(typeof(ViewerPage), pdfFile);
             if (navPage.viewerState == null)
             {
+                // No file is opened
                 navPage.viewerState = new ViewerState(pdfFile);
             }
+            else if (navPage.viewerState.pdfFile != pdfFile)
+            {
+                // Opening a different file
+                navPage.viewerState = new ViewerState(pdfFile);
+            }
+            // Do nothing but navigate to, when opening the same file
             this.Frame.Navigate(typeof(ViewerPage), navPage);
         }
 

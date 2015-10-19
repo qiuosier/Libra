@@ -11,7 +11,7 @@
         <StackPanel x:Name="contentPanel" Margin="8,32,0,32">
             <TextBlock Text="Hello," Margin="0,0,0,40"/>
             <StackPanel x:Name="inputPanel" Orientation="Horizontal" Margin="0,20,0,20"/>
-            <Button x:Name="button" Content="Open" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,0,940,0" Click="button_Click"/>
+            <Button x:Name="button" Content="Open" HorizontalAlignment="Left" VerticalAlignment="Stretch" Click="button_Click" Width="100"/>
             <TextBlock x:Name="greetingOutput" Text="Click Open to select a pdf file."/>
             
         </StackPanel>
