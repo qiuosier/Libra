@@ -35,7 +35,6 @@ namespace Libra
         private static int PAGE_BUFFER = 3;
 
         private PdfDocument pdfDocument;
-        private DispatcherTimer myTimer;
         private NavigationPage navPage;
 
         private int currentPageNumber;
@@ -52,9 +51,6 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.fileLoaded = false;
-            this.myTimer = new DispatcherTimer();
-            myTimer.Tick += MyTimer_Tick;
-            myTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
 
             penSize = 1;
 
@@ -220,7 +216,7 @@ namespace Libra
 
         private Boolean IsPageVisible(int pageNumber)
         {
-            return IsUserVisible((Image)this.FindName("page" + pageNumber.ToString()), this.scrollViewer);
+            return IsUserVisible((Image)imagePanel.Children[pageNumber],this.scrollViewer);
         }
 
         private void RefreshViewer()
@@ -258,12 +254,6 @@ namespace Libra
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
         }
 
-        private void MyTimer_Tick(object sender, object e)
-        {
-            myTimer.Stop();
-            this.RefreshViewer();
-        }
-
         private void scrollViewer_ViewChanging(object sender, ScrollViewerViewChangingEventArgs e)
         {
 
@@ -271,9 +261,7 @@ namespace Libra
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            //this.RefreshViewer();
-            myTimer.Stop();
-            myTimer.Start();
+            if (!e.IsIntermediate) this.RefreshViewer();
         }
 
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
