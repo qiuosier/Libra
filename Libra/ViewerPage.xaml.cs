@@ -30,14 +30,17 @@ namespace Libra
     /// </summary>
     public sealed partial class ViewerPage : Page
     {
-        private static int SCROLLBAR_WIDTH = 10;
-        private static int PAGE_IMAGE_MARGIN = 15;
-        private static int PAGE_BUFFER = 5;
+        private const int SCROLLBAR_WIDTH = 10;
+        private const int PAGE_IMAGE_MARGIN = 15;
+        private const int PAGE_BUFFER = 5;
+        private const int RECYCLE_QUEUE_SIZE = 10;
 
         private PdfDocument pdfDocument;
         private NavigationPage navPage;
         private PageRange currentRange;
-        private DispatcherTimer myTimer;
+        private DispatcherTimer refreshTimer;
+        private DispatcherTimer recycleTimer;
+        private Queue<int> recyclePagesQueue;
 
         private int pageCount;
         private double pageHeight;
@@ -52,19 +55,23 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.fileLoaded = false;
+            this.recyclePagesQueue = new Queue<int>();
 
-            this.myTimer = new DispatcherTimer();
-            myTimer.Tick += MyTimer_Tick;
-            myTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
+            this.refreshTimer = new DispatcherTimer();
+            this.refreshTimer.Tick += RefreshTimer_Tick;
+            this.refreshTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
+
+            this.recycleTimer = new DispatcherTimer();
+            this.recycleTimer.Tick += RecycleTimer_Tick;
+            this.recycleTimer.Interval = new TimeSpan(0, 0, 1);
+            this.recycleTimer.Start();
 
             penSize = 1;
-
             InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
             drawingAttributes.Color = Windows.UI.Colors.Red;
             drawingAttributes.Size = new Size(penSize, penSize);
             drawingAttributes.IgnorePressure = false;
             drawingAttributes.FitToCurve = true;
-
             inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
             inkCanvas.InkPresenter.InputDeviceTypes = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
         }
@@ -147,6 +154,14 @@ namespace Libra
 
         private async Task PreparePages(PageRange range)
         {
+            // Add invisible pages to recycle list
+            for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
+            {
+                if (i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
+                    this.recyclePagesQueue.Enqueue(i);
+            }
+            // Update visible range
+            this.currentRange = range;
             // Load visible pages
             for (int i = range.first; i <= range.last; i++)
             {
@@ -157,25 +172,22 @@ namespace Libra
             {
                 await LoadPage(i);
             }
-            // Remove pages
-            for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
-            {
-                if (i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
-                    RemovePage(i);
-            }
-            // Update visible range
-            this.currentRange = range;
         }
 
-        private double RemovePage(int pageNumber)
+        private void RemovePage(int pageNumber)
         {
-            Image image = (Image)this.FindName("page" + pageNumber.ToString());
-            if (image != null)
+            if (pageNumber < currentRange.first - PAGE_BUFFER || pageNumber > currentRange.last + PAGE_BUFFER)
             {
-                //image.Source = null;
-                return image.ActualHeight + 2 * PAGE_IMAGE_MARGIN;
+                Image image = (Image)this.FindName("page" + pageNumber.ToString());
+                if (image != null)
+                {
+                    double x = image.ActualHeight;
+                    image.Source = null;
+                    image.Height = x;
+                    return;
+                }
             }
-            else return 0;
+            else return;
         }
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
@@ -279,10 +291,18 @@ namespace Libra
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
         }
 
-        private void MyTimer_Tick(object sender, object e)
+        private void RefreshTimer_Tick(object sender, object e)
         {
-            myTimer.Stop();
+            refreshTimer.Stop();
             this.RefreshViewer();
+        }
+
+        private void RecycleTimer_Tick(object sender, object e)
+        {
+            while (this.recyclePagesQueue.Count > RECYCLE_QUEUE_SIZE)
+            {
+                RemovePage(this.recyclePagesQueue.Dequeue());
+            }
         }
 
         private void scrollViewer_ViewChanging(object sender, ScrollViewerViewChangingEventArgs e)
@@ -295,8 +315,8 @@ namespace Libra
             if (!e.IsIntermediate)
             {
                 //this.RefreshViewer();
-                myTimer.Stop();
-                myTimer.Start();
+                refreshTimer.Stop();
+                refreshTimer.Start();
             }
         }
 
