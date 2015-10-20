@@ -36,6 +36,7 @@ namespace Libra
 
         private PdfDocument pdfDocument;
         private NavigationPage navPage;
+        private PageRange currentRange;
 
         private int currentPageNumber;
         private int pageCount;
@@ -43,11 +44,11 @@ namespace Libra
         private double pageWidth;
         private bool fileLoaded;
         private int penSize;
-        
+
         public ViewerPage()
         {
             this.InitializeComponent();
-            this.currentPageNumber = 0;
+            this.currentRange = new PageRange();
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.fileLoaded = false;
@@ -86,7 +87,7 @@ namespace Libra
                 this.navPage.viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
                 this.navPage.viewerState.zFactor = this.scrollViewer.ZoomFactor;
             }
-            
+
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -103,73 +104,58 @@ namespace Libra
             Thickness pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
             System.Diagnostics.Stopwatch myWatch = new System.Diagnostics.Stopwatch();
             myWatch.Start();
-            // Add the first 5 pages with high quiality
-            for (int i = 1; i <= Math.Min(5, pageCount); i++)
+            // Add the first 10 pages
+            Image image;
+            for (int i = 1; i <= Math.Min(10, pageCount); i++)
             {
-                Image image = new Image();
+                Grid grid = new Grid();
+                grid.Name = "grid" + i.ToString();
+                image = new Image();
                 image.Name = "page" + i.ToString();
                 image.Margin = pageMargin;
                 image.Width = pageWidth;
-                this.imagePanel.Children.Add(image);
-                await LoadPage(i, 1500);
-                image = (Image)this.FindName("page1");
-                pageHeight = image.ActualHeight;
+                grid.Children.Add(image);
+                this.imagePanel.Children.Add(grid);
             }
+            await PreparePages(new PageRange(1, 1));
+            image = (Image)this.FindName("page1");
+            pageHeight = image.ActualHeight;
             // Add blank pages for the rest of the file
-            for (int i = 6; i <= pageCount; i++)
+            for (int i = 11; i <= pageCount; i++)
             {
-                Image image = new Image();
+                Grid grid = new Grid();
+                grid.Name = "grid" + i.ToString();
+                image = new Image();
                 image.Name = "page" + i.ToString();
                 image.Margin = pageMargin;
                 image.Width = pageWidth;
                 image.Height = pageHeight;
-                this.imagePanel.Children.Add(image);
+                grid.Children.Add(image);
+                this.imagePanel.Children.Add(grid);
                 //LoadPage(i, 10);
             }
             myWatch.Stop();
             this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
             // Show first page
-            //PreparePages(1);
             SetZoomFactor();
-            currentPageNumber = 1;
             this.fileLoaded = true;
         }
 
-        private async void PreparePages(int newPageNumber)
+        private async Task PreparePages(PageRange range)
         {
-            int diff = newPageNumber - currentPageNumber;
-            int oldPageNumber = currentPageNumber;
-            this.currentPageNumber = newPageNumber;
-            if (oldPageNumber == 0 || Math.Abs(diff) > 2 * PAGE_BUFFER + 1)
+            // Load pages
+            for (int i = range.first - PAGE_BUFFER; i <= range.last + PAGE_BUFFER; i++)
             {
-                for (int i = newPageNumber - PAGE_BUFFER; i <= newPageNumber + PAGE_BUFFER; i++)
-                {
-                    await LoadPage(i);
-                }
+                await LoadPage(i);
             }
-            else if (diff > 0)
+            // Remove pages
+            for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
             {
-                for (int i = 0; i < diff; i++)
-                {
-                    // Remove pages
-                    // RemovePage(oldPageNumber - PAGE_BUFFER + i);
-                    // Add Pages
-                    await LoadPage(oldPageNumber + PAGE_BUFFER + i + 1);
-                }
+                if (i < range.first || i > range.last)
+                    RemovePage(i);
             }
-            else // diff < 0
-            {
-                for (int i = 0; i > diff; i--)
-                {
-                    // Remove pages
-                    // RemovePage(oldPageNumber - PAGE_BUFFER + i);
-                    // Add Pages
-                    await LoadPage(oldPageNumber - PAGE_BUFFER - i - 1);
-                }
-            }
-            // Store current page number
-            this.currentPageNumber = newPageNumber;
-            return;
+            // Update visible range
+            this.currentRange = range;
         }
 
         private double RemovePage(int pageNumber)
@@ -185,12 +171,12 @@ namespace Libra
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
         {
-            if (pageNumber < 1 || pageNumber > pageCount)
-                return;
             Image image = (Image)this.imagePanel.FindName("page" + pageNumber.ToString());
             if (image != null)
             {
+                // Return if page is already loaded
                 if (image.Source != null) return;
+                // Load page
                 InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
                 PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
                 PdfPageRenderOptions options = new PdfPageRenderOptions();
@@ -216,15 +202,22 @@ namespace Libra
 
         private Boolean IsPageVisible(int pageNumber)
         {
-            return IsUserVisible((Image)imagePanel.Children[pageNumber],this.scrollViewer);
+            return IsUserVisible((Image)imagePanel.FindName("page" + pageNumber.ToString()), this.scrollViewer);
         }
 
-        private void RefreshViewer()
+        private async void RefreshViewer()
         {
-            // Find the page that is currently visible, only one page is visible at a time
-            // Check current page
-            if (IsPageVisible(currentPageNumber))
-                return;
+            await PreparePages(FindVisibleRange(FindVisiblePage()));
+        }
+
+        private int FindVisiblePage()
+        {
+            // Find a page that is currently visible
+            // Check current page range
+            for (int i = currentRange.first; i <= currentRange.last; i++)
+            {
+                if (IsPageVisible(i)) return i;
+            }
             // Find out which page is visible
             int p;
             if (imagePanel.Orientation == Orientation.Vertical)
@@ -233,16 +226,39 @@ namespace Libra
                 p = (int)Math.Ceiling(scrollViewer.HorizontalOffset / scrollViewer.ScrollableWidth * pageCount);
             if (p < 0) p = 1;
             for (int i = 0; i <= pageCount; i++)
+            {
                 if (IsPageVisible(p + i))
-                {
-                    PreparePages(p + i);
-                    return;
-                }
+                    return p + i;
                 else if (IsPageVisible(p - i))
+                    return p - i;
+            }
+            return 0;
+        }
+
+        private PageRange FindVisibleRange(int visiblePage)
+        {
+            // Given a visible page,
+            // Find the pages that are currently visible
+            PageRange range = new PageRange(visiblePage, visiblePage);
+            // Find the first visible page
+            for (int i = 1; i <= pageCount; i--)
+            {
+                if (!IsPageVisible(visiblePage - i))
                 {
-                    PreparePages(p - i);
-                    return;
+                    range.first = visiblePage - i + 1;
+                    break;
                 }
+            }
+            // Find the last visible page
+            for (int i = 1; i <= pageCount; i++)
+            {
+                if (!IsPageVisible(visiblePage + i))
+                {
+                    range.last = visiblePage + i - 1;
+                    break;
+                }
+            }
+            return range;
         }
 
         private void SetZoomFactor()
@@ -266,7 +282,6 @@ namespace Libra
 
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            this.statusOutput.Text = "Zoom Factor: " + this.scrollViewer.ZoomFactor.ToString();
             if (fileLoaded)
             {
                 // Store current zoom factor
