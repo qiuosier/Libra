@@ -26,19 +26,19 @@ using Windows.UI.Input.Inking;
 namespace Libra
 {
     /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
+    /// 
     /// </summary>
     public sealed partial class ViewerPage : Page
     {
         private static int SCROLLBAR_WIDTH = 10;
         private static int PAGE_IMAGE_MARGIN = 15;
-        private static int PAGE_BUFFER = 3;
+        private static int PAGE_BUFFER = 5;
 
         private PdfDocument pdfDocument;
         private NavigationPage navPage;
         private PageRange currentRange;
+        private DispatcherTimer myTimer;
 
-        private int currentPageNumber;
         private int pageCount;
         private double pageHeight;
         private double pageWidth;
@@ -52,6 +52,10 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.fileLoaded = false;
+
+            this.myTimer = new DispatcherTimer();
+            myTimer.Tick += MyTimer_Tick;
+            myTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
 
             penSize = 1;
 
@@ -143,7 +147,12 @@ namespace Libra
 
         private async Task PreparePages(PageRange range)
         {
-            // Load pages
+            // Load visible pages
+            for (int i = range.first; i <= range.last; i++)
+            {
+                await LoadPage(i);
+            }
+            // Load buffer pages
             for (int i = range.first - PAGE_BUFFER; i <= range.last + PAGE_BUFFER; i++)
             {
                 await LoadPage(i);
@@ -151,7 +160,7 @@ namespace Libra
             // Remove pages
             for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
             {
-                if (i < range.first || i > range.last)
+                if (i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
                     RemovePage(i);
             }
             // Update visible range
@@ -270,6 +279,12 @@ namespace Libra
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
         }
 
+        private void MyTimer_Tick(object sender, object e)
+        {
+            myTimer.Stop();
+            this.RefreshViewer();
+        }
+
         private void scrollViewer_ViewChanging(object sender, ScrollViewerViewChangingEventArgs e)
         {
 
@@ -277,7 +292,12 @@ namespace Libra
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            if (!e.IsIntermediate) this.RefreshViewer();
+            if (!e.IsIntermediate)
+            {
+                //this.RefreshViewer();
+                myTimer.Stop();
+                myTimer.Start();
+            }
         }
 
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
