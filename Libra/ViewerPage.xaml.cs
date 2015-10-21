@@ -34,11 +34,18 @@ namespace Libra
         private const int PAGE_IMAGE_MARGIN = 15;
         private const int PAGE_BUFFER = 5;
         private const int RECYCLE_QUEUE_SIZE = 10;
+        private const int BLANK_PAGE_BATCH = 100;
+        private const int FIRST_LOAD_PAGES = 2;
+        private const int REFRESH_TIMER_TICKS = 50 * 10000;
+        private const int INITIALIZATION_TIMER_TICKS = 250 * 10000;
+        private const int RECYCLE_TIMER_SECOND = 1;
 
         private PdfDocument pdfDocument;
         private NavigationPage navPage;
+        private Thickness pageMargin;
         private PageRange currentRange;
         private DispatcherTimer refreshTimer;
+        private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private Queue<int> recyclePagesQueue;
 
@@ -46,24 +53,32 @@ namespace Libra
         private double pageHeight;
         private double pageWidth;
         private bool fileLoaded;
+        private bool viewInitialized;
         private int penSize;
 
         public ViewerPage()
         {
             this.InitializeComponent();
             this.currentRange = new PageRange();
+            this.pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.fileLoaded = false;
+            this.viewInitialized = false;
+
             this.recyclePagesQueue = new Queue<int>();
 
             this.refreshTimer = new DispatcherTimer();
             this.refreshTimer.Tick += RefreshTimer_Tick;
-            this.refreshTimer.Interval = new TimeSpan(Convert.ToInt32(5e5));
+            this.refreshTimer.Interval = new TimeSpan(REFRESH_TIMER_TICKS);
+
+            this.initializationTimer = new DispatcherTimer();
+            this.initializationTimer.Tick += InitializationTimer_Tick;
+            this.initializationTimer.Interval = new TimeSpan(Convert.ToInt32(INITIALIZATION_TIMER_TICKS));
 
             this.recycleTimer = new DispatcherTimer();
             this.recycleTimer.Tick += RecycleTimer_Tick;
-            this.recycleTimer.Interval = new TimeSpan(0, 0, 1);
+            this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
             this.recycleTimer.Start();
 
             penSize = 1;
@@ -98,7 +113,6 @@ namespace Libra
                 this.navPage.viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
                 this.navPage.viewerState.zFactor = this.scrollViewer.ZoomFactor;
             }
-
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -112,12 +126,12 @@ namespace Libra
             this.pageCount = (int)pdfDocument.PageCount;
             // Add pages to scroll viewer
             pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
-            Thickness pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
+            
             System.Diagnostics.Stopwatch myWatch = new System.Diagnostics.Stopwatch();
             myWatch.Start();
-            // Add the first 10 pages
+            // Add and load the first two pages
             Image image;
-            for (int i = 1; i <= Math.Min(10, pageCount); i++)
+            for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
             {
                 Grid grid = new Grid();
                 grid.Name = "grid" + i.ToString();
@@ -127,12 +141,20 @@ namespace Libra
                 image.Width = pageWidth;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
+                await LoadPage(i);
             }
-            await PreparePages(new PageRange(1, 1));
-            image = (Image)this.FindName("page1");
-            pageHeight = image.ActualHeight;
+            // Update layout to force the calculation of actual height and width of the image
+            // otherwise, the following code may be executed BEFORE the stack panel update layout.
+            this.imagePanel.UpdateLayout();
+            // Use the height of the second page to initialize the rest of the document
+            // This may cause some problem... will fix this later
+            if (pageCount > 1)
+            {
+                image = (Image)this.FindName("page2");
+                this.pageHeight = image.ActualHeight;
+            }
             // Add blank pages for the rest of the file
-            for (int i = 11; i <= pageCount; i++)
+            for (int i = FIRST_LOAD_PAGES + 1; i <= pageCount; i++)
             {
                 Grid grid = new Grid();
                 grid.Name = "grid" + i.ToString();
@@ -143,13 +165,14 @@ namespace Libra
                 image.Height = pageHeight;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
-                //LoadPage(i, 10);
             }
+            // Load the first a few pages
+            await PreparePages(new PageRange(1, FIRST_LOAD_PAGES));
+            this.fileLoaded = true;
+            this.viewInitialized = true;
             myWatch.Stop();
             this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
-            // Show first page
             SetZoomFactor();
-            this.fileLoaded = true;
         }
 
         private async Task PreparePages(PageRange range)
@@ -262,7 +285,7 @@ namespace Libra
             // Find the pages that are currently visible
             PageRange range = new PageRange(visiblePage, visiblePage);
             // Find the first visible page
-            for (int i = 1; i <= pageCount; i--)
+            for (int i = 1; i <= pageCount; i++)
             {
                 if (!IsPageVisible(visiblePage - i))
                 {
@@ -297,6 +320,31 @@ namespace Libra
             this.RefreshViewer();
         }
 
+        private void InitializationTimer_Tick(object sender, object e)
+        {
+            // This timer is not used.
+            int count = imagePanel.Children.Count;
+            for (int i = count + 1; i <= Math.Min(count + BLANK_PAGE_BATCH, pageCount); i++)
+            {
+                Grid grid = new Grid();
+                grid.Name = "grid" + i.ToString();
+                Image image = new Image();
+                image.Name = "page" + i.ToString();
+                image.Margin = pageMargin;
+                image.Width = pageWidth;
+                image.Height = pageHeight;
+                grid.Children.Add(image);
+                this.imagePanel.Children.Add(grid);
+            }
+            this.imagePanel.UpdateLayout();
+            this.statusOutput.Text = "Image Panel Count " + this.imagePanel.Children.Count.ToString(); 
+            if (imagePanel.Children.Count >= pageCount)
+            {
+                this.initializationTimer.Stop();
+                this.viewInitialized = true;
+            }
+        }
+
         private void RecycleTimer_Tick(object sender, object e)
         {
             while (this.recyclePagesQueue.Count > RECYCLE_QUEUE_SIZE)
@@ -312,9 +360,8 @@ namespace Libra
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            if (!e.IsIntermediate)
+            if (viewInitialized && !e.IsIntermediate)
             {
-                //this.RefreshViewer();
                 refreshTimer.Stop();
                 refreshTimer.Start();
             }
