@@ -20,7 +20,6 @@
             <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,20,0,20" HorizontalAlignment="Center">
                 </StackPanel>
-                <InkCanvas x:Name="inkCanvas"></InkCanvas>
             </Grid>
         </ScrollViewer>
         <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">

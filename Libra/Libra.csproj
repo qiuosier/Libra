@@ -107,6 +107,7 @@
     <Compile Include="NavigationPage.xaml.cs">
       <DependentUpon>NavigationPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ObjectSerializer.cs" />
     <Compile Include="PageRange.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ViewerPage.xaml.cs">

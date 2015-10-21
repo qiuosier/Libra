@@ -30,6 +30,11 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
+        
+
+        private const string PREFIX_PAGE = "page";
+        private const string PREFIX_GRID = "grid";
+        private const string PREFIX_CANVAS = "canvas";
 
         private PdfDocument pdfDocument;
         private NavigationPage navPage;
@@ -39,6 +44,8 @@ namespace Libra
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private Queue<int> recyclePagesQueue;
+        private InkDrawingAttributes drawingAttributes;
+        private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
 
         private System.Diagnostics.Stopwatch myWatch;
 
@@ -75,13 +82,13 @@ namespace Libra
             this.recycleTimer.Start();
 
             penSize = 1;
-            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
+            drawingAttributes = new InkDrawingAttributes();
             drawingAttributes.Color = Windows.UI.Colors.Red;
             drawingAttributes.Size = new Size(penSize, penSize);
             drawingAttributes.IgnorePressure = false;
             drawingAttributes.FitToCurve = true;
-            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
-            inkCanvas.InkPresenter.InputDeviceTypes = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
+
+            this.drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -127,10 +134,10 @@ namespace Libra
             for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
             {
                 Grid grid = new Grid();
-                grid.Name = "grid" + i.ToString();
+                grid.Name = PREFIX_GRID + i.ToString();
+                grid.Margin = pageMargin;
                 image = new Image();
-                image.Name = "page" + i.ToString();
-                image.Margin = pageMargin;
+                image.Name = PREFIX_PAGE + i.ToString();
                 image.Width = pageWidth;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
@@ -143,7 +150,7 @@ namespace Libra
             // This may cause some problem... will fix this later
             if (pageCount > 1)
             {
-                image = (Image)this.FindName("page2");
+                image = (Image)this.FindName(PREFIX_PAGE + "2");
                 this.pageHeight = image.ActualHeight;
             }
             // Add blank pages for the rest of the file using the initialization timer
@@ -155,7 +162,8 @@ namespace Libra
             // Add invisible pages to recycle list
             for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
             {
-                if (i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
+                if ((i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
+                    && i > 0 && i <= pageCount)
                     this.recyclePagesQueue.Enqueue(i);
             }
             // Update visible range
@@ -164,6 +172,7 @@ namespace Libra
             for (int i = range.first; i <= range.last; i++)
             {
                 await LoadPage(i);
+                LoadInkCanvas(i);
             }
             // Load buffer pages
             for (int i = range.first - PAGE_BUFFER; i <= range.last + PAGE_BUFFER; i++)
@@ -176,26 +185,30 @@ namespace Libra
         {
             if (pageNumber < currentRange.first - PAGE_BUFFER || pageNumber > currentRange.last + PAGE_BUFFER)
             {
-                Image image = (Image)this.FindName("page" + pageNumber.ToString());
+                Image image = (Image)this.FindName(PREFIX_PAGE + pageNumber.ToString());
                 if (image != null)
                 {
                     double x = image.ActualHeight;
                     image.Source = null;
                     image.Height = x;
-                    return;
                 }
+                // TODO: save ink canvas
+                // Remove ink canvas
+                Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
+                if (grid.Children.Count > 1)
+                    grid.Children.RemoveAt(1);
             }
-            else return;
         }
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
         {
-            Image image = (Image)this.imagePanel.FindName("page" + pageNumber.ToString());
-            if (image != null)
+            // Render pdf image
+            Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
+            if (image == null) return;
+            // Check if page is already loaded
+            if (image.Source == null)
             {
-                // Return if page is already loaded
-                if (image.Source != null) return;
-                // Load page
+                // Render page
                 InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
                 PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
                 PdfPageRenderOptions options = new PdfPageRenderOptions();
@@ -205,6 +218,26 @@ namespace Libra
                 BitmapImage bitmapImage = new BitmapImage();
                 bitmapImage.SetSource(stream);
                 image.Source = bitmapImage;
+            }
+        }
+
+        private void LoadInkCanvas(int pageNumber)
+        {
+            Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
+            if (grid == null) return;
+            // Load ink canvas
+            InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
+            // Check if an ink canvas exist
+            if (inkCanvas == null)
+            {
+                // Add blank ink canvas
+                inkCanvas = new InkCanvas();
+                inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
+                inkCanvas.InkPresenter.InputDeviceTypes = drawingDevice;
+                inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+                grid.Children.Add(inkCanvas);
+                // Load inking if exist
+                // TODO
             }
         }
 
@@ -221,7 +254,7 @@ namespace Libra
 
         private Boolean IsPageVisible(int pageNumber)
         {
-            return IsUserVisible((Image)imagePanel.FindName("page" + pageNumber.ToString()), this.scrollViewer);
+            return IsUserVisible((Image)imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString()), this.scrollViewer);
         }
 
         private async void RefreshViewer()
@@ -297,16 +330,16 @@ namespace Libra
             this.RefreshViewer();
         }
 
-        private async void InitializationTimer_Tick(object sender, object e)
+        private void InitializationTimer_Tick(object sender, object e)
         {
             int count = imagePanel.Children.Count;
             for (int i = count + 1; i <= Math.Min(count + BLANK_PAGE_BATCH, pageCount); i++)
             {
                 Grid grid = new Grid();
-                grid.Name = "grid" + i.ToString();
+                grid.Name = PREFIX_GRID + i.ToString();
+                grid.Margin = pageMargin;
                 Image image = new Image();
-                image.Name = "page" + i.ToString();
-                image.Margin = pageMargin;
+                image.Name = PREFIX_PAGE + i.ToString();
                 image.Width = pageWidth;
                 image.Height = pageHeight;
                 grid.Children.Add(image);
@@ -321,8 +354,8 @@ namespace Libra
                 this.fullScreenCover.Visibility = Visibility.Collapsed;
                 this.fileLoaded = true;
                 this.viewInitialized = true;
+                RefreshViewer();
                 // Load the first a few pages
-                await PreparePages(new PageRange(1, FIRST_LOAD_PAGES));
                 myWatch.Stop();
                 this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
             }
