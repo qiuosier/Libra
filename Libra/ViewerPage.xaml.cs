@@ -1,21 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
@@ -37,7 +28,7 @@ namespace Libra
         private const int BLANK_PAGE_BATCH = 100;
         private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
-        private const int INITIALIZATION_TIMER_TICKS = 250 * 10000;
+        private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
 
         private PdfDocument pdfDocument;
@@ -48,6 +39,8 @@ namespace Libra
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private Queue<int> recyclePagesQueue;
+
+        private System.Diagnostics.Stopwatch myWatch;
 
         private int pageCount;
         private double pageHeight;
@@ -74,7 +67,7 @@ namespace Libra
 
             this.initializationTimer = new DispatcherTimer();
             this.initializationTimer.Tick += InitializationTimer_Tick;
-            this.initializationTimer.Interval = new TimeSpan(Convert.ToInt32(INITIALIZATION_TIMER_TICKS));
+            this.initializationTimer.Interval = new TimeSpan(INITIALIZATION_TIMER_TICKS);
 
             this.recycleTimer = new DispatcherTimer();
             this.recycleTimer.Tick += RecycleTimer_Tick;
@@ -127,7 +120,7 @@ namespace Libra
             // Add pages to scroll viewer
             pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             
-            System.Diagnostics.Stopwatch myWatch = new System.Diagnostics.Stopwatch();
+            myWatch = new System.Diagnostics.Stopwatch();
             myWatch.Start();
             // Add and load the first two pages
             Image image;
@@ -153,26 +146,8 @@ namespace Libra
                 image = (Image)this.FindName("page2");
                 this.pageHeight = image.ActualHeight;
             }
-            // Add blank pages for the rest of the file
-            for (int i = FIRST_LOAD_PAGES + 1; i <= pageCount; i++)
-            {
-                Grid grid = new Grid();
-                grid.Name = "grid" + i.ToString();
-                image = new Image();
-                image.Name = "page" + i.ToString();
-                image.Margin = pageMargin;
-                image.Width = pageWidth;
-                image.Height = pageHeight;
-                grid.Children.Add(image);
-                this.imagePanel.Children.Add(grid);
-            }
-            // Load the first a few pages
-            await PreparePages(new PageRange(1, FIRST_LOAD_PAGES));
-            this.fileLoaded = true;
-            this.viewInitialized = true;
-            myWatch.Stop();
-            this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
-            SetZoomFactor();
+            // Add blank pages for the rest of the file using the initialization timer
+            this.initializationTimer.Start();
         }
 
         private async Task PreparePages(PageRange range)
@@ -311,6 +286,8 @@ namespace Libra
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / pageHeight;
             double wZoomFactor = (this.scrollViewer.ActualWidth 
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / pageWidth;
+            if (hZoomFactor < 0.1) hZoomFactor = 0.1;
+            if (wZoomFactor < 0.1) wZoomFactor = 0.1;
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
         }
 
@@ -320,9 +297,8 @@ namespace Libra
             this.RefreshViewer();
         }
 
-        private void InitializationTimer_Tick(object sender, object e)
+        private async void InitializationTimer_Tick(object sender, object e)
         {
-            // This timer is not used.
             int count = imagePanel.Children.Count;
             for (int i = count + 1; i <= Math.Min(count + BLANK_PAGE_BATCH, pageCount); i++)
             {
@@ -336,12 +312,19 @@ namespace Libra
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
             }
-            this.imagePanel.UpdateLayout();
-            this.statusOutput.Text = "Image Panel Count " + this.imagePanel.Children.Count.ToString(); 
+            this.fullScreenMessage.Text = "Loading... " + (this.imagePanel.Children.Count * 100 / this.pageCount).ToString() + "%";
             if (imagePanel.Children.Count >= pageCount)
             {
                 this.initializationTimer.Stop();
+                this.imagePanel.UpdateLayout();
+                SetZoomFactor();
+                this.fullScreenCover.Visibility = Visibility.Collapsed;
+                this.fileLoaded = true;
                 this.viewInitialized = true;
+                // Load the first a few pages
+                await PreparePages(new PageRange(1, FIRST_LOAD_PAGES));
+                myWatch.Stop();
+                this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
             }
         }
 

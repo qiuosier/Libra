@@ -23,5 +23,8 @@
                 <InkCanvas x:Name="inkCanvas"></InkCanvas>
             </Grid>
         </ScrollViewer>
+        <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
+            <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="Loading..." FontSize="24" FontWeight="Bold"/>
+        </Grid>
     </Grid>
 </Page>
