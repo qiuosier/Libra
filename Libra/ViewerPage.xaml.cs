@@ -44,6 +44,8 @@ namespace Libra
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private Queue<int> recyclePagesQueue;
+        private Dictionary<int, InkStrokeContainer> inkStrokeDictionary;
+        private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
         private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
 
@@ -113,7 +115,7 @@ namespace Libra
                 this.navPage.viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
                 this.navPage.viewerState.zFactor = this.scrollViewer.ZoomFactor;
             }
-        }
+        } 
 
         private async void LoadFile(StorageFile pdfFile)
         {
@@ -155,6 +157,8 @@ namespace Libra
             }
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start();
+            // TODO: Load inking if exist
+            this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
         }
 
         private async Task PreparePages(PageRange range)
@@ -192,11 +196,20 @@ namespace Libra
                     image.Source = null;
                     image.Height = x;
                 }
-                // TODO: save ink canvas
-                // Remove ink canvas
                 Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
                 if (grid.Children.Count > 1)
+                {
+                    // Save ink strokes, if there is any
+                    InkCanvas inkCanvas = (InkCanvas)grid.Children[1];
+                    if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
+                        this.inkStrokeDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
+                    // Remove ink canvas
                     grid.Children.RemoveAt(1);
+                    this.inkCanvasList.Remove(pageNumber);
+                    this.statusOutput.Text = "Page " + pageNumber.ToString() + " removed.";
+                }
+                else // Something is wrong
+                { }
             }
         }
 
@@ -230,14 +243,17 @@ namespace Libra
             // Check if an ink canvas exist
             if (inkCanvas == null)
             {
-                // Add blank ink canvas
+                // Add ink canvas
                 inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
                 inkCanvas.InkPresenter.InputDeviceTypes = drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 grid.Children.Add(inkCanvas);
+                this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                // TODO
+                InkStrokeContainer inkStrokeContainer;
+                if (inkStrokeDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+                    inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
             }
         }
 
@@ -396,6 +412,11 @@ namespace Libra
                 scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset, 
                     factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor,true);
             }
+        }
+
+        private void Page_Unloaded(object sender, RoutedEventArgs e)
+        {
+            int i = 1;
         }
     }
 }
