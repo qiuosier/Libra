@@ -99,7 +99,6 @@ namespace Libra
             //StorageFile pdfFile = e.Parameter as StorageFile;
             //this.LoadFile(pdfFile);
             this.navPage = (NavigationPage)e.Parameter;
-            this.LoadFile(this.navPage.viewerState.pdfFile);
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -119,6 +118,7 @@ namespace Libra
 
         private async void LoadFile(StorageFile pdfFile)
         {
+            if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount) return;
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
 
             // Display loading
@@ -155,13 +155,14 @@ namespace Libra
                 image = (Image)this.FindName(PREFIX_PAGE + "2");
                 this.pageHeight = image.ActualHeight;
             }
-            // Add blank pages for the rest of the file using the initialization timer
-            this.initializationTimer.Start();
             // TODO: Load inking if exist
             this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
+            this.inkCanvasList = new List<int>();
+            // Add blank pages for the rest of the file using the initialization timer
+            this.initializationTimer.Start(); 
         }
 
-        private async Task PreparePages(PageRange range)
+        private async void PreparePages(PageRange range)
         {
             // Add invisible pages to recycle list
             for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
@@ -202,7 +203,12 @@ namespace Libra
                     // Save ink strokes, if there is any
                     InkCanvas inkCanvas = (InkCanvas)grid.Children[1];
                     if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
+                    {
+                        // Remove old item in dictionary
+                        this.inkStrokeDictionary.Remove(pageNumber);
+                        // Add to dictionary
                         this.inkStrokeDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
+                    }
                     // Remove ink canvas
                     grid.Children.RemoveAt(1);
                     this.inkCanvasList.Remove(pageNumber);
@@ -273,9 +279,11 @@ namespace Libra
             return IsUserVisible((Image)imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString()), this.scrollViewer);
         }
 
-        private async void RefreshViewer()
+        private void RefreshViewer()
         {
-            await PreparePages(FindVisibleRange(FindVisiblePage()));
+            int p = FindVisiblePage();
+            if (p > 0)
+                PreparePages(FindVisibleRange(p));
         }
 
         private int FindVisiblePage()
@@ -416,7 +424,12 @@ namespace Libra
 
         private void Page_Unloaded(object sender, RoutedEventArgs e)
         {
-            int i = 1;
+            //
+        }
+
+        private void Page_Loaded(object sender, RoutedEventArgs e)
+        {
+            LoadFile(this.navPage.viewerState.pdfFile);
         }
     }
 }

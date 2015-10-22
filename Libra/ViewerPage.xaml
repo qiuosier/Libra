@@ -6,7 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d" SizeChanged="Page_SizeChanged"
-    NavigationCacheMode="Disabled" Unloaded="Page_Unloaded">
+    NavigationCacheMode="Required" Unloaded="Page_Unloaded" Loaded="Page_Loaded">
     <Grid Background="Black">
         <TextBlock x:Name="statusOutput" Height="20" VerticalAlignment="Top" Canvas.ZIndex="100" Margin="200,0,0,0" Foreground="#FF979797"/>
         <ScrollViewer x:Name="scrollViewer" 
