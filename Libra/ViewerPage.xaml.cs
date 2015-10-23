@@ -56,20 +56,13 @@ namespace Libra
         private double pageHeight;
         private double pageWidth;
         private bool fileLoaded;
-        private bool viewInitialized;
         private int penSize;
 
         public ViewerPage()
         {
             this.InitializeComponent();
-            this.currentRange = new PageRange();
             this.pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
-            this.pageHeight = 0;
-            this.pageWidth = 0;
             this.fileLoaded = false;
-            this.viewInitialized = false;
-
-            this.recyclePagesQueue = new Queue<int>();
 
             this.refreshTimer = new DispatcherTimer();
             this.refreshTimer.Tick += RefreshTimer_Tick;
@@ -82,16 +75,29 @@ namespace Libra
             this.recycleTimer = new DispatcherTimer();
             this.recycleTimer.Tick += RecycleTimer_Tick;
             this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
-            this.recycleTimer.Start();
 
+            // Inking preference
             penSize = 1;
             drawingAttributes = new InkDrawingAttributes();
             drawingAttributes.Color = Windows.UI.Colors.Red;
             drawingAttributes.Size = new Size(penSize, penSize);
             drawingAttributes.IgnorePressure = false;
             drawingAttributes.FitToCurve = true;
+            drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
+        }
 
-            this.drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
+        private void InitializeViewer()
+        {
+            this.imagePanel.Children.Clear();
+            this.currentRange = new PageRange();
+            this.pageHeight = 0;
+            this.pageWidth = 0;
+            this.pageCount = 0;
+            this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
+            this.inkCanvasList = new List<int>();
+            this.recyclePagesQueue = new Queue<int>();
+
+            this.recycleTimer.Stop();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -104,10 +110,14 @@ namespace Libra
                 {
                     // Another file already opened
                     // TODO: Save the existing file
-
+                    this.fileLoaded = false;
                 }
-                this.pdfFile = argumentFile;
-                LoadFile(this.pdfFile);
+                if (!this.fileLoaded)
+                {
+                    InitializeViewer();
+                    this.pdfFile = argumentFile;
+                    LoadFile(this.pdfFile);
+                }
             }
         }
 
@@ -180,18 +190,20 @@ namespace Libra
         private async void LoadFile(StorageFile pdfFile)
         {
             if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount) return;
+            // Load Pdf file
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
-
             // Display loading
-            this.statusOutput.Text = "Loading...";
+            this.fullScreenCover.Visibility = Visibility.Visible;
+            this.fullScreenMessage.Text = "Loading...";
             // Wait until the file is loaded
             this.pdfDocument = await getPdfTask;
+
             this.pageCount = (int)pdfDocument.PageCount;
-            // Add pages to scroll viewer
-            pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
-            
-            myWatch = new System.Diagnostics.Stopwatch();
-            myWatch.Start();
+            this.pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
+
+            this.myWatch = new System.Diagnostics.Stopwatch();
+            this.myWatch.Start();
+
             // Add and load the first two pages
             Image image;
             for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
@@ -216,9 +228,6 @@ namespace Libra
                 image = (Image)this.FindName(PREFIX_PAGE + "2");
                 this.pageHeight = image.ActualHeight;
             }
-            // TODO: Load inking if exist
-            this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
-            this.inkCanvasList = new List<int>();
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start(); 
         }
@@ -226,19 +235,20 @@ namespace Libra
         private void FinishInitialization()
         {
             this.imagePanel.UpdateLayout();
+            // Calculate the minimum zoom factor
             SetZoomFactor();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             this.fileLoaded = true;
-            this.viewInitialized = true;
+            // Restore view and inking
             if (SuspensionManager.Restoring)
             {
                 RestoreViewerState(SuspensionManager.PageViewerState);
                 SuspensionManager.Restoring = false;
             }
             RefreshViewer();
-            // Load the first a few pages
-            myWatch.Stop();
+            this.myWatch.Stop();
             this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
+            this.recycleTimer.Start();
         }
 
         private async void PreparePages(PageRange range)
@@ -480,7 +490,7 @@ namespace Libra
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            if (viewInitialized && !e.IsIntermediate)
+            if (fileLoaded && !e.IsIntermediate)
             {
                 refreshTimer.Stop();
                 refreshTimer.Start();
