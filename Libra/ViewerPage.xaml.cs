@@ -11,6 +11,7 @@ using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
 using Windows.UI.Input.Inking;
+using System.IO;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -36,8 +37,8 @@ namespace Libra
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
 
+        private StorageFile pdfFile;
         private PdfDocument pdfDocument;
-        private NavigationPage navPage;
         private Thickness pageMargin;
         private PageRange currentRange;
         private DispatcherTimer refreshTimer;
@@ -96,25 +97,85 @@ namespace Libra
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            //StorageFile pdfFile = e.Parameter as StorageFile;
-            //this.LoadFile(pdfFile);
-            this.navPage = (NavigationPage)e.Parameter;
+            if (e.Parameter != null)
+            {
+                StorageFile argumentFile = e.Parameter as StorageFile;
+                if (this.pdfFile != null && this.pdfFile != argumentFile)
+                {
+                    // Another file already opened
+                    // TODO: Save the existing file
+
+                }
+                this.pdfFile = argumentFile;
+                LoadFile(this.pdfFile);
+            }
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            // Save the viewer state to navigation page
+            // Save the viewer state to suspension manager
             if (this.fileLoaded)
             {
-                this.navPage.viewerState.fileLoaded = true;
-                this.navPage.viewerState.hOffset = this.scrollViewer.HorizontalOffset;
-                this.navPage.viewerState.vOffset = this.scrollViewer.VerticalOffset;
-                this.navPage.viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
-                this.navPage.viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
-                this.navPage.viewerState.zFactor = this.scrollViewer.ZoomFactor;
+                SuspensionManager.PageViewerState = SaveViewerState();
             }
-        } 
+        }
+
+        private ViewerState SaveViewerState()
+        {
+            string token = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
+            ViewerState viewerState = new ViewerState(token);
+            viewerState.hOffset = this.scrollViewer.HorizontalOffset;
+            viewerState.vOffset = this.scrollViewer.VerticalOffset;
+            viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
+            viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
+            viewerState.zFactor = this.scrollViewer.ZoomFactor;
+            //viewerState.drawingAttributes = this.drawingAttributes;
+            viewerState.drawingDevice = this.drawingDevice;
+            SaveInkStrokes();
+            return viewerState;
+        }
+
+        private void RestoreViewerState(ViewerState viewerState)
+        {
+            // TODO: Restore the view
+
+            // Restore the inking
+            //this.drawingAttributes = viewerState.drawingAttributes;
+            this.drawingDevice = viewerState.drawingDevice;
+            this.inkStrokeDictionary = SuspensionManager.inkStrokeDictionary;
+            //await RestoreInkStrokes(viewerState.inkStreamDictionary);
+        }
+
+        private void SaveInkStrokes()
+        {
+            foreach (int pageNumber in this.inkCanvasList)
+            {
+                SaveInkCanvas(pageNumber);
+            }
+            SuspensionManager.inkStrokeDictionary = this.inkStrokeDictionary;
+            //Dictionary<int, MemoryStream> inkStreamDictionary = new Dictionary<int, MemoryStream>();
+            //foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
+            //{
+            //    InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
+            //    await entry.Value.SaveAsync(stream);
+            //    MemoryStream s = new MemoryStream();
+            //    stream.AsStreamForRead().CopyTo(s);
+            //    inkStreamDictionary.Add(entry.Key, s);
+            //};
+            //return inkStreamDictionary;
+        }
+
+        //private async Task RestoreInkStrokes(Dictionary<int, InMemoryRandomAccessStream>  inkStreamDictionary)
+        //{
+        //    foreach (KeyValuePair<int, InMemoryRandomAccessStream> entry in inkStreamDictionary)
+        //    {
+        //        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
+        //        await inkStrokeContainer.LoadAsync(entry.Value);
+        //        this.inkStrokeDictionary.Remove(entry.Key);
+        //        this.inkStrokeDictionary.Add(entry.Key, inkStrokeContainer);
+        //    };
+        //}
 
         private async void LoadFile(StorageFile pdfFile)
         {
@@ -162,6 +223,24 @@ namespace Libra
             this.initializationTimer.Start(); 
         }
 
+        private void FinishInitialization()
+        {
+            this.imagePanel.UpdateLayout();
+            SetZoomFactor();
+            this.fullScreenCover.Visibility = Visibility.Collapsed;
+            this.fileLoaded = true;
+            this.viewInitialized = true;
+            if (SuspensionManager.Restoring)
+            {
+                RestoreViewerState(SuspensionManager.PageViewerState);
+                SuspensionManager.Restoring = false;
+            }
+            RefreshViewer();
+            // Load the first a few pages
+            myWatch.Stop();
+            this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
+        }
+
         private async void PreparePages(PageRange range)
         {
             // Add invisible pages to recycle list
@@ -190,6 +269,7 @@ namespace Libra
         {
             if (pageNumber < currentRange.first - PAGE_BUFFER || pageNumber > currentRange.last + PAGE_BUFFER)
             {
+                // Remove Image
                 Image image = (Image)this.FindName(PREFIX_PAGE + pageNumber.ToString());
                 if (image != null)
                 {
@@ -197,26 +277,34 @@ namespace Libra
                     image.Source = null;
                     image.Height = x;
                 }
-                Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
-                if (grid.Children.Count > 1)
+                // Remove Ink Canvas
+                SaveInkCanvas(pageNumber, true);
+            }
+        }
+
+        private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
+        {
+            Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
+            if (grid.Children.Count > 1)
+            {
+                // Save ink strokes, if there is any
+                InkCanvas inkCanvas = (InkCanvas)grid.Children[1];
+                if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
                 {
-                    // Save ink strokes, if there is any
-                    InkCanvas inkCanvas = (InkCanvas)grid.Children[1];
-                    if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
-                    {
-                        // Remove old item in dictionary
-                        this.inkStrokeDictionary.Remove(pageNumber);
-                        // Add to dictionary
-                        this.inkStrokeDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
-                    }
-                    // Remove ink canvas
+                    // Remove old item in dictionary
+                    this.inkStrokeDictionary.Remove(pageNumber);
+                    // Add to dictionary
+                    this.inkStrokeDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
+                }
+                // Remove ink canvas
+                if (removeAfterSave)
+                {
                     grid.Children.RemoveAt(1);
                     this.inkCanvasList.Remove(pageNumber);
-                    this.statusOutput.Text = "Page " + pageNumber.ToString() + " removed.";
                 }
-                else // Something is wrong
-                { }
             }
+            else // Something is wrong
+            { }
         }
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
@@ -373,15 +461,7 @@ namespace Libra
             if (imagePanel.Children.Count >= pageCount)
             {
                 this.initializationTimer.Stop();
-                this.imagePanel.UpdateLayout();
-                SetZoomFactor();
-                this.fullScreenCover.Visibility = Visibility.Collapsed;
-                this.fileLoaded = true;
-                this.viewInitialized = true;
-                RefreshViewer();
-                // Load the first a few pages
-                myWatch.Stop();
-                this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
+                FinishInitialization();
             }
         }
 
@@ -429,7 +509,7 @@ namespace Libra
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            LoadFile(this.navPage.viewerState.pdfFile);
+            //
         }
     }
 }

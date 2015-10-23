@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Windows.Storage;
+using Windows.Storage.Streams;
+using Windows.UI.Input.Inking;
 
 namespace Libra
 {
@@ -13,27 +11,26 @@ namespace Libra
     /// </summary>
     public class ViewerState
     {
-        public bool fileLoaded
+        public ViewerState()
         {
-            get; set;
-        }
-
-        public ViewerState (StorageFile pdf)
-        {
-            this.pdfFile = pdf;
             this.fileLoaded = false;
         }
 
-        public StorageFile pdfFile
+        public ViewerState(string token)
         {
-            get; set;
+            this.pdfToken = token;
+            this.fileLoaded = true;
         }
 
+        public string pdfToken{ get; set; }
+        public bool fileLoaded{ get; set; }
         public double hOffset { get; set; }
         public double vOffset { get; set; }
         public double hScrollableOffset { get; set; }
         public double vScrollableOffset { get; set; }
         public float zFactor { get; set; }
-        public int currentPageNumber { get; set; }
+        //public InkDrawingAttributes drawingAttributes;
+        public Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
+        //public Dictionary<int, MemoryStream> inkStreamDictionary;
     }
 }

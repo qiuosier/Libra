@@ -41,7 +41,7 @@ namespace Libra
         /// will be used such as when the application is launched to open a specific file.
         /// </summary>
         /// <param name="e">Details about the launch request and process.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        protected async override void OnLaunched(LaunchActivatedEventArgs e)
         {
 
 #if DEBUG
@@ -57,17 +57,21 @@ namespace Libra
             // just ensure that the window is active
             if (shell == null)
             {
-                // Create a AppShell to act as the navigation context and navigate to the first page
+                // Create a navigation page to act as the navigation context and navigate to the first page
                 shell = new NavigationPage();
+
+                // Register the Frame in navigation page to suspension manager
+                SuspensionManager.RegisterFrame(shell.AppFrame);
 
                 // Set the default language
                 shell.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
 
                 shell.AppFrame.NavigationFailed += OnNavigationFailed;
 
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
+                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
                 {
                     //TODO: Load state from previously suspended application
+                    await SuspensionManager.RestoreAsync();
                 }
             }
 
@@ -78,8 +82,7 @@ namespace Libra
             {
                 // When the navigation stack isn't restored, navigate to the first page
                 // suppressing the initial entrance animation.
-                //shell.AppFrame.Navigate(typeof(MainPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
-                shell.AppFrame.Navigate(typeof(MainPage), shell, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                shell.AppFrame.Navigate(typeof(MainPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
             }
 
             // Ensure the current window is active
@@ -103,10 +106,11 @@ namespace Libra
         /// </summary>
         /// <param name="sender">The source of the suspend request.</param>
         /// <param name="e">Details about the suspend request.</param>
-        private void OnSuspending(object sender, SuspendingEventArgs e)
+        private async void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
             //TODO: Save application state and stop any background activity
+            await SuspensionManager.SaveAsync();
             deferral.Complete();
         }
     }

@@ -29,8 +29,6 @@ namespace Libra
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private NavigationPage navPage;
-
         public MainPage()
         {
             this.InitializeComponent();
@@ -44,25 +42,7 @@ namespace Libra
             openPicker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
             openPicker.FileTypeFilter.Add(".pdf");
             StorageFile pdfFile = await openPicker.PickSingleFileAsync();
-            //this.Frame.Navigate(typeof(ViewerPage), pdfFile);
-            if (navPage.viewerState == null)
-            {
-                // No file is opened
-                navPage.viewerState = new ViewerState(pdfFile);
-            }
-            else if (navPage.viewerState.pdfFile != pdfFile)
-            {
-                // Opening a different file
-                navPage.viewerState = new ViewerState(pdfFile);
-            }
-            // Do nothing but navigate to, when opening the same file
-            this.Frame.Navigate(typeof(ViewerPage), navPage);
-        }
-
-        protected override void OnNavigatedTo(NavigationEventArgs e)
-        {
-            base.OnNavigatedTo(e);
-            this.navPage = (NavigationPage)e.Parameter;
+            this.Frame.Navigate(typeof(ViewerPage), pdfFile);
         }
     }
 }

@@ -101,6 +101,7 @@
     </Compile>
     <Compile Include="Controls\NavMenuItem.cs" />
     <Compile Include="Controls\NavMenuListView.cs" />
+    <Compile Include="SuspensionManager.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>

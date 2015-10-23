@@ -26,9 +26,6 @@ namespace NavigationMenu
     /// </summary>
     public sealed partial class NavigationPage : Page
     {
-        // At this moment, allow keep only one file opened.
-        public ViewerState viewerState;
-
         // Declare the top level nav items
         private List<NavMenuItem> navlist = new List<NavMenuItem>(
             new[]
@@ -186,8 +183,7 @@ namespace NavigationMenu
                 if (item.DestPage != null &&
                     item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
-                    //this.AppFrame.Navigate(item.DestPage, item.Arguments);
-                    this.AppFrame.Navigate(item.DestPage, this);
+                    this.AppFrame.Navigate(item.DestPage, item.Arguments);
                 }
             }
         }
