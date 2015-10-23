@@ -29,8 +29,5 @@ namespace Libra
         public double hScrollableOffset { get; set; }
         public double vScrollableOffset { get; set; }
         public float zFactor { get; set; }
-        //public InkDrawingAttributes drawingAttributes;
-        public Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
-        //public Dictionary<int, MemoryStream> inkStreamDictionary;
     }
 }

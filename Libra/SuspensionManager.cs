@@ -1,17 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
 using System.Runtime.Serialization;
-using System.Text;
 using System.Threading.Tasks;
-using Windows.ApplicationModel;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Streams;
-using Windows.UI.Input.Inking;
-using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace Libra
@@ -29,8 +23,7 @@ namespace Libra
         private static List<Type> _knownTypes = new List<Type>();
         private const string sessionStateFilename = "_sessionState.xml";
         private static Frame appFrame;
-        public static Dictionary<int, InkStrokeContainer> inkStrokeDictionary;
-        private const string inkStrokeFilename = "_inkStroke.zip";
+
         public static bool Restoring = false;
         /// <summary>
         /// Provides access to global session state for the current session.  This state is
@@ -88,26 +81,6 @@ namespace Libra
                         viewerData.Seek(0, SeekOrigin.Begin);
                         await viewerData.CopyToAsync(fileStream);
                     }
-
-                    using (MemoryStream inkData = new MemoryStream())
-                    {
-                        using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
-                        {
-                            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
-                            {
-                                ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + ".gif");
-                                using (var entryStream = inkFile.Open().AsOutputStream())
-                                    await entry.Value.SaveAsync(entryStream);
-                                
-                            }
-                        }
-                        StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
-                        using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
-                        {
-                            inkData.Seek(0, SeekOrigin.Begin);
-                            await inkData.CopyToAsync(inkArchiveStream);
-                        }
-                    }
                 }
             }
             catch (Exception e)
@@ -145,25 +118,6 @@ namespace Libra
                 // 
                 if (PageViewerState.pdfToken != null)
                 {
-                    // Restore ink strokes
-                    inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
-                    StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
-                    using (IInputStream inkArchiveStream = await inkArchiveFile.OpenSequentialReadAsync())
-                    {
-                        using (ZipArchive archive = new ZipArchive(inkArchiveStream.AsStreamForRead(), ZipArchiveMode.Read))
-                        {
-                            foreach (ZipArchiveEntry inkFile in archive.Entries)
-                            {
-                                using (var entryStream = inkFile.Open().AsInputStream())
-                                {
-                                    InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                                    await inkStrokeContainer.LoadAsync(entryStream);
-                                    inkStrokeDictionary.Add(Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4)), inkStrokeContainer);
-                                }
-                            }
-                        }
-                    }
-
                     Restoring = true;
                     StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(PageViewerState.pdfToken);
                     appFrame.Navigate(typeof(ViewerPage), pdfFile);
@@ -174,6 +128,7 @@ namespace Libra
             }
             catch (Exception e)
             {
+                if (e.InnerException is System.IO.FileNotFoundException) return;
                 throw new SuspensionManagerException(e);
             }
         }

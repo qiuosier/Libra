@@ -12,6 +12,7 @@ using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
 using Windows.UI.Input.Inking;
 using System.IO;
+using System.IO.Compression;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -31,11 +32,12 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
-        
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
+        private const string EXT_INKING = ".gif";
+        private const string EXT_ARCHIVE = ".zip";
 
         private StorageFile pdfFile;
         private PdfDocument pdfDocument;
@@ -57,6 +59,7 @@ namespace Libra
         private double pageWidth;
         private bool fileLoaded;
         private int penSize;
+        private string futureAccessToken;
 
         public ViewerPage()
         {
@@ -121,28 +124,25 @@ namespace Libra
             }
         }
 
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        protected override async void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
             // Save the viewer state to suspension manager
             if (this.fileLoaded)
             {
                 SuspensionManager.PageViewerState = SaveViewerState();
+                await SaveInking();
             }
         }
 
         private ViewerState SaveViewerState()
         {
-            string token = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
-            ViewerState viewerState = new ViewerState(token);
+            ViewerState viewerState = new ViewerState(this.futureAccessToken);
             viewerState.hOffset = this.scrollViewer.HorizontalOffset;
             viewerState.vOffset = this.scrollViewer.VerticalOffset;
             viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
             viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
-            //viewerState.drawingAttributes = this.drawingAttributes;
-            viewerState.drawingDevice = this.drawingDevice;
-            SaveInkStrokes();
             return viewerState;
         }
 
@@ -150,46 +150,75 @@ namespace Libra
         {
             // TODO: Restore the view
 
-            // Restore the inking
-            //this.drawingAttributes = viewerState.drawingAttributes;
-            this.drawingDevice = viewerState.drawingDevice;
-            this.inkStrokeDictionary = SuspensionManager.inkStrokeDictionary;
-            //await RestoreInkStrokes(viewerState.inkStreamDictionary);
         }
 
-        private void SaveInkStrokes()
+        private async Task SaveInking()
         {
+            // Save ink canvas
             foreach (int pageNumber in this.inkCanvasList)
             {
                 SaveInkCanvas(pageNumber);
             }
-            SuspensionManager.inkStrokeDictionary = this.inkStrokeDictionary;
-            //Dictionary<int, MemoryStream> inkStreamDictionary = new Dictionary<int, MemoryStream>();
-            //foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
-            //{
-            //    InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
-            //    await entry.Value.SaveAsync(stream);
-            //    MemoryStream s = new MemoryStream();
-            //    stream.AsStreamForRead().CopyTo(s);
-            //    inkStreamDictionary.Add(entry.Key, s);
-            //};
-            //return inkStreamDictionary;
+            // Save ink strokes
+            if (this.inkStrokeDictionary.Count == 0) return;
+            using (MemoryStream inkData = new MemoryStream())
+            {
+                using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
+                {
+                    foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
+                    {
+                        ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
+                        using (var entryStream = inkFile.Open().AsOutputStream())
+                            await entry.Value.SaveAsync(entryStream);
+                    }
+                }
+                string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+                StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
+                using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
+                {
+                    inkData.Seek(0, SeekOrigin.Begin);
+                    await inkData.CopyToAsync(inkArchiveStream);
+                }
+            }
         }
 
-        //private async Task RestoreInkStrokes(Dictionary<int, InMemoryRandomAccessStream>  inkStreamDictionary)
-        //{
-        //    foreach (KeyValuePair<int, InMemoryRandomAccessStream> entry in inkStreamDictionary)
-        //    {
-        //        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-        //        await inkStrokeContainer.LoadAsync(entry.Value);
-        //        this.inkStrokeDictionary.Remove(entry.Key);
-        //        this.inkStrokeDictionary.Add(entry.Key, inkStrokeContainer);
-        //    };
-        //}
+        private async Task RestoreInking()
+        {
+            // Restore ink strokes
+            string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+            try
+            {
+                StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
+                this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
+                using (IInputStream inkArchiveStream = await inkArchiveFile.OpenSequentialReadAsync())
+                {
+                    using (ZipArchive archive = new ZipArchive(inkArchiveStream.AsStreamForRead(), ZipArchiveMode.Read))
+                    {
+                        foreach (ZipArchiveEntry inkFile in archive.Entries)
+                        {
+                            using (var entryStream = inkFile.Open().AsInputStream())
+                            {
+                                InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
+                                await inkStrokeContainer.LoadAsync(entryStream);
+                                this.inkStrokeDictionary.Add(Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4)), inkStrokeContainer);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                if (e is FileNotFoundException)
+                { return; }
+                else throw new Exception("Error when restoring inking", e);
+            }
+        }
 
         private async void LoadFile(StorageFile pdfFile)
         {
             if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount) return;
+            // Add file the future access list
+            this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Load Pdf file
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
             // Display loading
@@ -232,19 +261,21 @@ namespace Libra
             this.initializationTimer.Start(); 
         }
 
-        private void FinishInitialization()
+        private async void FinishInitialization()
         {
             this.imagePanel.UpdateLayout();
             // Calculate the minimum zoom factor
             SetZoomFactor();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             this.fileLoaded = true;
-            // Restore view and inking
+            // Restore view
             if (SuspensionManager.Restoring)
             {
                 RestoreViewerState(SuspensionManager.PageViewerState);
                 SuspensionManager.Restoring = false;
+                SuspensionManager.PageViewerState = null;
             }
+            await RestoreInking();
             RefreshViewer();
             this.myWatch.Stop();
             this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
