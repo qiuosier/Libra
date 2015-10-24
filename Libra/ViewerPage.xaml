@@ -9,9 +9,9 @@
     NavigationCacheMode="Required" Unloaded="Page_Unloaded" Loaded="Page_Loaded">
     <Grid Background="Black">
         <CommandBar>
-            <AppBarToggleButton Icon="Edit" Label="Pencil"/>
-            <AppBarToggleButton Icon="Highlight" Label="Hightlighter"/>
-            <AppBarToggleButton Icon="Placeholder" Label="Eraser" />
+            <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
+            <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
+            <AppBarToggleButton x:Name="Eraser" Icon="Placeholder" Label="Eraser" Click="Eraser_Click"/>
             <AppBarButton Icon="Setting" Label="Pen Settings" />
             <AppBarSeparator />
             <AppBarButton Icon="SaveLocal" Label="Export Inking"/>

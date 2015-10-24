@@ -32,6 +32,8 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
+        private const int SIZE_PENTIP = 1;
+        private const int SIZE_HIGHLIGHTER = 10;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
@@ -59,6 +61,7 @@ namespace Libra
         private double pageWidth;
         private bool fileLoaded;
         private int penSize;
+        private int highlighterSize;
         private string futureAccessToken;
 
         public ViewerPage()
@@ -80,10 +83,12 @@ namespace Libra
             this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
 
             // Inking preference
-            penSize = 1;
+            penSize = SIZE_PENTIP;
+            highlighterSize = SIZE_HIGHLIGHTER;
             drawingAttributes = new InkDrawingAttributes();
             drawingAttributes.Color = Windows.UI.Colors.Red;
             drawingAttributes.Size = new Size(penSize, penSize);
+            // Fixed inking preference
             drawingAttributes.IgnorePressure = false;
             drawingAttributes.FitToCurve = true;
             drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
@@ -106,6 +111,7 @@ namespace Libra
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            RestoreDrawingPreference();
             if (e.Parameter != null)
             {
                 StorageFile argumentFile = e.Parameter as StorageFile;
@@ -127,6 +133,7 @@ namespace Libra
         protected override async void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            SaveDrawingPreference();
             // Save the viewer state to suspension manager
             if (this.fileLoaded)
             {
@@ -237,6 +244,16 @@ namespace Libra
                 default:
                     break;
             }
+        }
+
+        private void SaveDrawingPreference()
+        {
+            // TODO
+        }
+
+        private void RestoreDrawingPreference()
+        {
+            Pencil_Click(null, null);
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -417,6 +434,16 @@ namespace Libra
             }
         }
 
+        private void UpdateDrawingAttributes()
+        {
+            if (this.inkCanvasList == null) return;
+            foreach (int pageNumber in inkCanvasList)
+            {
+                InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
+                inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+            }
+        }
+
         private Boolean IsUserVisible(FrameworkElement element, FrameworkElement container)
         {
             if (element == null)
@@ -576,6 +603,40 @@ namespace Libra
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
             //
+        }
+
+        private void ClearInputTypeToggleBtn()
+        {
+            this.Pencil.IsChecked = false;
+            this.Highlighter.IsChecked = false;
+            this.Eraser.IsChecked = false;
+        }
+
+        private void Pencil_Click(object sender, RoutedEventArgs e)
+        {
+            ClearInputTypeToggleBtn();
+            this.Pencil.IsChecked = true;
+            this.drawingAttributes.Size = new Size(penSize, penSize);
+            this.drawingAttributes.PenTip = PenTipShape.Circle;
+            this.drawingAttributes.DrawAsHighlighter = false;
+            this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            UpdateDrawingAttributes();
+        }
+
+        private void Highlighter_Click(object sender, RoutedEventArgs e)
+        {
+            ClearInputTypeToggleBtn();
+            this.Highlighter.IsChecked = true;
+            this.drawingAttributes.Size = new Size(penSize, highlighterSize);
+            this.drawingAttributes.PenTip = PenTipShape.Rectangle;
+            this.drawingAttributes.DrawAsHighlighter = true;
+            this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            UpdateDrawingAttributes();
+        }
+
+        private void Eraser_Click(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }
