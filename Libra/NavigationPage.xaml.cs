@@ -1,22 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Windows.Foundation;
-using Windows.Foundation.Metadata;
 using Windows.UI.Xaml.Automation;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu.Controls;
 using Libra;
-using Windows.Storage;
 
 namespace NavigationMenu
 {
@@ -40,8 +32,26 @@ namespace NavigationMenu
                 new NavMenuItem()
                 {
                     Symbol = Symbol.Page,
-                    Label = "PDF Viewer",
+                    Label = "Page View",
                     DestPage = typeof(ViewerPage)
+                },
+                new NavMenuItem()
+                {
+                    Symbol = Symbol.TwoPage,
+                    Label = "Horizontal View",
+                    DestPage = null
+                },
+                new NavMenuItem()
+                {
+                    Symbol = Symbol.ViewAll,
+                    Label = "Grid View",
+                    DestPage = null
+                },
+                new NavMenuItem()
+                {
+                    Symbol = Symbol.Setting,
+                    Label = "Settings",
+                    DestPage = null
                 },
             });
 

@@ -9,7 +9,6 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
-using NavigationMenu;
 using Windows.UI.Input.Inking;
 using System.IO;
 using System.IO.Compression;
@@ -25,7 +24,7 @@ namespace Libra
     public sealed partial class ViewerPage : Page
     {
         private const int SCROLLBAR_WIDTH = 10;
-        private const int PAGE_IMAGE_MARGIN = 15;
+        private const int PAGE_IMAGE_MARGIN = 10;
         private const int PAGE_BUFFER = 5;
         private const int RECYCLE_QUEUE_SIZE = 10;
         private const int BLANK_PAGE_BATCH = 100;
