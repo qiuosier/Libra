@@ -13,6 +13,7 @@ using NavigationMenu;
 using Windows.UI.Input.Inking;
 using System.IO;
 using System.IO.Compression;
+using Windows.UI.Popups;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -161,24 +162,22 @@ namespace Libra
             }
             // Save ink strokes
             if (this.inkStrokeDictionary.Count == 0) return;
-            using (MemoryStream inkData = new MemoryStream())
+            MemoryStream inkData = new MemoryStream();
+            using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
             {
-                using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
+                foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
                 {
-                    foreach (KeyValuePair<int, InkStrokeContainer> entry in inkStrokeDictionary)
-                    {
-                        ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
-                        using (var entryStream = inkFile.Open().AsOutputStream())
-                            await entry.Value.SaveAsync(entryStream);
-                    }
+                    ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
+                    using (var entryStream = inkFile.Open().AsOutputStream())
+                        await entry.Value.SaveAsync(entryStream);
                 }
-                string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
-                StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
-                using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
-                {
-                    inkData.Seek(0, SeekOrigin.Begin);
-                    await inkData.CopyToAsync(inkArchiveStream);
-                }
+            }
+            string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+            StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
+            using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
+            {
+                inkData.Seek(0, SeekOrigin.Begin);
+                await inkData.CopyToAsync(inkArchiveStream);
             }
         }
 
@@ -190,19 +189,21 @@ namespace Libra
             {
                 StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
                 this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
-                using (IInputStream inkArchiveStream = await inkArchiveFile.OpenSequentialReadAsync())
+                MemoryStream inkData;
+                using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForReadAsync())
                 {
-                    using (ZipArchive archive = new ZipArchive(inkArchiveStream.AsStreamForRead(), ZipArchiveMode.Read))
+                    inkData = new MemoryStream((int)inkArchiveStream.Length);
+                    inkArchiveStream.Seek(0, SeekOrigin.Begin);
+                    await inkArchiveStream.CopyToAsync(inkData);
+                }
+                ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Read);
+                foreach (ZipArchiveEntry inkFile in archive.Entries)
+                {
+                    using (var entryStream = inkFile.Open().AsInputStream())
                     {
-                        foreach (ZipArchiveEntry inkFile in archive.Entries)
-                        {
-                            using (var entryStream = inkFile.Open().AsInputStream())
-                            {
-                                InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                                await inkStrokeContainer.LoadAsync(entryStream);
-                                this.inkStrokeDictionary.Add(Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4)), inkStrokeContainer);
-                            }
-                        }
+                        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
+                        await inkStrokeContainer.LoadAsync(entryStream);
+                        this.inkStrokeDictionary.Add(Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4)), inkStrokeContainer);
                     }
                 }
             }
@@ -210,7 +211,32 @@ namespace Libra
             {
                 if (e is FileNotFoundException)
                 { return; }
-                else throw new Exception("Error when restoring inking", e);
+                //if (e is )
+                else
+                {
+                    //throw new Exception("Error when restoring inking", e);
+                    // Notify user
+                    MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.ToString());
+                    var handler = new UICommandInvokedHandler(RestoreInkingCommandHandler);
+                    messageDialog.Commands.Add(new UICommand("Delete inking", handler, 0));
+                    messageDialog.Commands.Add(new UICommand("Ignore", handler, 1));
+                    await messageDialog.ShowAsync();
+                }
+            }
+        }
+
+        private async void RestoreInkingCommandHandler(IUICommand command)
+        {
+            switch ((int)command.Id)
+            {
+                case 0:
+                    // Delete file
+                    string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+                    StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
+                    await inkArchiveFile.DeleteAsync();
+                    break;
+                default:
+                    break;
             }
         }
 
