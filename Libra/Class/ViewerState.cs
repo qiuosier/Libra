@@ -1,10 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using Windows.Storage;
-using Windows.Storage.Streams;
-using Windows.UI.Input.Inking;
-
-namespace Libra
+﻿namespace Libra
 {
     /// <summary>
     /// Data to represent the state of a viewer page.

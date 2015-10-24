@@ -19,12 +19,15 @@ namespace Libra
     /// </summary>
     internal sealed class SuspensionManager
     {
-        //private static ViewerState _viewerState = new ViewerState();
         private static List<Type> _knownTypes = new List<Type>();
         private const string sessionStateFilename = "_sessionState.xml";
         private static Frame appFrame;
 
+        /// <summary>
+        /// Indicate whether the app is restoring from a previous saved state
+        /// </summary>
         public static bool Restoring = false;
+
         /// <summary>
         /// Provides access to global session state for the current session.  This state is
         /// serialized by <see cref="SaveAsync"/> and restored by
@@ -124,11 +127,11 @@ namespace Libra
                 }
 
                 // Clean up the files
-
+                await file.DeleteAsync();
             }
             catch (Exception e)
             {
-                if (e.InnerException is System.IO.FileNotFoundException) return;
+                if (e is System.IO.FileNotFoundException) return;
                 throw new SuspensionManagerException(e);
             }
         }
