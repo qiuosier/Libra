@@ -131,4 +131,14 @@
         <Setter Property="Padding" Value="0"/>
     </Style>
 
+    <Style x:Key="RecentFileListItem" TargetType="ListBoxItem">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <ContentPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

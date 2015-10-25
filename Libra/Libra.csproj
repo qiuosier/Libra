@@ -99,6 +99,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Components\NavMenuItem.cs" />
     <Compile Include="Components\NavMenuListView.cs" />
     <Compile Include="Components\SuspensionManager.cs" />

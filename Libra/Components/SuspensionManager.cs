@@ -105,8 +105,6 @@ namespace Libra
         /// completes.</returns>
         public static async Task RestoreAsync(String sessionBaseKey = null)
         {
-            //PageViewerState = new ViewerState();
-
             try
             {
                 // Get the input stream for the SessionState file
@@ -135,7 +133,6 @@ namespace Libra
                 throw new SuspensionManagerException(e);
             }
         }
-
     }
     public class SuspensionManagerException : Exception
     {

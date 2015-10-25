@@ -217,10 +217,8 @@ namespace Libra
             {
                 if (e is FileNotFoundException)
                 { return; }
-                //if (e is )
                 else
                 {
-                    //throw new Exception("Error when restoring inking", e);
                     // Notify user
                     MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.ToString());
                     var handler = new UICommandInvokedHandler(RestoreInkingCommandHandler);
