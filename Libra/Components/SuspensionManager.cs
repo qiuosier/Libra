@@ -24,18 +24,13 @@ namespace Libra
         private static Frame appFrame;
 
         /// <summary>
-        /// Indicate whether the app is restoring from a previous saved state
-        /// </summary>
-        public static bool Restoring = false;
-
-        /// <summary>
         /// Provides access to global session state for the current session.  This state is
         /// serialized by <see cref="SaveAsync"/> and restored by
         /// <see cref="RestoreAsync"/>, so values must be serializable by
         /// <see cref="DataContractSerializer"/> and should be as compact as possible.  Strings
         /// and other self-contained data types are strongly recommended.
         /// </summary>
-        public static ViewerState PageViewerState
+        public static ViewerState LastViewerState
         {
             get;
             set;
@@ -67,15 +62,15 @@ namespace Libra
         {
             try
             {
-                appFrame.Navigate(typeof(MainPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
 
-                if (PageViewerState != null)
+                if (LastViewerState != null)
                 {
                     // Serialize the session state synchronously to avoid asynchronous access to shared
                     // state
                     MemoryStream viewerData = new MemoryStream();
                     DataContractSerializer serializer = new DataContractSerializer(typeof(ViewerState), _knownTypes);
-                    serializer.WriteObject(viewerData, PageViewerState);
+                    serializer.WriteObject(viewerData, LastViewerState);
 
                     // Get an output stream for the SessionState file and write the state asynchronously
                     StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(sessionStateFilename, CreationCollisionOption.ReplaceExisting);
@@ -113,15 +108,18 @@ namespace Libra
                 {
                     // Deserialize the Session State
                     DataContractSerializer serializer = new DataContractSerializer(typeof(ViewerState), _knownTypes);
-                    PageViewerState = (ViewerState)serializer.ReadObject(inStream.AsStreamForRead());
+                    LastViewerState = (ViewerState)serializer.ReadObject(inStream.AsStreamForRead());
                 }
 
                 // 
-                if (PageViewerState.pdfToken != null)
+                if (LastViewerState.pdfToken != null)
                 {
-                    Restoring = true;
-                    StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(PageViewerState.pdfToken);
-                    appFrame.Navigate(typeof(ViewerPage), pdfFile);
+                    LastViewerState.IsRestoring = true;
+                    if (LastViewerState.IsCurrentView)
+                    {
+                        StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(LastViewerState.pdfToken);
+                        appFrame.Navigate(typeof(ViewerPage), pdfFile);
+                    }
                 }
 
                 // Clean up the files

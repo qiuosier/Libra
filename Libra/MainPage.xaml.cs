@@ -45,6 +45,10 @@ namespace Libra
                 if (i == 10) break;
             }
             this.RecentFileList.DataContext = mruFiles;
+            if (SuspensionManager.LastViewerState != null)
+            {
+                SuspensionManager.LastViewerState.IsCurrentView = false;
+            }
         }
 
         private async void RecentFileItem_Click(object sender, RoutedEventArgs e)
@@ -65,8 +69,11 @@ namespace Libra
             openPicker.FileTypeFilter.Add(".pdf");
             StorageFile pdfFile = await openPicker.PickSingleFileAsync();
             // Add file to recent file list
-            StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
-            this.Frame.Navigate(typeof(ViewerPage), pdfFile);
+            if (pdfFile != null)
+            {
+                StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
+                this.Frame.Navigate(typeof(ViewerPage), pdfFile);
+            }
         }
     }
 }

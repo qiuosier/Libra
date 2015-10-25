@@ -118,7 +118,6 @@ namespace Libra
                 if (this.pdfFile != null && this.pdfFile != argumentFile)
                 {
                     // Another file already opened
-                    // TODO: Save the existing file
                     this.fileLoaded = false;
                 }
                 if (!this.fileLoaded)
@@ -134,10 +133,11 @@ namespace Libra
         {
             base.OnNavigatedFrom(e);
             SaveDrawingPreference();
-            // Save the viewer state to suspension manager
             if (this.fileLoaded)
             {
-                SuspensionManager.PageViewerState = SaveViewerState();
+                // Save the viewer state to suspension manager
+                SuspensionManager.LastViewerState = SaveViewerState();
+                // Save inking to file
                 await SaveInking();
             }
         }
@@ -155,7 +155,18 @@ namespace Libra
 
         private void RestoreViewerState(ViewerState viewerState)
         {
-            // TODO: Restore the view
+            // Check if the viewer state exist
+            if (viewerState == null) return;
+            // Check if the viewer state is for this file
+            if (viewerState.pdfToken != this.futureAccessToken) return;
+            if (viewerState.IsRestoring)
+            {
+                // TODO: RestoreViewer
+                //
+
+                viewerState.IsRestoring = false;
+                SuspensionManager.LastViewerState = null;
+            }
 
         }
 
@@ -309,12 +320,8 @@ namespace Libra
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             this.fileLoaded = true;
             // Restore view
-            if (SuspensionManager.Restoring)
-            {
-                RestoreViewerState(SuspensionManager.PageViewerState);
-                SuspensionManager.Restoring = false;
-                SuspensionManager.PageViewerState = null;
-            }
+            RestoreViewerState(SuspensionManager.LastViewerState);
+            // Retore inking
             await RestoreInking();
             RefreshViewer();
             this.myWatch.Stop();
