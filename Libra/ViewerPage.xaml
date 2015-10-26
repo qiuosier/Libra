@@ -24,6 +24,7 @@
                             HorizontalScrollMode="Enabled" 
                             VerticalScrollMode="Enabled"
                             HorizontalScrollBarVisibility="Auto" 
+                          Margin="0,0,0,0"
                           MinZoomFactor="0.5" 
                           MaxZoomFactor="5" 
                           ViewChanging="scrollViewer_ViewChanging" 

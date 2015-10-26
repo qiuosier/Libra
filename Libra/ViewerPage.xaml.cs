@@ -25,9 +25,10 @@ namespace Libra
     {
         private const int SCROLLBAR_WIDTH = 10;
         private const int PAGE_IMAGE_MARGIN = 10;
-        private const int PAGE_BUFFER = 5;
-        private const int RECYCLE_QUEUE_SIZE = 10;
-        private const int BLANK_PAGE_BATCH = 100;
+        private const int NAVIGATION_WIDTH = 48;
+        private const int SIZE_PAGE_BUFFER = 5;
+        private const int SIZE_RECYCLE_QUEUE = 10;
+        private const int SIZE_PAGE_BATCH = 100;
         private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
@@ -100,6 +101,7 @@ namespace Libra
         private void InitializeViewer()
         {
             this.imagePanel.Children.Clear();
+            this.imagePanel.UpdateLayout();
             this.currentRange = new PageRange();
             this.pageHeight = 0;
             this.pageWidth = 0;
@@ -121,7 +123,7 @@ namespace Libra
             if (e.Parameter != null)
             {
                 StorageFile argumentFile = e.Parameter as StorageFile;
-                if (this.pdfFile != null && this.pdfFile != argumentFile)
+                if (this.pdfFile != null && !this.pdfFile.IsEqual(argumentFile))
                 {
                     // Another file already opened
                     AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
@@ -173,25 +175,38 @@ namespace Libra
             if (viewerState == null)
             {
                 AppEventSource.Log.Debug("ViewerPage: No viewer state saved.");
-                return;
             }
             // Check if the viewer state is for this file
-            if (viewerState.pdfToken != this.futureAccessToken)
+            else if (viewerState.pdfToken != this.futureAccessToken)
             {
                 AppEventSource.Log.Debug("ViewerPage: Viewer state is not for this file. Restoration cancelled.");
-                return;
             }
-            if (viewerState.IsRestoring)
+            else if (viewerState.IsRestoring)
             {
                 AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
-                // TODO: RestoreViewer
-                //
-                //
-                AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                // Restore viewer offsets
+                // Check if the window has the same size
+
+                // Change scroll viewer view
+                double honrizontalOffset = viewerState.hOffset;
+                double verticalOffset = viewerState.vOffset;
+                if (honrizontalOffset > this.scrollViewer.ScrollableWidth)
+                {
+                    AppEventSource.Log.Error("ViewerPage: Viewer restoration failed. Honrizontal offset is over the limit.");
+                }
+                else if (verticalOffset > this.scrollViewer.ScrollableHeight)
+                {
+                    AppEventSource.Log.Error("ViewerPage: Viewer restoration failed. Vertical offset is over the limit.");
+                }
+                else
+                {
+                    this.scrollViewer.ChangeView(honrizontalOffset, verticalOffset, viewerState.zFactor);
+                    AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                }
                 viewerState.IsRestoring = false;
-                SuspensionManager.LastViewerState = null;
+
             }
-           
+            SuspensionManager.LastViewerState = null;
         }
 
         private async Task SaveInking()
@@ -271,9 +286,9 @@ namespace Libra
                 }
                 else
                 {
-                    AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.ToString());
+                    AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.Message);
                     // Notify user
-                    MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.ToString());
+                    MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.Message);
                     var handler = new UICommandInvokedHandler(RestoreInkingCommandHandler);
                     messageDialog.Commands.Add(new UICommand("Delete inking", handler, 0));
                     messageDialog.Commands.Add(new UICommand("Ignore", handler, 1));
@@ -330,7 +345,7 @@ namespace Libra
 
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
-            this.pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
+            this.pageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
 
             this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
@@ -386,9 +401,9 @@ namespace Libra
         private async void PreparePages(PageRange range)
         {
             // Add invisible pages to recycle list
-            for (int i = currentRange.first - PAGE_BUFFER; i <= currentRange.last + PAGE_BUFFER; i++)
+            for (int i = currentRange.first - SIZE_PAGE_BUFFER; i <= currentRange.last + SIZE_PAGE_BUFFER; i++)
             {
-                if ((i < range.first - PAGE_BUFFER || i > range.last + PAGE_BUFFER)
+                if ((i < range.first - SIZE_PAGE_BUFFER || i > range.last + SIZE_PAGE_BUFFER)
                     && i > 0 && i <= pageCount)
                     this.recyclePagesQueue.Enqueue(i);
             }
@@ -401,7 +416,7 @@ namespace Libra
                 LoadInkCanvas(i);
             }
             // Load buffer pages
-            for (int i = range.first - PAGE_BUFFER; i <= range.last + PAGE_BUFFER; i++)
+            for (int i = range.first - SIZE_PAGE_BUFFER; i <= range.last + SIZE_PAGE_BUFFER; i++)
             {
                 await LoadPage(i);
             }
@@ -409,7 +424,7 @@ namespace Libra
 
         private void RemovePage(int pageNumber)
         {
-            if (pageNumber < currentRange.first - PAGE_BUFFER || pageNumber > currentRange.last + PAGE_BUFFER)
+            if (pageNumber < currentRange.first - SIZE_PAGE_BUFFER || pageNumber > currentRange.last + SIZE_PAGE_BUFFER)
             {
                 // Remove Image
                 Image image = (Image)this.FindName(PREFIX_PAGE + pageNumber.ToString());
@@ -456,6 +471,7 @@ namespace Libra
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
         {
+            if (pageNumber <= 0) return;
             // Render pdf image
             Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
             if (image == null)
@@ -629,7 +645,7 @@ namespace Libra
         private void InitializationTimer_Tick(object sender, object e)
         {
             int count = imagePanel.Children.Count;
-            for (int i = count + 1; i <= Math.Min(count + BLANK_PAGE_BATCH, pageCount); i++)
+            for (int i = count + 1; i <= Math.Min(count + SIZE_PAGE_BATCH, pageCount); i++)
             {
                 Grid grid = new Grid();
                 grid.Name = PREFIX_GRID + i.ToString();
@@ -652,7 +668,7 @@ namespace Libra
 
         private void RecycleTimer_Tick(object sender, object e)
         {
-            while (this.recyclePagesQueue.Count > RECYCLE_QUEUE_SIZE)
+            while (this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
             }

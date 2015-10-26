@@ -106,9 +106,9 @@ namespace Libra
         /// <param name="eventData">the data to be written</param>
         protected override void OnEventWritten(EventWrittenEventArgs eventData)
         {
-            var newFormatedLine = string.Format(_format, DateTime.Now, eventData.Level, eventData.EventId, eventData.Payload[0]);
-
-            //Debug.WriteLine(newFormatedLine);
+            string eventType = eventData.Level.ToString();
+            eventType = eventType.Substring(0, Math.Min(8, eventType.Length));
+            var newFormatedLine = string.Format(_format, DateTime.Now, eventType, eventData.EventId, eventData.Payload[0]);
 
             AddLine(newFormatedLine);
         }

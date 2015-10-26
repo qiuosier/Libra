@@ -26,6 +26,7 @@ namespace Libra
                 Microsoft.ApplicationInsights.WindowsCollectors.Session);
             this.InitializeComponent();
             this.Suspending += OnSuspending;
+            this.UnhandledException += OnUnhandledException;
 
             // Enable Logging
             libraListener = new StorageFileEventListener("LibraAppLog");
@@ -120,6 +121,12 @@ namespace Libra
             AppEventSource.Log.Info("App: Suspension Completed.");
             libraListener.Flush();
             deferral.Complete();
+        }
+
+        private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            AppEventSource.Log.Error("App: Unhandled Exception. " + e.Message);
+            libraListener.Flush();
         }
     }
 }
