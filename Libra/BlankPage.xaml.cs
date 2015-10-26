@@ -25,6 +25,7 @@ namespace Libra
         public BlankPage()
         {
             this.InitializeComponent();
+            AppEventSource.Log.Debug("BlankPage: Initialized.");
         }
     }
 }

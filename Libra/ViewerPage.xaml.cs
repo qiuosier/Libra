@@ -54,7 +54,8 @@ namespace Libra
         private InkDrawingAttributes drawingAttributes;
         private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
 
-        private System.Diagnostics.Stopwatch myWatch;
+        private System.Diagnostics.Stopwatch fileLoadingWatch;
+        private System.Diagnostics.Stopwatch fileSavingWatch;
 
         private int pageCount;
         private double pageHeight;
@@ -92,6 +93,8 @@ namespace Libra
             drawingAttributes.IgnorePressure = false;
             drawingAttributes.FitToCurve = true;
             drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
+
+            AppEventSource.Log.Debug("ViewerPage: Page initialized.");
         }
 
         private void InitializeViewer()
@@ -104,14 +107,16 @@ namespace Libra
             this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
-            AppEventSource.Log.Info("This is a test for Info log");
-            
+
             this.recycleTimer.Stop();
+
+            AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            AppEventSource.Log.Debug("ViewerPage: Navigated to ViewerPage.");
             RestoreDrawingPreference();
             if (e.Parameter != null)
             {
@@ -119,6 +124,7 @@ namespace Libra
                 if (this.pdfFile != null && this.pdfFile != argumentFile)
                 {
                     // Another file already opened
+                    AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
                     this.fileLoaded = false;
                 }
                 if (!this.fileLoaded)
@@ -133,18 +139,24 @@ namespace Libra
         protected override async void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            this.fileSavingWatch = new System.Diagnostics.Stopwatch();
+            this.fileSavingWatch.Start();
             SaveDrawingPreference();
             if (this.fileLoaded)
             {
                 // Save the viewer state to suspension manager
                 SuspensionManager.LastViewerState = SaveViewerState();
+                AppEventSource.Log.Info("ViewerPage: Saved viewer state to suspension manager. " + this.pdfFile.Name);
                 // Save inking to file
                 await SaveInking();
             }
+            this.fileSavingWatch.Stop();
+            AppEventSource.Log.Info("ViewerPage: Finished saving process in " + fileSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
         }
 
         private ViewerState SaveViewerState()
         {
+            AppEventSource.Log.Debug("ViewerPage: Saving viewer state.");
             ViewerState viewerState = new ViewerState(this.futureAccessToken);
             viewerState.hOffset = this.scrollViewer.HorizontalOffset;
             viewerState.vOffset = this.scrollViewer.VerticalOffset;
@@ -156,19 +168,30 @@ namespace Libra
 
         private void RestoreViewerState(ViewerState viewerState)
         {
+            AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state.");
             // Check if the viewer state exist
-            if (viewerState == null) return;
+            if (viewerState == null)
+            {
+                AppEventSource.Log.Debug("ViewerPage: No viewer state saved.");
+                return;
+            }
             // Check if the viewer state is for this file
-            if (viewerState.pdfToken != this.futureAccessToken) return;
+            if (viewerState.pdfToken != this.futureAccessToken)
+            {
+                AppEventSource.Log.Debug("ViewerPage: Viewer state is not for this file. Restoration cancelled.");
+                return;
+            }
             if (viewerState.IsRestoring)
             {
+                AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
                 // TODO: RestoreViewer
                 //
-
+                //
+                AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
                 viewerState.IsRestoring = false;
                 SuspensionManager.LastViewerState = null;
             }
-
+           
         }
 
         private async Task SaveInking()
@@ -178,8 +201,13 @@ namespace Libra
             {
                 SaveInkCanvas(pageNumber);
             }
+            AppEventSource.Log.Debug("ViewerPage: Saving inking. " + this.pdfFile.Name);
             // Save ink strokes
-            if (this.inkStrokeDictionary.Count == 0) return;
+            if (this.inkStrokeDictionary.Count == 0)
+            {
+                AppEventSource.Log.Debug("ViewerPage: No inking recorded.");
+                return;
+            }
             MemoryStream inkData = new MemoryStream();
             using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
             {
@@ -188,8 +216,10 @@ namespace Libra
                     ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
                     using (var entryStream = inkFile.Open().AsOutputStream())
                         await entry.Value.SaveAsync(entryStream);
+                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
                 }
             }
+            AppEventSource.Log.Debug("ViewerPage: Inking saved to memory.");
             string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
             StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
             using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
@@ -197,15 +227,18 @@ namespace Libra
                 inkData.Seek(0, SeekOrigin.Begin);
                 await inkData.CopyToAsync(inkArchiveStream);
             }
+            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.futureAccessToken.Substring(0,8));
         }
 
         private async Task RestoreInking()
         {
             // Restore ink strokes
+            AppEventSource.Log.Debug("ViewerPage: Checking inking for " + this.pdfFile.Name);
             string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
             try
             {
                 StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
+                AppEventSource.Log.Info("ViewerPage: Restoring inking from file for " + this.pdfFile.Name);
                 this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
                 MemoryStream inkData;
                 using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForReadAsync())
@@ -214,6 +247,7 @@ namespace Libra
                     inkArchiveStream.Seek(0, SeekOrigin.Begin);
                     await inkArchiveStream.CopyToAsync(inkData);
                 }
+                AppEventSource.Log.Debug("ViewerPage: Inking loaded to memory.");
                 ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Read);
                 foreach (ZipArchiveEntry inkFile in archive.Entries)
                 {
@@ -221,16 +255,23 @@ namespace Libra
                     {
                         InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
                         await inkStrokeContainer.LoadAsync(entryStream);
-                        this.inkStrokeDictionary.Add(Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4)), inkStrokeContainer);
+                        int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                        this.inkStrokeDictionary.Add(pageNumber, inkStrokeContainer);
+                        AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " restored.");
                     }
                 }
+                AppEventSource.Log.Info("ViewerPage: Inking restored.");
             }
             catch (Exception e)
             {
                 if (e is FileNotFoundException)
-                { return; }
+                {
+                    AppEventSource.Log.Info("ViewerPage: No inking file found.");
+                    return;
+                }
                 else
                 {
+                    AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.ToString());
                     // Notify user
                     MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.ToString());
                     var handler = new UICommandInvokedHandler(RestoreInkingCommandHandler);
@@ -250,6 +291,7 @@ namespace Libra
                     string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
                     StorageFile inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
                     await inkArchiveFile.DeleteAsync();
+                    AppEventSource.Log.Info("ViewerPage: Inking file for " + this.pdfFile.Name + " deleted.");
                     break;
                 default:
                     break;
@@ -259,16 +301,23 @@ namespace Libra
         private void SaveDrawingPreference()
         {
             // TODO
+            //AppEventSource.Log.Debug("ViewerPage: Inking preference saved.");
         }
 
         private void RestoreDrawingPreference()
         {
             Pencil_Click(null, null);
+            //AppEventSource.Log.Debug("ViewerPage: Inking preference restored.");
         }
 
         private async void LoadFile(StorageFile pdfFile)
         {
-            if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount) return;
+            if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount)
+            {
+                AppEventSource.Log.Warn("ViewerPage: Viewer not initialized correctly.");
+                return;
+            }
+            AppEventSource.Log.Info("ViewerPage: Loading the new file: " + this.pdfFile.Name);
             // Add file the future access list
             this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Load Pdf file
@@ -280,10 +329,12 @@ namespace Libra
             this.pdfDocument = await getPdfTask;
 
             this.pageCount = (int)pdfDocument.PageCount;
+            AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             this.pageWidth = scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
+            AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
 
-            this.myWatch = new System.Diagnostics.Stopwatch();
-            this.myWatch.Start();
+            this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
+            this.fileLoadingWatch.Start();
 
             // Add and load the first two pages
             Image image;
@@ -299,6 +350,7 @@ namespace Libra
                 this.imagePanel.Children.Add(grid);
                 await LoadPage(i);
             }
+            AppEventSource.Log.Debug("ViewerPage: First " + Math.Min(FIRST_LOAD_PAGES, pageCount).ToString() + " pages rendered.");
             // Update layout to force the calculation of actual height and width of the image
             // otherwise, the following code may be executed BEFORE the stack panel update layout.
             this.imagePanel.UpdateLayout();
@@ -308,6 +360,7 @@ namespace Libra
             {
                 image = (Image)this.FindName(PREFIX_PAGE + "2");
                 this.pageHeight = image.ActualHeight;
+                AppEventSource.Log.Debug("ViewerPage: Page height set to " + this.pageHeight.ToString());
             }
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start(); 
@@ -325,8 +378,8 @@ namespace Libra
             // Retore inking
             await RestoreInking();
             RefreshViewer();
-            this.myWatch.Stop();
-            this.statusOutput.Text = "Finished Preparing the file in " + myWatch.Elapsed.TotalSeconds.ToString();
+            this.fileLoadingWatch.Stop();
+            AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             this.recycleTimer.Start();
         }
 
@@ -365,7 +418,9 @@ namespace Libra
                     double x = image.ActualHeight;
                     image.Source = null;
                     image.Height = x;
+                    AppEventSource.Log.Debug("ViewerPage: Image in page " + pageNumber.ToString() + " removed.");
                 }
+                else AppEventSource.Log.Warn("ViewerPage: Image in page " + pageNumber.ToString() + " is empty.");
                 // Remove Ink Canvas
                 SaveInkCanvas(pageNumber, true);
             }
@@ -384,6 +439,7 @@ namespace Libra
                     this.inkStrokeDictionary.Remove(pageNumber);
                     // Add to dictionary
                     this.inkStrokeDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
+                    AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " saved to dictionary.");
                 }
                 // Remove ink canvas
                 if (removeAfterSave)
@@ -393,14 +449,20 @@ namespace Libra
                 }
             }
             else // Something is wrong
-            { }
+            {
+                AppEventSource.Log.Warn("ViewerPage: Page " + pageNumber.ToString() + " does not have an ink canvas.");
+            }
         }
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
         {
             // Render pdf image
             Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
-            if (image == null) return;
+            if (image == null)
+            {
+                AppEventSource.Log.Warn("ViewerPage: Image container for page " + pageNumber.ToString() + " not found.");
+                return;
+            }
             // Check if page is already loaded
             if (image.Source == null)
             {
@@ -414,13 +476,18 @@ namespace Libra
                 BitmapImage bitmapImage = new BitmapImage();
                 bitmapImage.SetSource(stream);
                 image.Source = bitmapImage;
+                AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
         }
 
         private void LoadInkCanvas(int pageNumber)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
-            if (grid == null) return;
+            if (grid == null)
+            {
+                AppEventSource.Log.Warn("ViewerPage: Grid container for page " + pageNumber.ToString() + " not found.");
+                return;
+            }
             // Load ink canvas
             InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
             // Check if an ink canvas exist
@@ -433,21 +500,30 @@ namespace Libra
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
+
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
                 if (inkStrokeDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+                {
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
+                    AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
+                }
             }
         }
 
         private void UpdateDrawingAttributes()
         {
-            if (this.inkCanvasList == null) return;
+            if (this.inkCanvasList == null)
+            {
+                AppEventSource.Log.Debug("ViewerPage: Updating drawing attributes: No ink canvas found.");
+                return;
+            }
             foreach (int pageNumber in inkCanvasList)
             {
                 InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
             }
+            AppEventSource.Log.Debug("ViewerPage: Drawing attributes updated.");
         }
 
         private Boolean IsUserVisible(FrameworkElement element, FrameworkElement container)
@@ -471,6 +547,7 @@ namespace Libra
             int p = FindVisiblePage();
             if (p > 0)
                 PreparePages(FindVisibleRange(p));
+            else AppEventSource.Log.Warn("ViewerPage: Visible page is incorrect. p = " + p.ToString());
         }
 
         private int FindVisiblePage()
@@ -530,8 +607,16 @@ namespace Libra
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / pageHeight;
             double wZoomFactor = (this.scrollViewer.ActualWidth 
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / pageWidth;
-            if (hZoomFactor < 0.1) hZoomFactor = 0.1;
-            if (wZoomFactor < 0.1) wZoomFactor = 0.1;
+            if (hZoomFactor < 0.1)
+            {
+                hZoomFactor = 0.1;
+                AppEventSource.Log.Debug("ViewerPage: Minimum vertical zoom factor is too small");
+            }
+            if (wZoomFactor < 0.1)
+            {
+                wZoomFactor = 0.1;
+                AppEventSource.Log.Debug("ViewerPage: Minimum horizontal zoom factor is too small");
+            }
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
         }
 
@@ -560,6 +645,7 @@ namespace Libra
             if (imagePanel.Children.Count >= pageCount)
             {
                 this.initializationTimer.Stop();
+                AppEventSource.Log.Debug("ViewerPage: Blank images add for all pages. Count: " + imagePanel.Children.Count.ToString());
                 FinishInitialization();
             }
         }
@@ -598,6 +684,7 @@ namespace Libra
                 factor = scrollViewer.ZoomFactor / factor;
                 scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset, 
                     factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor,true);
+                AppEventSource.Log.Debug("ViewerPage: Window size changed, offsets recalculated.");
             }
         }
 
@@ -621,6 +708,7 @@ namespace Libra
         private void Pencil_Click(object sender, RoutedEventArgs e)
         {
             ClearInputTypeToggleBtn();
+            AppEventSource.Log.Debug("ViewerPage: Pencil selected");
             this.Pencil.IsChecked = true;
             this.drawingAttributes.Size = new Size(penSize, penSize);
             this.drawingAttributes.PenTip = PenTipShape.Circle;
@@ -632,6 +720,7 @@ namespace Libra
         private void Highlighter_Click(object sender, RoutedEventArgs e)
         {
             ClearInputTypeToggleBtn();
+            AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
             this.drawingAttributes.Size = new Size(penSize, highlighterSize);
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
@@ -642,7 +731,9 @@ namespace Libra
 
         private void Eraser_Click(object sender, RoutedEventArgs e)
         {
-
+            ClearInputTypeToggleBtn();
+            AppEventSource.Log.Debug("ViewerPage: Eraser selected");
+            this.Eraser.IsChecked = true;
         }
     }
 }

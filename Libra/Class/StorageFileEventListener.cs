@@ -9,12 +9,12 @@ using Windows.System.Threading;
 
 /// <summary>
 /// This event listener class is modified based on the following blog
-/// http://cryclops.com/2014/01/not-so-stupid-simple-logging-for-windows-store-apps-in-cvb/
+/// https://bernhardelbl.wordpress.com/2013/01/12/how-to-write-log-files-in-windows-store-apps/
 /// </summary>
 
 namespace Libra
 {
-    class StorageFileEventListener : EventListener
+    public class StorageFileEventListener : EventListener
     {
         /// <summary>
         /// Storage file to be used to write logs

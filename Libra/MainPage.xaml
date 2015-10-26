@@ -9,7 +9,7 @@
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <StackPanel x:Name="contentPanel" Margin="8,32,0,32">
-            <TextBlock Text="Recent Files:" Margin="0,0,0,0"/>
+            <TextBlock x:Name="recentFileTitle" Text="Recent Files:" Margin="0,0,0,0"/>
             <ListBox x:Name="RecentFileList" 
                      ItemsSource="{Binding}" 
                      Margin="15,0,0,0" 

@@ -1,5 +1,10 @@
 ﻿using System.Diagnostics.Tracing;
 
+/// <summary>
+/// This class is from
+/// https://code.msdn.microsoft.com/windowsapps/Logging-Sample-for-Windows-0b9dffd7
+/// </summary>
+
 namespace Libra
 {
     sealed class AppEventSource : EventSource

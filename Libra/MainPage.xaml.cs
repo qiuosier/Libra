@@ -25,26 +25,39 @@ namespace Libra
         public MainPage()
         {
             this.InitializeComponent();
+            AppEventSource.Log.Debug("MainPage: Initialized.");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            AppEventSource.Log.Debug("MainPage: Navigated to MainPage.");
             // Show most recent files
             mruFiles = new ObservableCollection<RecentFile>();
             AccessListEntryView mruEntries = StorageApplicationPermissions.MostRecentlyUsedList.Entries;
-            for (int i = 0; i < mruEntries.Count; i++)
+            // If no recent file
+            if (mruEntries.Count == 0)
             {
-                AccessListEntry entry = mruEntries[i];
-                RecentFile file = new RecentFile(entry.Token);
-                string[] split = entry.Metadata.Split(new string[] { MRU_DELIMITER }, 2, StringSplitOptions.RemoveEmptyEntries);
-                file.Filename = split[0];
-                file.LastAccessTime = Convert.ToDateTime(split[1]);
-                file.Identifier = PREFIX_RECENT_FILE + i.ToString();
-                mruFiles.Add(file);
-                if (i == 10) break;
+                this.recentFileTitle.Text = "No Recent File.";
+                AppEventSource.Log.Debug("MainPage: No recent file found.");
             }
-            this.RecentFileList.DataContext = mruFiles;
+            else
+            {
+                for (int i = 0; i < mruEntries.Count; i++)
+                {
+                    AccessListEntry entry = mruEntries[i];
+                    RecentFile file = new RecentFile(entry.Token);
+                    string[] split = entry.Metadata.Split(new string[] { MRU_DELIMITER }, 2, StringSplitOptions.RemoveEmptyEntries);
+                    file.Filename = split[0];
+                    file.LastAccessTime = Convert.ToDateTime(split[1]);
+                    file.Identifier = PREFIX_RECENT_FILE + i.ToString();
+                    mruFiles.Add(file);
+                    if (i == 10) break;
+                }
+                this.RecentFileList.DataContext = mruFiles;
+                AppEventSource.Log.Debug("MainPage: Recent files added.");
+            }
+            // Set viewer state
             if (SuspensionManager.LastViewerState != null)
             {
                 SuspensionManager.LastViewerState.IsCurrentView = false;
@@ -53,6 +66,7 @@ namespace Libra
 
         private async void RecentFileItem_Click(object sender, RoutedEventArgs e)
         {
+            AppEventSource.Log.Debug("MainPage: Recent file clicked.");
             RecentFile file = (RecentFile)((HyperlinkButton)e.OriginalSource).DataContext;
             StorageFile pdfFile = await StorageApplicationPermissions.MostRecentlyUsedList.GetFileAsync(file.mruToken);
             // Update recent file list
@@ -71,6 +85,7 @@ namespace Libra
             // Add file to recent file list
             if (pdfFile != null)
             {
+                AppEventSource.Log.Debug("MainPage: Opening new file.");
                 StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
                 this.Frame.Navigate(typeof(ViewerPage), pdfFile);
             }

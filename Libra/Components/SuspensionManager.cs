@@ -66,12 +66,13 @@ namespace Libra
 
                 if (LastViewerState != null)
                 {
+                    AppEventSource.Log.Debug("Suspension: Saving viewer state.");
                     // Serialize the session state synchronously to avoid asynchronous access to shared
                     // state
                     MemoryStream viewerData = new MemoryStream();
                     DataContractSerializer serializer = new DataContractSerializer(typeof(ViewerState), _knownTypes);
                     serializer.WriteObject(viewerData, LastViewerState);
-
+                    AppEventSource.Log.Debug("Suspension: Viewer state serialized to memory.");
                     // Get an output stream for the SessionState file and write the state asynchronously
                     StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(sessionStateFilename, CreationCollisionOption.ReplaceExisting);
                     using (Stream fileStream = await file.OpenStreamForWriteAsync())
@@ -79,10 +80,12 @@ namespace Libra
                         viewerData.Seek(0, SeekOrigin.Begin);
                         await viewerData.CopyToAsync(fileStream);
                     }
+                    AppEventSource.Log.Debug("Suspension: Viewer state saved to file.");
                 }
             }
             catch (Exception e)
             {
+                AppEventSource.Log.Error("Suspension: Error when saving. Exception: " + e.ToString());
                 throw new SuspensionManagerException(e);
             }
         }
@@ -102,6 +105,7 @@ namespace Libra
         {
             try
             {
+                AppEventSource.Log.Debug("Suspension: Checking previously saved viewer state.");
                 // Get the input stream for the SessionState file
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(sessionStateFilename);
                 using (IInputStream inStream = await file.OpenSequentialReadAsync())
@@ -110,24 +114,37 @@ namespace Libra
                     DataContractSerializer serializer = new DataContractSerializer(typeof(ViewerState), _knownTypes);
                     LastViewerState = (ViewerState)serializer.ReadObject(inStream.AsStreamForRead());
                 }
-
+                AppEventSource.Log.Debug("Suspension: Previously saved viewer loaded.");
                 // 
                 if (LastViewerState.pdfToken != null)
                 {
-                    LastViewerState.IsRestoring = true;
                     if (LastViewerState.IsCurrentView)
                     {
+                        LastViewerState.IsRestoring = true;
                         StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(LastViewerState.pdfToken);
+                        AppEventSource.Log.Info("Suspension: Restoring " + pdfFile.Name);
                         appFrame.Navigate(typeof(ViewerPage), pdfFile);
                     }
+                    else
+                    {
+                        LastViewerState = null;
+                        AppEventSource.Log.Info("Suspension: Viewer was not active when the App was suspended.");
+                    }
                 }
+                else AppEventSource.Log.Warn("Suspension: Previously saved viewer state does not contain file token.");
 
                 // Clean up the files
                 await file.DeleteAsync();
+                AppEventSource.Log.Info("Suspension: Previously saved viewer state file deleted.");
             }
             catch (Exception e)
             {
-                if (e is System.IO.FileNotFoundException) return;
+                if (e is FileNotFoundException)
+                {
+                    AppEventSource.Log.Debug("Suspension: No previously saved viewer state found.");
+                    return;
+                }
+                AppEventSource.Log.Error("Suspension: Error when restoring. Exception: " + e.ToString());
                 throw new SuspensionManagerException(e);
             }
         }

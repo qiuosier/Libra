@@ -13,6 +13,8 @@ namespace Libra
     /// </summary>
     sealed partial class App : Application
     {
+        private StorageFileEventListener libraListener;
+
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
@@ -26,11 +28,9 @@ namespace Libra
             this.Suspending += OnSuspending;
 
             // Enable Logging
-            EventListener verboseListener = new StorageFileEventListener("AppVerboseLog");
-            EventListener informationListener = new StorageFileEventListener("AppInformationLog");
-
-            verboseListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
-            informationListener.EnableEvents(AppEventSource.Log, EventLevel.Informational);
+            libraListener = new StorageFileEventListener("LibraAppLog");
+            libraListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
+            AppEventSource.Log.Info("***** App is starting *****");
         }
 
         /// <summary>
@@ -59,6 +59,7 @@ namespace Libra
 
                 // Register the Frame in navigation page to suspension manager
                 SuspensionManager.RegisterFrame(shell.AppFrame);
+                AppEventSource.Log.Debug("App: AppFrame registered in suspension manager.");
 
                 // Set the default language
                 shell.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
@@ -67,9 +68,14 @@ namespace Libra
 
                 //if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
                 {
-                    //TODO: Load state from previously suspended application
+                    // Load state from previously suspended application
+                    AppEventSource.Log.Debug("App: Checking previously suspended state.");
                     await SuspensionManager.RestoreAsync();
                 }
+            }
+            else
+            {
+                AppEventSource.Log.Info("App: Window content is not null. App is already running.");
             }
 
             // Place our app shell in the current Window
@@ -79,6 +85,7 @@ namespace Libra
             {
                 // When the navigation stack isn't restored, navigate to the first page
                 // suppressing the initial entrance animation.
+                AppEventSource.Log.Info("App: Suspended state not found or not restored. Navigating to MainPage.");
                 shell.AppFrame.Navigate(typeof(MainPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
             }
 
@@ -93,6 +100,7 @@ namespace Libra
         /// <param name="e">Details about the navigation failure</param>
         void OnNavigationFailed(object sender, NavigationFailedEventArgs e)
         {
+            AppEventSource.Log.Critical("App: Failed to load Page " + e.SourcePageType.FullName);
             throw new Exception("Failed to load Page " + e.SourcePageType.FullName);
         }
 
@@ -106,8 +114,11 @@ namespace Libra
         private async void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-            //TODO: Save application state and stop any background activity
+            AppEventSource.Log.Info("App: Suspending");
+            // Save application state and stop any background activity
             await SuspensionManager.SaveAsync();
+            AppEventSource.Log.Info("App: Suspension Completed.");
+            libraListener.Flush();
             deferral.Complete();
         }
     }
