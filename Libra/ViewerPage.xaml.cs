@@ -13,6 +13,7 @@ using Windows.UI.Input.Inking;
 using System.IO;
 using System.IO.Compression;
 using Windows.UI.Popups;
+using System.Runtime.Serialization;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -41,6 +42,7 @@ namespace Libra
         private const string PREFIX_CANVAS = "canvas";
         private const string EXT_INKING = ".gif";
         private const string EXT_ARCHIVE = ".zip";
+        private const string EXT_VIEW = ".xml";
 
         private StorageFile pdfFile;
         private PdfDocument pdfDocument;
@@ -146,9 +148,9 @@ namespace Libra
             SaveDrawingPreference();
             if (this.fileLoaded)
             {
-                // Save the viewer state to suspension manager
-                SuspensionManager.LastViewerState = SaveViewerState();
-                AppEventSource.Log.Info("ViewerPage: Saved viewer state to suspension manager. " + this.pdfFile.Name);
+                // AppEventSource.Log.Info("ViewerPage: Saved viewer state to suspension manager. " + this.pdfFile.Name);
+                // Save viewer state to file
+                await SaveViewerState();
                 // Save inking to file
                 await SaveInking();
             }
@@ -156,7 +158,7 @@ namespace Libra
             AppEventSource.Log.Info("ViewerPage: Finished saving process in " + fileSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
         }
 
-        private ViewerState SaveViewerState()
+        private async Task SaveViewerState()
         {
             AppEventSource.Log.Debug("ViewerPage: Saving viewer state.");
             ViewerState viewerState = new ViewerState(this.futureAccessToken);
@@ -165,12 +167,18 @@ namespace Libra
             viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
             viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
-            return viewerState;
+            // Save viewer state to file
+            AppEventSource.Log.Debug("ViewerPage: Saving viewer state to file");
+            string viewerStateFilename = this.futureAccessToken + EXT_VIEW;
+            await SuspensionManager.SerializeToFile(viewerState, typeof(ViewerState), viewerStateFilename);
+
         }
 
-        private void RestoreViewerState(ViewerState viewerState)
+        private async Task RestoreViewerState()
         {
-            AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state.");
+            // Check viewer state file
+            string viewerStateFilename = this.futureAccessToken + EXT_VIEW;
+            ViewerState viewerState = await SuspensionManager.DeserializeFromFile(typeof(ViewerState), viewerStateFilename) as ViewerState;
             // Check if the viewer state exist
             if (viewerState == null)
             {
@@ -179,9 +187,9 @@ namespace Libra
             // Check if the viewer state is for this file
             else if (viewerState.pdfToken != this.futureAccessToken)
             {
-                AppEventSource.Log.Debug("ViewerPage: Viewer state is not for this file. Restoration cancelled.");
+                AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token. Restoration cancelled.");
             }
-            else if (viewerState.IsRestoring)
+            else
             {
                 AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
                 // Restore viewer offsets
@@ -203,10 +211,7 @@ namespace Libra
                     this.scrollViewer.ChangeView(honrizontalOffset, verticalOffset, viewerState.zFactor);
                     AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
                 }
-                viewerState.IsRestoring = false;
-
             }
-            SuspensionManager.LastViewerState = null;
         }
 
         private async Task SaveInking()
@@ -332,9 +337,11 @@ namespace Libra
                 AppEventSource.Log.Warn("ViewerPage: Viewer not initialized correctly.");
                 return;
             }
-            AppEventSource.Log.Info("ViewerPage: Loading the new file: " + this.pdfFile.Name);
+            AppEventSource.Log.Info("ViewerPage: Loading file: " + this.pdfFile.Name);
             // Add file the future access list
             this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
+            // Save session state in suspension manager
+            SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
             // Display loading
@@ -389,7 +396,7 @@ namespace Libra
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             this.fileLoaded = true;
             // Restore view
-            RestoreViewerState(SuspensionManager.LastViewerState);
+            await RestoreViewerState();
             // Retore inking
             await RestoreInking();
             RefreshViewer();

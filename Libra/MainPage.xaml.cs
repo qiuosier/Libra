@@ -58,9 +58,9 @@ namespace Libra
                 AppEventSource.Log.Debug("MainPage: Recent files added.");
             }
             // Set viewer state
-            if (SuspensionManager.LastViewerState != null)
+            if (SuspensionManager.sessionState != null)
             {
-                SuspensionManager.LastViewerState.IsCurrentView = false;
+                SuspensionManager.sessionState.ViewerMode = 0;
             }
         }
 

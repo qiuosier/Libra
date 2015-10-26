@@ -8,15 +8,15 @@
         public ViewerState()
         {
             this.fileLoaded = false;
-            this.IsRestoring = false;
+            //this.IsRestoring = false;
         }
 
         public ViewerState(string token)
         {
             this.pdfToken = token;
             this.fileLoaded = true;
-            this.IsCurrentView = true;
-            this.IsRestoring = false;
+            //this.IsCurrentView = true;
+            //this.IsRestoring = false;
         }
 
         enum ViewerType : int
@@ -33,7 +33,7 @@
         public double hScrollableOffset { get; set; }
         public double vScrollableOffset { get; set; }
         public float zFactor { get; set; }
-        public bool IsCurrentView { get; set; }
-        public bool IsRestoring { get; set; }
+        //public bool IsCurrentView { get; set; }
+        //public bool IsRestoring { get; set; }
     }
 }
