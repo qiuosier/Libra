@@ -4,6 +4,7 @@ using Windows.ApplicationModel.Activation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
+using System.Diagnostics.Tracing;
 
 namespace Libra
 {
@@ -23,6 +24,13 @@ namespace Libra
                 Microsoft.ApplicationInsights.WindowsCollectors.Session);
             this.InitializeComponent();
             this.Suspending += OnSuspending;
+
+            // Enable Logging
+            EventListener verboseListener = new StorageFileEventListener("AppVerboseLog");
+            EventListener informationListener = new StorageFileEventListener("AppInformationLog");
+
+            verboseListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
+            informationListener.EnableEvents(AppEventSource.Log, EventLevel.Informational);
         }
 
         /// <summary>

@@ -104,7 +104,8 @@ namespace Libra
             this.inkStrokeDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
-
+            AppEventSource.Log.Info("This is a test for Info log");
+            
             this.recycleTimer.Stop();
         }
 
