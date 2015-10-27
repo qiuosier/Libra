@@ -184,7 +184,7 @@ namespace NavigationMenu
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="listViewItem"></param>
-        private void NavMenuList_ItemInvoked(object sender, ListViewItem listViewItem)
+        private async void NavMenuList_ItemInvoked(object sender, ListViewItem listViewItem)
         {
             var item = (NavMenuItem)((NavMenuListView)sender).ItemFromContainer(listViewItem);
 
@@ -193,6 +193,7 @@ namespace NavigationMenu
                 if (item.DestPage != null &&
                     item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
+                    await SuspensionManager.SaveViewerAsync();
                     this.AppFrame.Navigate(item.DestPage, item.Arguments);
                 }
             }

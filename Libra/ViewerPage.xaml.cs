@@ -34,7 +34,6 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
-        private const int INKING_SAVING_INTERVAL = 1;
         private const int SIZE_PENTIP = 1;
         private const int SIZE_HIGHLIGHTER = 10;
 
@@ -52,7 +51,6 @@ namespace Libra
         private DispatcherTimer refreshTimer;
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
-        private DispatcherTimer inkingSaver;
         private Queue<int> recyclePagesQueue;
         private Dictionary<int, InkStrokeContainer> inkStrokeDictionary;
         private List<int> inkCanvasList;
@@ -89,10 +87,6 @@ namespace Libra
             this.recycleTimer.Tick += RecycleTimer_Tick;
             this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
 
-            this.inkingSaver = new DispatcherTimer();
-            this.inkingSaver.Tick += InkingSaver_Tick;
-            this.inkingSaver.Interval = new TimeSpan(0, 0, INKING_SAVING_INTERVAL);
-
             // Inking preference
             penSize = SIZE_PENTIP;
             highlighterSize = SIZE_HIGHLIGHTER;
@@ -124,7 +118,7 @@ namespace Libra
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
-        protected override async void OnNavigatedTo(NavigationEventArgs e)
+        protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
             AppEventSource.Log.Debug("ViewerPage: Navigated to ViewerPage.");
@@ -136,8 +130,6 @@ namespace Libra
                 {
                     // Another file already opened
                     AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
-                    // Save the viewer state of the opened file
-                    await SuspensionManager.SaveViewerAsync();
                     this.fileLoaded = false;
                 }
                 if (!this.fileLoaded)
@@ -157,12 +149,12 @@ namespace Libra
             {
                 // Save viewer state to suspension manager
                 SuspensionManager.viewerState = SaveViewerState();
+                AppEventSource.Log.Debug("ViewerPage: Saved viewer state to suspension manager.");
             }
         }
 
         private ViewerState SaveViewerState()
         {
-            AppEventSource.Log.Debug("ViewerPage: Saving viewer state...");
             ViewerState viewerState = new ViewerState(this.futureAccessToken);
             viewerState.hOffset = this.scrollViewer.HorizontalOffset;
             viewerState.vOffset = this.scrollViewer.VerticalOffset;
@@ -170,11 +162,6 @@ namespace Libra
             viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
             return viewerState;
-            // Save viewer state to file
-            //AppEventSource.Log.Debug("ViewerPage: Saving viewer state to file");
-            //string viewerStateFilename = this.futureAccessToken + EXT_VIEW;
-            //await SuspensionManager.SerializeToFileAsync(viewerState, typeof(ViewerState), viewerStateFilename);
-
         }
 
         private async Task RestoreViewerState()
@@ -252,7 +239,7 @@ namespace Libra
                 inkData.Seek(0, SeekOrigin.Begin);
                 await inkData.CopyToAsync(inkArchiveStream);
             }
-            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.futureAccessToken.Substring(0,8));
+            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + inkStrokeFilename);
             this.inkingSavingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished saving process in " + inkingSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
         }
@@ -410,7 +397,6 @@ namespace Libra
             this.fileLoadingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             this.recycleTimer.Start();
-            this.inkingSaver.Start();
         }
 
         private async void PreparePages(PageRange range)
@@ -659,6 +645,7 @@ namespace Libra
 
         private void InitializationTimer_Tick(object sender, object e)
         {
+            this.initializationTimer.Stop();
             int count = imagePanel.Children.Count;
             for (int i = count + 1; i <= Math.Min(count + SIZE_PAGE_BATCH, pageCount); i++)
             {
@@ -675,30 +662,21 @@ namespace Libra
             this.fullScreenMessage.Text = "Loading... " + (this.imagePanel.Children.Count * 100 / this.pageCount).ToString() + "%";
             if (imagePanel.Children.Count >= pageCount)
             {
-                this.initializationTimer.Stop();
                 AppEventSource.Log.Debug("ViewerPage: Blank images add for all pages. Count: " + imagePanel.Children.Count.ToString());
                 FinishInitialization();
             }
+            else this.initializationTimer.Start();
         }
 
-        private void RecycleTimer_Tick(object sender, object e)
+        private async void RecycleTimer_Tick(object sender, object e)
         {
+            this.recycleTimer.Stop();
             while (this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
             }
-        }
-
-        private async void InkingSaver_Tick(object sender, object e)
-        {
-            this.inkingSaver.Stop();
             await SaveInking();
-            this.inkingSaver.Start();
-        }
-
-        private void scrollViewer_ViewChanging(object sender, ScrollViewerViewChangingEventArgs e)
-        {
-
+            this.recycleTimer.Start();
         }
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -724,16 +702,6 @@ namespace Libra
                     factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor,true);
                 AppEventSource.Log.Debug("ViewerPage: Window size changed, offsets recalculated.");
             }
-        }
-
-        private void Page_Unloaded(object sender, RoutedEventArgs e)
-        {
-            //
-        }
-
-        private void Page_Loaded(object sender, RoutedEventArgs e)
-        {
-            //
         }
 
         private void ClearInputTypeToggleBtn()

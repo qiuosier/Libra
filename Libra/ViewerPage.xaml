@@ -5,8 +5,8 @@
     xmlns:local="using:Libra"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d" SizeChanged="Page_SizeChanged"
-    NavigationCacheMode="Required" Unloaded="Page_Unloaded" Loaded="Page_Loaded">
+    mc:Ignorable="d"
+    NavigationCacheMode="Required">
     <Grid Background="Black">
         <CommandBar>
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
@@ -27,7 +27,6 @@
                           Margin="0,0,0,0"
                           MinZoomFactor="0.5" 
                           MaxZoomFactor="5" 
-                          ViewChanging="scrollViewer_ViewChanging" 
                           ViewChanged="scrollViewer_ViewChanged">
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,20,0,20" HorizontalAlignment="Center">
