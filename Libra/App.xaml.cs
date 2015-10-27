@@ -71,7 +71,7 @@ namespace Libra
                 {
                     // Load state from previously suspended application
                     AppEventSource.Log.Debug("App: Checking previously suspended state.");
-                    await SuspensionManager.RestoreAsync();
+                    await SuspensionManager.RestoreSessionAsync();
                 }
             }
             else
@@ -117,7 +117,7 @@ namespace Libra
             var deferral = e.SuspendingOperation.GetDeferral();
             AppEventSource.Log.Info("App: Suspending");
             // Save application state and stop any background activity
-            await SuspensionManager.SaveAsync();
+            await SuspensionManager.SaveSessionAsync();
             AppEventSource.Log.Info("App: Suspension Completed.");
             libraListener.Flush();
             deferral.Complete();

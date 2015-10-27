@@ -21,12 +21,13 @@ namespace Libra
     {
         private static List<Type> _knownTypes = new List<Type>();
         private const string sessionStateFilename = "_sessionState.xml";
+        private const string viewerStateExt = ".xml";
         private static Frame appFrame;
 
         /// <summary>
         /// Provides access to global session state for the current session.  This state is
-        /// serialized by <see cref="SaveAsync"/> and restored by
-        /// <see cref="RestoreAsync"/>, so values must be serializable by
+        /// serialized by <see cref="SaveSessionAsync"/> and restored by
+        /// <see cref="RestoreSessionAsync"/>, so values must be serializable by
         /// <see cref="DataContractSerializer"/> and should be as compact as possible.  Strings
         /// and other self-contained data types are strongly recommended.
         /// </summary>
@@ -36,6 +37,11 @@ namespace Libra
             set;
         }
 
+        public static ViewerState viewerState
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// List of custom types provided to the <see cref="DataContractSerializer"/> when
         /// reading and writing session state.  Initially empty, additional types may be
@@ -58,14 +64,14 @@ namespace Libra
         /// to save its state.
         /// </summary>
         /// <returns>An asynchronous task that reflects when session state has been saved.</returns>
-        public static async Task SaveAsync()
+        public static async Task SaveSessionAsync()
         {
             appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
-
+            await SaveViewerAsync();
             if (sessionState != null)
             {
-                AppEventSource.Log.Debug("Suspension: Saving session state to file.");
-                await SerializeToFile(sessionState, typeof(SessionState), sessionStateFilename);
+                AppEventSource.Log.Debug("Suspension: Saving session state to file...");
+                await SerializeToFileAsync(sessionState, typeof(SessionState), sessionStateFilename);
             }
         }
 
@@ -80,12 +86,12 @@ namespace Libra
         /// <returns>An asynchronous task that reflects when session state has been read.  The
         /// content of <see cref="sessionState"/> should not be relied upon until this task
         /// completes.</returns>
-        public static async Task RestoreAsync(String sessionBaseKey = null)
+        public static async Task RestoreSessionAsync(String sessionBaseKey = null)
         {
             //try
             //{
                 AppEventSource.Log.Debug("Suspension: Checking previously saved session state.");
-                sessionState = await DeserializeFromFile(typeof(SessionState), sessionStateFilename, true) as SessionState;
+                sessionState = await DeserializeFromFileAsync(typeof(SessionState), sessionStateFilename, true) as SessionState;
 
                 if (sessionState != null && sessionState.FileToken != null)
                 {
@@ -109,7 +115,18 @@ namespace Libra
             //}
         }
 
-        public static async Task SerializeToFile(Object obj, Type objectType, string filename)
+        public static async Task SaveViewerAsync()
+        {
+            if (viewerState != null)
+            {
+                string viewerStateFilename = viewerState.pdfToken + viewerStateExt;
+                AppEventSource.Log.Debug("Suspension: Saving session state to file...");
+                await SerializeToFileAsync(viewerState, typeof(ViewerState), viewerStateFilename);
+                viewerState = null;
+            }
+        }
+
+        public static async Task SerializeToFileAsync(Object obj, Type objectType, string filename)
         {
             try
             {
@@ -135,13 +152,15 @@ namespace Libra
             }
         }
 
-        public static async Task<Object> DeserializeFromFile(Type objectType, string filename, bool deleteFile = false)
+        public static async Task<Object> DeserializeFromFileAsync(Type objectType, string filename, bool deleteFile = false)
         {
+            bool fileExist = false;
             try
             {
                 AppEventSource.Log.Debug("Suspension: Checking file...");
                 // Get the input stream for the file
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(filename);
+                fileExist = true;
                 Object obj;
                 using (IInputStream inStream = await file.OpenSequentialReadAsync())
                 {
@@ -156,6 +175,7 @@ namespace Libra
                 if (deleteFile)
                 {
                     await file.DeleteAsync();
+                    fileExist = false;
                     AppEventSource.Log.Info("Suspension: File deleted.");
                 }
 
@@ -166,10 +186,22 @@ namespace Libra
                 if (e is FileNotFoundException)
                 {
                     AppEventSource.Log.Debug("Suspension: File not found.");
+                    fileExist = false;
                     return null;
                 }
                 AppEventSource.Log.Error("Suspension: Error when deserializing object. Exception: " + e.Message);
+                deleteFile = true;
                 throw new SuspensionManagerException(e);
+            }
+            finally
+            {
+                // Delete the file if error occured
+                if (fileExist)
+                {
+                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(filename);
+                    await file.DeleteAsync();
+                    AppEventSource.Log.Info("Suspension: File deleted due to error.");
+                }
             }
         }
 
