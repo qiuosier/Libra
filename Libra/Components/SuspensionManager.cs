@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Streams;
+using Windows.UI.Popups;
 using Windows.UI.Xaml.Controls;
 
 namespace Libra
@@ -141,7 +142,10 @@ namespace Libra
             catch (Exception e)
             {
                 AppEventSource.Log.Error("Suspension: Error when serializing object. Exception: " + e.Message);
-                throw new SuspensionManagerException(e);
+                MessageDialog messageDialog = new MessageDialog("Error when saving" + objectType.ToString() + " to file: " + filename + "\n" + e.Message);
+                messageDialog.Commands.Add(new UICommand("OK", null, 0));
+                await messageDialog.ShowAsync();
+                //throw new SuspensionManagerException(e);
             }
         }
 
@@ -180,8 +184,22 @@ namespace Libra
                     return null;
                 }
                 AppEventSource.Log.Error("Suspension: Error when deserializing object. Exception: " + e.Message);
-                deleteFile = true;
-                throw new SuspensionManagerException(e);
+                MessageDialog messageDialog = new MessageDialog("Error when loading file: " + filename + "\n" + e.Message);
+                messageDialog.Commands.Add(new UICommand("Delete file", null, 0));
+                messageDialog.Commands.Add(new UICommand("Ignore", null, 1));
+                IUICommand command = await messageDialog.ShowAsync();
+                switch ((int)command.Id)
+                {
+                    case 0:
+                        // Delete file
+                        deleteFile = true;
+                        break;
+                    default:
+                        deleteFile = false;
+                        break;
+                }
+                return null;
+                //throw new SuspensionManagerException(e);
             }
             finally
             {
@@ -194,7 +212,6 @@ namespace Libra
                 }
             }
         }
-
     }
 
     public class SuspensionManagerException : Exception
