@@ -31,7 +31,7 @@ namespace Libra
             // Enable Logging
             libraListener = new StorageFileEventListener("LibraAppLog");
             libraListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
-            AppEventSource.Log.Info("***** App is starting *****");
+            AppEventSource.Log.Info("********** App is starting **********");
         }
 
         /// <summary>
@@ -115,10 +115,13 @@ namespace Libra
         private async void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-            AppEventSource.Log.Info("App: Suspending");
+            AppEventSource.Log.Info("App: Suspending...");
+            System.Diagnostics.Stopwatch suspensionWatch = new System.Diagnostics.Stopwatch();
+            suspensionWatch.Start();
             // Save application state and stop any background activity
             await SuspensionManager.SaveSessionAsync();
-            AppEventSource.Log.Info("App: Suspension Completed.");
+            suspensionWatch.Stop();
+            AppEventSource.Log.Info("App: Suspension Completed in " + suspensionWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
             libraListener.Flush();
             deferral.Complete();
         }

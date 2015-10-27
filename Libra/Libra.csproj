@@ -102,10 +102,10 @@
     <Compile Include="BlankPage.xaml.cs">
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Class\AppEventSource.cs" />
+    <Compile Include="Components\AppEventSource.cs" />
     <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Class\SessionState.cs" />
-    <Compile Include="Class\StorageFileEventListener.cs" />
+    <Compile Include="Components\StorageFileEventListener.cs" />
     <Compile Include="Components\NavMenuItem.cs" />
     <Compile Include="Components\NavMenuListView.cs" />
     <Compile Include="Components\SuspensionManager.cs" />

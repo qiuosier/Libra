@@ -162,8 +162,6 @@ namespace Libra
                     obj = serializer.ReadObject(inStream.AsStreamForRead());
                 }
                 AppEventSource.Log.Debug("Suspension: Object loaded from file. " + objectType.ToString());
-
-
                 // Delete the file
                 if (deleteFile)
                 {
@@ -171,14 +169,13 @@ namespace Libra
                     fileExist = false;
                     AppEventSource.Log.Info("Suspension: File deleted. " + filename);
                 }
-
                 return obj;
             }
             catch (Exception e)
             {
                 if (e is FileNotFoundException)
                 {
-                    AppEventSource.Log.Debug("Suspension: File not found.");
+                    AppEventSource.Log.Debug("Suspension: File not found. " + filename);
                     fileExist = false;
                     return null;
                 }
@@ -189,19 +186,16 @@ namespace Libra
             finally
             {
                 // Delete the file if error occured
-                if (fileExist)
+                if (fileExist && deleteFile)
                 {
                     StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(filename);
                     await file.DeleteAsync();
-                    AppEventSource.Log.Info("Suspension: File deleted due to error.");
+                    AppEventSource.Log.Info("Suspension: File deleted due to error. " + filename);
                 }
             }
         }
 
     }
-
-    
-
 
     public class SuspensionManagerException : Exception
     {
