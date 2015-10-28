@@ -70,7 +70,7 @@ namespace Libra
             RecentFile file = (RecentFile)((HyperlinkButton)e.OriginalSource).DataContext;
             StorageFile pdfFile = await StorageApplicationPermissions.MostRecentlyUsedList.GetFileAsync(file.mruToken);
             // Update recent file list
-            StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
+            string k = StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
             this.Frame.Navigate(typeof(ViewerPage), pdfFile);
         }
 

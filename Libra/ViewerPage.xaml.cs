@@ -42,8 +42,11 @@ namespace Libra
         private const string EXT_INKING = ".gif";
         private const string EXT_ARCHIVE = ".zip";
         private const string EXT_VIEW = ".xml";
+        private const string INKING_FOLDER = "Inking";
 
         private StorageFile pdfFile;
+        private StorageFolder dataFolder;
+        private StorageFolder inkingFolder;
         private StorageFile inkArchiveFile;
         private PdfDocument pdfDocument;
         private Thickness pageMargin;
@@ -68,6 +71,7 @@ namespace Libra
         private int penSize;
         private int highlighterSize;
         private string futureAccessToken;
+        //private double scaleFactor;
 
         public ViewerPage()
         {
@@ -109,6 +113,7 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.pageCount = 0;
+            //this.scaleFactor = 1;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
@@ -161,6 +166,7 @@ namespace Libra
             viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
             viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
+            viewerState.pageWidth = this.pageWidth;
             return viewerState;
         }
 
@@ -184,7 +190,8 @@ namespace Libra
                 AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
                 // Restore viewer offsets
                 // Check if the window has the same size
-
+                //if (viewerState.pageWidth != 0)
+                //    this.scaleFactor = this.pageWidth / viewerState.pageWidth;
                 // Change scroll viewer view
                 double honrizontalOffset = viewerState.hOffset;
                 double verticalOffset = viewerState.vOffset;
@@ -222,31 +229,39 @@ namespace Libra
                 return;
             }
             // Create ink archive file if it does not exist
-            if (this.inkArchiveFile == null)
-            {
-                string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
-                this.inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
-            }
+            //if (this.inkArchiveFile == null)
+            //{
+            //    string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+            //    this.inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
+            //}
 
-            MemoryStream inkData = new MemoryStream();
-            using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
+            //MemoryStream inkData = new MemoryStream();
+            //using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
+            //{
+
+            // Need to add try/catch here
+            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
             {
-                foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
+                //ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
+                //using (var entryStream = inkFile.Open().AsOutputStream())
+                //    await entry.Value.SaveAsync(entryStream);
+                StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
+                    entry.Key.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
+                using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
                 {
-                    ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
-                    using (var entryStream = inkFile.Open().AsOutputStream())
-                        await entry.Value.SaveAsync(entryStream);
-                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
+                    await entry.Value.SaveAsync(inkStream);
                 }
+                AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
             }
-            AppEventSource.Log.Debug("ViewerPage: Inking saved to memory.");
+            //}
+            //AppEventSource.Log.Debug("ViewerPage: Inking saved to memory.");
 
-            using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
-            {
-                inkData.Seek(0, SeekOrigin.Begin);
-                await inkData.CopyToAsync(inkArchiveStream);
-            }
-            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + inkArchiveFile.Name);
+            //using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
+            //{
+            //    inkData.Seek(0, SeekOrigin.Begin);
+            //    await inkData.CopyToAsync(inkArchiveStream);
+            //}
+            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
             inkingSavingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished saving process in " + inkingSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
             this.isSavingInking = false;
@@ -257,31 +272,42 @@ namespace Libra
             System.Diagnostics.Stopwatch inkingLoadingWatch = new System.Diagnostics.Stopwatch();
             inkingLoadingWatch.Start();
             AppEventSource.Log.Debug("ViewerPage: Checking inking for " + this.pdfFile.Name);
-            string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+            //string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
             try
             {
-                this.inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
-                AppEventSource.Log.Info("ViewerPage: Loading inking from file for " + this.pdfFile.Name);
+                //this.inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
+                AppEventSource.Log.Info("ViewerPage: Loading inking for " + this.pdfFile.Name);
                 this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
-                MemoryStream inkData;
-                using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForReadAsync())
+                //MemoryStream inkData;
+                //using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForReadAsync())
+                //{
+                //    inkData = new MemoryStream((int)inkArchiveStream.Length);
+                //    inkArchiveStream.Seek(0, SeekOrigin.Begin);
+                //    await inkArchiveStream.CopyToAsync(inkData);
+                //}
+                //AppEventSource.Log.Debug("ViewerPage: Inking loaded to memory.");
+                //ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Read);
+                //foreach (ZipArchiveEntry inkFile in archive.Entries)
+                //{
+                //    using (var entryStream = inkFile.Open().AsInputStream())
+                //    {
+                //        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
+                //        await inkStrokeContainer.LoadAsync(entryStream);
+                //        int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                //        this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
+                //        AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
+                //    }
+                //}
+                foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
                 {
-                    inkData = new MemoryStream((int)inkArchiveStream.Length);
-                    inkArchiveStream.Seek(0, SeekOrigin.Begin);
-                    await inkArchiveStream.CopyToAsync(inkData);
-                }
-                AppEventSource.Log.Debug("ViewerPage: Inking loaded to memory.");
-                ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Read);
-                foreach (ZipArchiveEntry inkFile in archive.Entries)
-                {
-                    using (var entryStream = inkFile.Open().AsInputStream())
+                    int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                    InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
+                    using (var inkStream = await inkFile.OpenSequentialReadAsync())
                     {
-                        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                        await inkStrokeContainer.LoadAsync(entryStream);
-                        int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
-                        this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
-                        AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
+                        await inkStrokeContainer.LoadAsync(inkStream);
                     }
+                    this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
+                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
                 }
                 inkingLoadingWatch.Stop();
                 AppEventSource.Log.Info("ViewerPage: Inking loaded in " + inkingLoadingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
@@ -347,13 +373,19 @@ namespace Libra
             this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
+            // Create local data folder, if not exist
+            IAsyncOperation<StorageFolder> getDataFolder = 
+                ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
             // Load Pdf file
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
             // Display loading
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = "Loading...";
-            // Wait until the file is loaded
+            // Wait until the data folder is created and file is loaded
+            this.dataFolder = await getDataFolder;
             this.pdfDocument = await getPdfTask;
+            // Create inking folder
+            this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
 
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
@@ -527,6 +559,10 @@ namespace Libra
                 inkCanvas.InkPresenter.InputDeviceTypes = drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
+                Windows.UI.Xaml.Media.ScaleTransform scaleTransform = new Windows.UI.Xaml.Media.ScaleTransform();
+                //scaleTransform.ScaleX = this.scaleFactor;
+                //scaleTransform.ScaleY = this.scaleFactor;
+                inkCanvas.RenderTransform = scaleTransform;
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
 

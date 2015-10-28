@@ -207,7 +207,8 @@ namespace NavigationMenu
         /// <param name="e"></param>
         private void OnNavigatingToPage(object sender, NavigatingCancelEventArgs e)
         {
-            if (e.NavigationMode == NavigationMode.Back)
+            //if (e.NavigationMode == NavigationMode.Back)
+            try
             {
                 var item = (from p in this.navlist where p.DestPage == e.SourcePageType select p).SingleOrDefault();
                 if (item == null && this.AppFrame.BackStackDepth > 0)
@@ -230,6 +231,11 @@ namespace NavigationMenu
                 if (container != null) container.IsTabStop = false;
                 NavMenuList.SetSelectedItem(container);
                 if (container != null) container.IsTabStop = true;
+            }
+            catch
+            {
+                // Run the above code every time when navigating to a new page.
+                // There will be an exception when the app is starting.
             }
         }
 
