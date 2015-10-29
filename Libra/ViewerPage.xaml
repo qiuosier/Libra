@@ -8,7 +8,7 @@
     mc:Ignorable="d"
     NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
     <Grid Background="Black">
-        <CommandBar>
+        <CommandBar Background="LightSteelBlue">
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
             <AppBarToggleButton x:Name="Eraser" Icon="Placeholder" Label="Eraser" Click="Eraser_Click"/>
