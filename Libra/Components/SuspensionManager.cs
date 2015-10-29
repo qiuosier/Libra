@@ -21,8 +21,8 @@ namespace Libra
     internal sealed class SuspensionManager
     {
         private static List<Type> _knownTypes = new List<Type>();
-        private const string sessionStateFilename = "_sessionState.xml";
-        private const string viewerStateExt = ".xml";
+        private const string FILENAME_SESSION_STATE = "_sessionState.xml";
+        public const string FILENAME_VIEWER_STATE = "_viewerState.xml";
         private static Frame appFrame;
 
         /// <summary>
@@ -72,7 +72,9 @@ namespace Libra
             if (sessionState != null)
             {
                 AppEventSource.Log.Debug("Suspension: Saving session state to file...");
-                await SerializeToFileAsync(sessionState, typeof(SessionState), sessionStateFilename);
+                StorageFile file = await 
+                    ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
+                await SerializeToFileAsync(sessionState, typeof(SessionState), file);
             }
         }
 
@@ -90,7 +92,7 @@ namespace Libra
         public static async Task RestoreSessionAsync(String sessionBaseKey = null)
         {
             AppEventSource.Log.Debug("Suspension: Checking previously saved session state...");
-            sessionState = await DeserializeFromFileAsync(typeof(SessionState), sessionStateFilename, true) as SessionState;
+            sessionState = await DeserializeFromFileAsync(typeof(SessionState), await GetSavedFileAsync(FILENAME_SESSION_STATE), true) as SessionState;
 
             if (sessionState != null && sessionState.FileToken != null)
             {
@@ -113,14 +115,16 @@ namespace Libra
         {
             if (viewerState != null)
             {
-                string viewerStateFilename = viewerState.pdfToken + viewerStateExt;
-                AppEventSource.Log.Debug("Suspension: Saving viewer state to file...");
-                await SerializeToFileAsync(viewerState, typeof(ViewerState), viewerStateFilename);
+                StorageFolder dataFolder = await 
+                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerState.pdfToken, CreationCollisionOption.OpenIfExists);
+                StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
+                AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
+                await SerializeToFileAsync(viewerState, typeof(ViewerState), file);
                 viewerState = null;
             }
         }
 
-        public static async Task SerializeToFileAsync(Object obj, Type objectType, string filename)
+        public static async Task SerializeToFileAsync(Object obj, Type objectType, StorageFile file)
         {
             try
             {
@@ -131,34 +135,31 @@ namespace Libra
                 serializer.WriteObject(viewerData, obj);
                 AppEventSource.Log.Debug("Suspension: Object serialized to memory. " + objectType.ToString());
                 // Get an output stream for the SessionState file and write the state asynchronously
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(filename, CreationCollisionOption.ReplaceExisting);
                 using (Stream fileStream = await file.OpenStreamForWriteAsync())
                 {
                     viewerData.Seek(0, SeekOrigin.Begin);
                     await viewerData.CopyToAsync(fileStream);
                 }
-                AppEventSource.Log.Debug("Suspension: Object saved to file. " + filename);
+                AppEventSource.Log.Debug("Suspension: Object saved to file. " + file.Name);
             }
             catch (Exception e)
             {
                 AppEventSource.Log.Error("Suspension: Error when serializing object. Exception: " + e.Message);
-                MessageDialog messageDialog = new MessageDialog("Error when saving" + objectType.ToString() + " to file: " + filename + "\n" + e.Message);
+                MessageDialog messageDialog = new MessageDialog("Error when saving" + objectType.ToString() + " to file: " + file.Name + "\n" + e.Message);
                 messageDialog.Commands.Add(new UICommand("OK", null, 0));
                 await messageDialog.ShowAsync();
                 //throw new SuspensionManagerException(e);
             }
         }
 
-        public static async Task<Object> DeserializeFromFileAsync(Type objectType, string filename, bool deleteFile = false)
+        public static async Task<Object> DeserializeFromFileAsync(Type objectType, StorageFile file, bool deleteFile = false)
         {
-            bool fileExist = false;
+            if (file == null) return null;
             try
             {
-                AppEventSource.Log.Debug("Suspension: Checking file..." + filename);
-                // Get the input stream for the file
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(filename);
-                fileExist = true;
                 Object obj;
+                AppEventSource.Log.Debug("Suspension: Checking file..." + file.Name);
+                // Get the input stream for the file
                 using (IInputStream inStream = await file.OpenSequentialReadAsync())
                 {
                     // Deserialize the Session State
@@ -170,21 +171,15 @@ namespace Libra
                 if (deleteFile)
                 {
                     await file.DeleteAsync();
-                    fileExist = false;
-                    AppEventSource.Log.Info("Suspension: File deleted. " + filename);
+                    deleteFile = false;
+                    AppEventSource.Log.Info("Suspension: File deleted. " + file.Name);
                 }
                 return obj;
             }
             catch (Exception e)
             {
-                if (e is FileNotFoundException)
-                {
-                    AppEventSource.Log.Debug("Suspension: File not found. " + filename);
-                    fileExist = false;
-                    return null;
-                }
                 AppEventSource.Log.Error("Suspension: Error when deserializing object. Exception: " + e.Message);
-                MessageDialog messageDialog = new MessageDialog("Error when loading file: " + filename + "\n" + e.Message);
+                MessageDialog messageDialog = new MessageDialog("Error when deserializing file: " + file.Name + "\n" + e.Message);
                 messageDialog.Commands.Add(new UICommand("Delete file", null, 0));
                 messageDialog.Commands.Add(new UICommand("Ignore", null, 1));
                 IUICommand command = await messageDialog.ShowAsync();
@@ -204,13 +199,31 @@ namespace Libra
             finally
             {
                 // Delete the file if error occured
-                if (fileExist && deleteFile)
+                if (deleteFile)
                 {
-                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(filename);
                     await file.DeleteAsync();
-                    AppEventSource.Log.Info("Suspension: File deleted due to error. " + filename);
+                    AppEventSource.Log.Info("Suspension: File deleted due to error. " + file.Name);
                 }
             }
+        }
+
+        public static async Task<StorageFile> GetSavedFileAsync(string filename, StorageFolder folder = null)
+        {
+            if (folder == null) folder = ApplicationData.Current.LocalFolder;
+            StorageFile file = null;
+            try
+            {
+                file = await folder.GetFileAsync(filename);
+            }
+            catch (Exception e)
+            {
+                if (e is FileNotFoundException)
+                {
+                    AppEventSource.Log.Debug("Suspension: Previously saved file not found. ");
+                }
+                else throw new SuspensionManagerException(e);
+            }
+            return file;
         }
     }
 

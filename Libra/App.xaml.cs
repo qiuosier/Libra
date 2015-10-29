@@ -67,10 +67,10 @@ namespace Libra
 
                 shell.AppFrame.NavigationFailed += OnNavigationFailed;
 
-                //if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
+                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
                 {
                     // Load state from previously suspended application
-                    AppEventSource.Log.Debug("App: Checking previously suspended state.");
+                    //AppEventSource.Log.Debug("App: Checking previously suspended state...");
                     await SuspensionManager.RestoreSessionAsync();
                 }
             }

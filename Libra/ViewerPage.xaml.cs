@@ -10,8 +10,6 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using Windows.UI.Input.Inking;
-using System.IO;
-using System.IO.Compression;
 using Windows.UI.Popups;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
@@ -33,21 +31,18 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
-        private const int SIZE_PENTIP = 1;
-        private const int SIZE_HIGHLIGHTER = 10;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
         private const string EXT_INKING = ".gif";
-        private const string EXT_ARCHIVE = ".zip";
         private const string EXT_VIEW = ".xml";
         private const string INKING_FOLDER = "Inking";
+        private const string INKING_SETTING_FILENAME = "_inkingSetting.xml";
 
         private StorageFile pdfFile;
         private StorageFolder dataFolder;
         private StorageFolder inkingFolder;
-        private StorageFile inkArchiveFile;
         private PdfDocument pdfDocument;
         private Thickness pageMargin;
         private PageRange currentRange;
@@ -58,6 +53,7 @@ namespace Libra
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
+        private InkingSetting inkingSetting;
         private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
 
         private System.Diagnostics.Stopwatch fileLoadingWatch;
@@ -65,13 +61,14 @@ namespace Libra
         private int pageCount;
         private double pageHeight;
         private double pageWidth;
+        private double inkCanvasScaleFactor;
         private bool fileLoaded;
         private bool isSavingInking;
         private bool inkingChanged;
         private int penSize;
         private int highlighterSize;
         private string futureAccessToken;
-        //private double scaleFactor;
+        
 
         public ViewerPage()
         {
@@ -91,17 +88,6 @@ namespace Libra
             this.recycleTimer.Tick += RecycleTimer_Tick;
             this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
 
-            // Inking preference
-            penSize = SIZE_PENTIP;
-            highlighterSize = SIZE_HIGHLIGHTER;
-            drawingAttributes = new InkDrawingAttributes();
-            drawingAttributes.Color = Windows.UI.Colors.Red;
-            drawingAttributes.Size = new Size(penSize, penSize);
-            // Fixed inking preference
-            drawingAttributes.IgnorePressure = false;
-            drawingAttributes.FitToCurve = true;
-            drawingDevice = Windows.UI.Core.CoreInputDeviceTypes.Mouse | Windows.UI.Core.CoreInputDeviceTypes.Pen;
-
             AppEventSource.Log.Debug("ViewerPage: Page initialized.");
         }
 
@@ -113,7 +99,7 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.pageCount = 0;
-            //this.scaleFactor = 1;
+            this.inkCanvasScaleFactor = 0;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
@@ -127,7 +113,7 @@ namespace Libra
         {
             base.OnNavigatedTo(e);
             AppEventSource.Log.Debug("ViewerPage: Navigated to ViewerPage.");
-            RestoreDrawingPreference();
+            
             if (e.Parameter != null)
             {
                 StorageFile argumentFile = e.Parameter as StorageFile;
@@ -149,7 +135,6 @@ namespace Libra
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            SaveDrawingPreference();
             if (this.fileLoaded)
             {
                 // Save viewer state to suspension manager
@@ -173,26 +158,20 @@ namespace Libra
         private async Task RestoreViewerState()
         {
             // Check viewer state file
-            string viewerStateFilename = this.futureAccessToken + EXT_VIEW;
-            ViewerState viewerState = await SuspensionManager.DeserializeFromFileAsync(typeof(ViewerState), viewerStateFilename) as ViewerState;
-            // Check if the viewer state exist
-            if (viewerState == null)
-            {
-                AppEventSource.Log.Debug("ViewerPage: No viewer state saved.");
-            }
-            // Check if the viewer state is for this file
-            else if (viewerState.pdfToken != this.futureAccessToken)
-            {
-                AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token. Restoration cancelled.");
-            }
-            else
-            {
+            AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state...");
+            StorageFile file = await SuspensionManager.GetSavedFileAsync(SuspensionManager.FILENAME_VIEWER_STATE, this.dataFolder);
+            ViewerState viewerState = await SuspensionManager.DeserializeFromFileAsync(typeof(ViewerState), file) as ViewerState;
+            if (viewerState != null)
+            { 
+                // Check if the viewer state is for this file
+                if (viewerState.pdfToken != this.futureAccessToken)
+                {
+                    AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token.");
+                }
                 AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
-                // Restore viewer offsets
                 // Check if the window has the same size
-                //if (viewerState.pageWidth != 0)
-                //    this.scaleFactor = this.pageWidth / viewerState.pageWidth;
-                // Change scroll viewer view
+
+                // Restore viewer offsets
                 double honrizontalOffset = viewerState.hOffset;
                 double verticalOffset = viewerState.vOffset;
                 if (honrizontalOffset > this.scrollViewer.ScrollableWidth)
@@ -228,23 +207,10 @@ namespace Libra
                 AppEventSource.Log.Debug("ViewerPage: No inking recorded.");
                 return;
             }
-            // Create ink archive file if it does not exist
-            //if (this.inkArchiveFile == null)
-            //{
-            //    string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
-            //    this.inkArchiveFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(inkStrokeFilename, CreationCollisionOption.ReplaceExisting);
-            //}
-
-            //MemoryStream inkData = new MemoryStream();
-            //using (ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Create, true))
-            //{
 
             // Need to add try/catch here
             foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
             {
-                //ZipArchiveEntry inkFile = archive.CreateEntry(entry.Key.ToString() + EXT_INKING);
-                //using (var entryStream = inkFile.Open().AsOutputStream())
-                //    await entry.Value.SaveAsync(entryStream);
                 StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
                     entry.Key.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
                 using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
@@ -253,14 +219,7 @@ namespace Libra
                 }
                 AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
             }
-            //}
-            //AppEventSource.Log.Debug("ViewerPage: Inking saved to memory.");
 
-            //using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForWriteAsync())
-            //{
-            //    inkData.Seek(0, SeekOrigin.Begin);
-            //    await inkData.CopyToAsync(inkArchiveStream);
-            //}
             AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
             inkingSavingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished saving process in " + inkingSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
@@ -272,32 +231,11 @@ namespace Libra
             System.Diagnostics.Stopwatch inkingLoadingWatch = new System.Diagnostics.Stopwatch();
             inkingLoadingWatch.Start();
             AppEventSource.Log.Debug("ViewerPage: Checking inking for " + this.pdfFile.Name);
-            //string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
+            
             try
             {
-                //this.inkArchiveFile = await ApplicationData.Current.LocalFolder.GetFileAsync(inkStrokeFilename);
-                AppEventSource.Log.Info("ViewerPage: Loading inking for " + this.pdfFile.Name);
                 this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
-                //MemoryStream inkData;
-                //using (Stream inkArchiveStream = await inkArchiveFile.OpenStreamForReadAsync())
-                //{
-                //    inkData = new MemoryStream((int)inkArchiveStream.Length);
-                //    inkArchiveStream.Seek(0, SeekOrigin.Begin);
-                //    await inkArchiveStream.CopyToAsync(inkData);
-                //}
-                //AppEventSource.Log.Debug("ViewerPage: Inking loaded to memory.");
-                //ZipArchive archive = new ZipArchive(inkData, ZipArchiveMode.Read);
-                //foreach (ZipArchiveEntry inkFile in archive.Entries)
-                //{
-                //    using (var entryStream = inkFile.Open().AsInputStream())
-                //    {
-                //        InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                //        await inkStrokeContainer.LoadAsync(entryStream);
-                //        int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
-                //        this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
-                //        AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
-                //    }
-                //}
+
                 foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
                 {
                     int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
@@ -314,55 +252,60 @@ namespace Libra
             }
             catch (Exception e)
             {
-                if (e is FileNotFoundException)
-                {
-                    AppEventSource.Log.Info("ViewerPage: No inking file found.");
-                    this.inkArchiveFile = null;
-                    return;
-                }
-                else
-                {
-                    AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.Message);
-                    // Notify user
-                    MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.Message);
-                    var handler = new UICommandInvokedHandler(RestoreInkingCommandHandler);
-                    messageDialog.Commands.Add(new UICommand("Delete inking", handler, 0));
-                    messageDialog.Commands.Add(new UICommand("Ignore", handler, 1));
-                    await messageDialog.ShowAsync();
-                }
+                AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.Message);
+                // Notify user
+                MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.Message);
+                messageDialog.Commands.Add(new UICommand("OK", null, 0));
+                await messageDialog.ShowAsync();
             }
         }
 
-        private async void RestoreInkingCommandHandler(IUICommand command)
+        private async void SaveDrawingPreference()
         {
-            switch ((int)command.Id)
+            AppEventSource.Log.Debug("ViewerPage: Saving drawing preference to " + dataFolder.Name);
+            this.inkingSetting.penSize = this.penSize;
+            this.inkingSetting.highlighterSize = this.highlighterSize;
+            this.inkingSetting.drawingDevice = this.drawingDevice;
+            this.inkingSetting.penColor = this.drawingAttributes.Color;
+            StorageFile file = await dataFolder.CreateFileAsync(INKING_SETTING_FILENAME, CreationCollisionOption.ReplaceExisting);
+            await SuspensionManager.SerializeToFileAsync(this.inkingSetting, typeof(InkingSetting), file);
+        }
+
+        private async Task LoadDrawingPreference()
+        {
+            // Check drawing preference file
+            AppEventSource.Log.Debug("ViewerPage: Checking previously saved drawing preference...");
+            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_SETTING_FILENAME, this.dataFolder);
+            this.inkingSetting = await
+                SuspensionManager.DeserializeFromFileAsync(typeof(InkingSetting), file) as InkingSetting;
+            if (inkingSetting == null)
             {
-                case 0:
-                    // Delete file
-                    string inkStrokeFilename = this.futureAccessToken + EXT_ARCHIVE;
-                    await this.inkArchiveFile.DeleteAsync();
-                    this.inkArchiveFile = null;
-                    AppEventSource.Log.Info("ViewerPage: Inking file for " + this.pdfFile.Name + " deleted.");
-                    break;
-                default:
-                    break;
+                // Create drawing preference file if one does not exist
+                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference found. Creating a new one for " + dataFolder.Name);
+                inkingSetting = new InkingSetting(this.pageWidth);
+                file = await dataFolder.CreateFileAsync(INKING_SETTING_FILENAME, CreationCollisionOption.ReplaceExisting);
+                await SuspensionManager.SerializeToFileAsync(this.inkingSetting, typeof(InkingSetting), file);
             }
-        }
-
-        private void SaveDrawingPreference()
-        {
-            // TODO
-            //AppEventSource.Log.Debug("ViewerPage: Inking preference saved.");
-        }
-
-        private void RestoreDrawingPreference()
-        {
+            // Drawing preference
+            this.penSize = inkingSetting.penSize;
+            this.highlighterSize = inkingSetting.highlighterSize;
+            this.drawingDevice = inkingSetting.drawingDevice;
+            this.drawingAttributes = new InkDrawingAttributes();
+            this.drawingAttributes.Color = inkingSetting.penColor;
+            this.drawingAttributes.Size = new Size(penSize, penSize);
+            this.drawingAttributes.IgnorePressure = false;
+            this.drawingAttributes.FitToCurve = true;
+            // Set ink canvas scale factor
+            this.inkCanvasScaleFactor = this.pageWidth / inkingSetting.pageWidth;
+            AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor set to " + this.inkCanvasScaleFactor.ToString());
             Pencil_Click(null, null);
-            //AppEventSource.Log.Debug("ViewerPage: Inking preference restored.");
         }
 
         private async void LoadFile(StorageFile pdfFile)
         {
+            this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
+            this.fileLoadingWatch.Start();
+
             if (this.pageCount > 0 && this.imagePanel.Children.Count >= this.pageCount)
             {
                 AppEventSource.Log.Warn("ViewerPage: Viewer not initialized correctly.");
@@ -392,9 +335,8 @@ namespace Libra
             this.pageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
 
-            this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
-            this.fileLoadingWatch.Start();
-
+            await LoadDrawingPreference();
+            
             // Add and load the first two pages
             Image image;
             for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
@@ -431,12 +373,12 @@ namespace Libra
             // Calculate the minimum zoom factor
             SetZoomFactor();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
-            this.fileLoaded = true;
             // Restore view
             await RestoreViewerState();
             // Retore inking
             await LoadInking();
             RefreshViewer();
+            this.fileLoaded = true;
             this.fileLoadingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             this.recycleTimer.Start();
@@ -560,8 +502,8 @@ namespace Libra
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
                 Windows.UI.Xaml.Media.ScaleTransform scaleTransform = new Windows.UI.Xaml.Media.ScaleTransform();
-                //scaleTransform.ScaleX = this.scaleFactor;
-                //scaleTransform.ScaleY = this.scaleFactor;
+                scaleTransform.ScaleX = this.inkCanvasScaleFactor;
+                scaleTransform.ScaleY = this.inkCanvasScaleFactor;
                 inkCanvas.RenderTransform = scaleTransform;
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
@@ -791,7 +733,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
-            this.drawingAttributes.Size = new Size(penSize, highlighterSize);
+            this.drawingAttributes.Size = new Size(highlighterSize, highlighterSize);
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
