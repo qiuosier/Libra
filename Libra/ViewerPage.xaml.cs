@@ -11,6 +11,8 @@ using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
+using Windows.Storage.AccessCache;
+using System.IO;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -112,7 +114,6 @@ namespace Libra
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            AppEventSource.Log.Debug("ViewerPage: Navigated to ViewerPage.");
             
             if (e.Parameter != null)
             {
@@ -280,6 +281,9 @@ namespace Libra
             StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_SETTING_FILENAME, this.dataFolder);
             this.inkingSetting = await
                 SuspensionManager.DeserializeFromFileAsync(typeof(InkingSetting), file) as InkingSetting;
+            // Discard the inking setting if it has a 0 page width
+            if (inkingSetting != null && inkingSetting.pageWidth == 0)
+                inkingSetting = null;
             if (inkingSetting == null)
             {
                 // Create drawing preference file if one does not exist
@@ -314,31 +318,30 @@ namespace Libra
                 return;
             }
             AppEventSource.Log.Info("ViewerPage: Loading file: " + this.pdfFile.Name);
+            // Display loading
+            this.fullScreenCover.Visibility = Visibility.Visible;
+            this.fullScreenMessage.Text = "Loading...";
             // Add file the future access list
             this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
-            // Create local data folder, if not exist
-            IAsyncOperation<StorageFolder> getDataFolder = 
-                ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
             // Load Pdf file
             IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
-            // Display loading
-            this.fullScreenCover.Visibility = Visibility.Visible;
-            this.fullScreenMessage.Text = "Loading...";
-            // Wait until the data folder is created and file is loaded
-            this.dataFolder = await getDataFolder;
-            this.pdfDocument = await getPdfTask;
+            // Check future access list
+            await CheckFutureAccessList();
+            // Create local data folder, if not exist
+            this.dataFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
             // Create inking folder
             this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
+            // Wait until the file is loaded
+            this.pdfDocument = await getPdfTask;
 
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             this.pageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
-
+            // Load drawing preference
             await LoadDrawingPreference();
-            
             // Add and load the first two pages
             Image image;
             for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
@@ -383,7 +386,70 @@ namespace Libra
             this.fileLoaded = true;
             this.fileLoadingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
+
             this.recycleTimer.Start();
+        }
+        
+        /// <summary>
+        /// This method is not reliable.
+        /// This method should only be called either right after getting the future access token, 
+        /// or at the end of FinishInitialization() after fileLoaded has been set to true,
+        /// depending on the performance and the size of the future access list.
+        /// </summary>
+        /// <returns></returns>
+        private async Task CheckFutureAccessList()
+        {
+            string oldToken = null;
+            AccessListEntryView futureAccessEntries = StorageApplicationPermissions.FutureAccessList.Entries;
+            // If no recent file
+            if (futureAccessEntries.Count == 0)
+                return;
+            else
+            {
+                System.Diagnostics.Stopwatch fileCheckingWatch = new System.Diagnostics.Stopwatch();
+                fileCheckingWatch.Start();
+                for (int i = 0; i < futureAccessEntries.Count; i++)
+                {
+                    AccessListEntry entry = futureAccessEntries[i];
+                    if (entry.Token == this.futureAccessToken) continue;
+                    StorageFile pdfFileInList = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(entry.Token);
+                    if (this.pdfFile.IsEqual(pdfFileInList))
+                    {
+                        oldToken = entry.Token;
+                        StorageApplicationPermissions.FutureAccessList.Remove(entry.Token);
+                        break;
+                    }
+                }
+                fileCheckingWatch.Stop();
+                AppEventSource.Log.Debug("ViewerPage: Went through future access list in " + fileCheckingWatch.Elapsed.TotalSeconds.ToString() + " seconds");
+            }
+            if (oldToken != null)
+            {
+                AppEventSource.Log.Info("ViewerPage: File matched existing token in access list. " + oldToken);
+                try
+                {
+                    StorageFolder oldDataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(oldToken);
+                    await oldDataFolder.RenameAsync(this.futureAccessToken, NameCollisionOption.ReplaceExisting);
+                    AppEventSource.Log.Info("ViewerPage: Folder " + oldToken + " renamed to " + this.futureAccessToken);
+                    if (this.fileLoaded)
+                    {
+                        this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
+                        this.inkingFolder = await dataFolder.GetFolderAsync(INKING_FOLDER);
+                        await LoadInking();
+                        RefreshViewer();
+                        // Save current Preference
+                        SaveDrawingPreference();
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (e is FileNotFoundException)
+                    {
+                        AppEventSource.Log.Warn("ViewerPage: Folder " + oldToken + " not found. ");
+                    }
+                    else throw new Exception(e.Message);
+                }
+            }
         }
 
         private async void PreparePages(PageRange range)
@@ -459,7 +525,7 @@ namespace Libra
 
         private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
         {
-            if (pageNumber <= 0) return;
+            if (pageNumber <= 0 || pageNumber > this.pageCount) return;
             // Render pdf image
             Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
             if (image == null)
@@ -494,7 +560,7 @@ namespace Libra
             }
             // Load ink canvas
             InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
-            // Check if an ink canvas exist
+            // If an ink canvas does not exist, add a new one
             if (inkCanvas == null)
             {
                 // Add ink canvas
@@ -509,7 +575,6 @@ namespace Libra
                 inkCanvas.RenderTransform = scaleTransform;
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
-
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
                 if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
@@ -519,6 +584,7 @@ namespace Libra
                 }
             }
         }
+
 
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
         {
