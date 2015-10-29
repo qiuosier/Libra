@@ -57,6 +57,7 @@ namespace Libra
         private InkDrawingAttributes drawingAttributes;
         private InkingSetting inkingSetting;
         private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
+        private InkInputProcessingMode inkProcessMode;
 
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
@@ -106,6 +107,7 @@ namespace Libra
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.scrollViewer.ChangeView(0, 0, 1);
+            this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
 
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
@@ -234,11 +236,12 @@ namespace Libra
             System.Diagnostics.Stopwatch inkingLoadingWatch = new System.Diagnostics.Stopwatch();
             inkingLoadingWatch.Start();
             AppEventSource.Log.Debug("ViewerPage: Checking inking for " + this.pdfFile.Name);
-            
+            // TODO: Need to check if the inking is suitable for the file/page.
+            //
+            //
             try
             {
                 this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
-
                 foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
                 {
                     int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
@@ -569,10 +572,13 @@ namespace Libra
                 inkCanvas.InkPresenter.InputDeviceTypes = drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
+                inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
+                // Scale ink canvas
                 Windows.UI.Xaml.Media.ScaleTransform scaleTransform = new Windows.UI.Xaml.Media.ScaleTransform();
                 scaleTransform.ScaleX = this.inkCanvasScaleFactor;
                 scaleTransform.ScaleY = this.inkCanvasScaleFactor;
                 inkCanvas.RenderTransform = scaleTransform;
+
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
@@ -613,6 +619,7 @@ namespace Libra
             {
                 InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+                inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
             }
             AppEventSource.Log.Debug("ViewerPage: Drawing attributes updated.");
         }
@@ -793,6 +800,7 @@ namespace Libra
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateDrawingAttributes();
         }
 
@@ -805,6 +813,7 @@ namespace Libra
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateDrawingAttributes();
         }
 
@@ -813,6 +822,12 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Eraser selected");
             this.Eraser.IsChecked = true;
+            this.drawingAttributes.Size = new Size(penSize, penSize);
+            this.drawingAttributes.PenTip = PenTipShape.Circle;
+            this.drawingAttributes.DrawAsHighlighter = false;
+            this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            this.inkProcessMode = InkInputProcessingMode.Erasing;
+            UpdateDrawingAttributes();
         }
     }
 }
