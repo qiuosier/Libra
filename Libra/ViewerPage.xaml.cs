@@ -103,7 +103,7 @@ namespace Libra
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
-
+            this.scrollViewer.ChangeView(0, 0, 1);
             this.recycleTimer.Stop();
 
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
@@ -148,10 +148,10 @@ namespace Libra
             ViewerState viewerState = new ViewerState(this.futureAccessToken);
             viewerState.hOffset = this.scrollViewer.HorizontalOffset;
             viewerState.vOffset = this.scrollViewer.VerticalOffset;
-            viewerState.hScrollableOffset = this.scrollViewer.ScrollableHeight;
-            viewerState.vScrollableOffset = this.scrollViewer.ScrollableWidth;
+            viewerState.hScrollableOffset = this.scrollViewer.ScrollableWidth;
+            viewerState.vScrollableOffset = this.scrollViewer.ScrollableHeight;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
-            viewerState.pageWidth = this.pageWidth;
+            //viewerState.pageWidth = this.pageWidth;
             return viewerState;
         }
 
@@ -169,24 +169,26 @@ namespace Libra
                     AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token.");
                 }
                 AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
-                // Check if the window has the same size
-
+                // Scale the offsets if the App window has a different size
+                // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
+                // Zoom factor for scroll viewer will always be 1 when the App opens.
+                // The file may be displayed at different zoom level even if the zoom factor is the same.
+                // Therefore zoom factor is not reliable for restoring the view of the file.
+                // The goal for restoring the view is to make the file zoomed at the same level.
+                // If the same file is zoomed at the same level, the scrollable offsets should also be the same.
+                // We can use the scrollable offset the determine the zoom factor.
+                double hScale = 0, vScale = 0;
+                if (viewerState.hScrollableOffset > 0)
+                    hScale = this.scrollViewer.ScrollableWidth / viewerState.hScrollableOffset;
+                if (viewerState.vScrollableOffset > 0)
+                    vScale = this.scrollViewer.ScrollableHeight / viewerState.vScrollableOffset;
+                // Scale could be 0 when there is no scrollable offset
+                float zoomFactor = Math.Min((float) (1 / Math.Max(hScale, vScale)),this.scrollViewer.ZoomFactor);
                 // Restore viewer offsets
                 double honrizontalOffset = viewerState.hOffset;
                 double verticalOffset = viewerState.vOffset;
-                if (honrizontalOffset > this.scrollViewer.ScrollableWidth)
-                {
-                    AppEventSource.Log.Error("ViewerPage: Viewer restoration failed. Honrizontal offset is over the limit.");
-                }
-                else if (verticalOffset > this.scrollViewer.ScrollableHeight)
-                {
-                    AppEventSource.Log.Error("ViewerPage: Viewer restoration failed. Vertical offset is over the limit.");
-                }
-                else
-                {
-                    this.scrollViewer.ChangeView(honrizontalOffset, verticalOffset, viewerState.zFactor);
-                    AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
-                }
+                this.scrollViewer.ChangeView(honrizontalOffset, verticalOffset, zoomFactor);
+                AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
             }
         }
 

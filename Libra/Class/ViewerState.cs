@@ -30,6 +30,6 @@
         public double hScrollableOffset { get; set; }
         public double vScrollableOffset { get; set; }
         public float zFactor { get; set; }
-        public double pageWidth { get; set; }
+        //public double pageWidth { get; set; }
     }
 }
