@@ -8,21 +8,24 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <StackPanel x:Name="contentPanel" Margin="8,32,0,32">
-            <TextBlock x:Name="recentFileTitle" Text="Recent Files:" Margin="0,0,0,0"/>
-            <ListBox x:Name="RecentFileList" 
-                     ItemsSource="{Binding}" 
-                     Margin="15,0,0,0" 
-                     Background="{x:Null}" 
-                     ItemContainerStyle="{StaticResource RecentFileListItem}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <HyperlinkButton Click="RecentFileItem_Click"
-                                 Content="{Binding Filename}"/>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-            <HyperlinkButton Name="OpenNew" Click="OpenNew_Click"  Content="Open Another File" Margin="0,20,0,0"/>
+        <StackPanel x:Name="contentPanel" Margin="15,48,0,32" Orientation="Horizontal">
+            <StackPanel x:Name="recentFilePanel" Orientation="Vertical" MinWidth="280">
+                <TextBlock x:Name="recentFileTitle" Text="Recent Files:" Margin="0,0,0,0"/>
+                <ListBox x:Name="RecentFileList" 
+                         ItemsSource="{Binding}" 
+                         Margin="0,0,0,0" 
+                         Background="{x:Null}" 
+                         ItemContainerStyle="{StaticResource RecentFileListItem}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <HyperlinkButton Click="RecentFileItem_Click"
+                                     Content="{Binding Filename}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <HyperlinkButton Name="OpenNew" Click="OpenNew_Click"  Content="Open Another File" Margin="0,20,0,0"/>
+            </StackPanel>
+            <!--<TextBlock x:Name="advancedTitle" Text="Advanced Options:" Margin="0,0,0,0"/>-->
         </StackPanel>
     </Grid>
 </Page>

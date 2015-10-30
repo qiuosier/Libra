@@ -68,6 +68,7 @@ namespace Libra
         public static async Task SaveSessionAsync()
         {
             appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+            appFrame.GoBack();
             await SaveViewerAsync();
             if (sessionState != null)
             {

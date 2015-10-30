@@ -33,6 +33,7 @@ namespace Libra
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
+        private const int PAGE_NUMBER_TIMER_SECOND = 2;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
@@ -41,16 +42,19 @@ namespace Libra
         private const string EXT_VIEW = ".xml";
         private const string INKING_FOLDER = "Inking";
         private const string INKING_SETTING_FILENAME = "_inkingSetting.xml";
+        private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
         private StorageFile pdfFile;
         private StorageFolder dataFolder;
         private StorageFolder inkingFolder;
         private PdfDocument pdfDocument;
         private Thickness pageMargin;
-        private PageRange currentRange;
+        private PageRange inkingPageRange;
+        private PageRange visiblePageRange;
         private DispatcherTimer refreshTimer;
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
+        private DispatcherTimer pageNumberTextTimer;
         private Queue<int> recyclePagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
         private List<int> inkCanvasList;
@@ -91,6 +95,12 @@ namespace Libra
             this.recycleTimer.Tick += RecycleTimer_Tick;
             this.recycleTimer.Interval = new TimeSpan(0, 0, RECYCLE_TIMER_SECOND);
 
+            this.pageNumberTextTimer = new DispatcherTimer();
+            this.pageNumberTextTimer.Tick += pageNumberTextTimer_Tick;
+            this.pageNumberTextTimer.Interval = new TimeSpan(0, 0, PAGE_NUMBER_TIMER_SECOND);
+
+            InitializeViewer();
+
             AppEventSource.Log.Debug("ViewerPage: Page initialized.");
         }
 
@@ -98,7 +108,8 @@ namespace Libra
         {
             this.imagePanel.Children.Clear();
             this.imagePanel.UpdateLayout();
-            this.currentRange = new PageRange();
+            this.inkingPageRange = new PageRange();
+            this.visiblePageRange = new PageRange();
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.pageCount = 0;
@@ -109,14 +120,18 @@ namespace Libra
             this.scrollViewer.ChangeView(0, 0, 1);
             this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
-
+            this.fullScreenCover.Visibility = Visibility.Visible;
+            this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
+            this.pageNumberGrid.Visibility = Visibility.Collapsed;
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            
+            // Set viewer mode
+            if (SuspensionManager.sessionState != null)
+                SuspensionManager.sessionState.ViewerMode = 1;
             if (e.Parameter != null)
             {
                 StorageFile argumentFile = e.Parameter as StorageFile;
@@ -385,6 +400,8 @@ namespace Libra
             await RestoreViewerState();
             // Retore inking
             await LoadInking();
+            // Make sure about the visible page range
+            this.visiblePageRange = FindVisibleRange();
             RefreshViewer();
             this.fileLoaded = true;
             this.fileLoadingWatch.Stop();
@@ -458,14 +475,14 @@ namespace Libra
         private async void PreparePages(PageRange range)
         {
             // Add invisible pages to recycle list
-            for (int i = currentRange.first - SIZE_PAGE_BUFFER; i <= currentRange.last + SIZE_PAGE_BUFFER; i++)
+            for (int i = inkingPageRange.first - SIZE_PAGE_BUFFER; i <= inkingPageRange.last + SIZE_PAGE_BUFFER; i++)
             {
                 if ((i < range.first - SIZE_PAGE_BUFFER || i > range.last + SIZE_PAGE_BUFFER)
                     && i > 0 && i <= pageCount)
                     this.recyclePagesQueue.Enqueue(i);
             }
             // Update visible range
-            this.currentRange = range;
+            this.inkingPageRange = range;
             // Load visible pages
             for (int i = range.first; i <= range.last; i++)
             {
@@ -481,7 +498,7 @@ namespace Libra
 
         private void RemovePage(int pageNumber)
         {
-            if (pageNumber < currentRange.first - SIZE_PAGE_BUFFER || pageNumber > currentRange.last + SIZE_PAGE_BUFFER)
+            if (pageNumber < inkingPageRange.first - SIZE_PAGE_BUFFER || pageNumber > inkingPageRange.last + SIZE_PAGE_BUFFER)
             {
                 // Remove Image
                 Image image = (Image)this.FindName(PREFIX_PAGE + pageNumber.ToString());
@@ -642,17 +659,14 @@ namespace Libra
 
         private void RefreshViewer()
         {
-            int p = FindVisiblePage();
-            if (p > 0)
-                PreparePages(FindVisibleRange(p));
-            else AppEventSource.Log.Warn("ViewerPage: Visible page is incorrect. p = " + p.ToString());
+            PreparePages(this.visiblePageRange);
         }
 
         private int FindVisiblePage()
         {
             // Find a page that is currently visible
             // Check current page range
-            for (int i = currentRange.first; i <= currentRange.last; i++)
+            for (int i = inkingPageRange.first; i <= inkingPageRange.last; i++)
             {
                 if (IsPageVisible(i)) return i;
             }
@@ -673,9 +687,15 @@ namespace Libra
             return 0;
         }
 
-        private PageRange FindVisibleRange(int visiblePage)
+        private PageRange FindVisibleRange()
         {
-            // Given a visible page,
+            // Find a visible page,
+            int visiblePage = FindVisiblePage();
+            if (visiblePage <= 0)
+            {
+                AppEventSource.Log.Warn("ViewerPage: Visible page is incorrect. page = " + visiblePage.ToString());
+                return this.visiblePageRange;
+            }
             // Find the pages that are currently visible
             PageRange range = new PageRange(visiblePage, visiblePage);
             // Find the first visible page
@@ -701,9 +721,9 @@ namespace Libra
 
         private void SetZoomFactor()
         {
-            double hZoomFactor = (this.scrollViewer.ActualHeight 
+            double hZoomFactor = (this.scrollViewer.ActualHeight - SCROLLBAR_WIDTH
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / pageHeight;
-            double wZoomFactor = (this.scrollViewer.ActualWidth 
+            double wZoomFactor = (this.scrollViewer.ActualWidth - SCROLLBAR_WIDTH
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / pageWidth;
             if (hZoomFactor < 0.1)
             {
@@ -759,12 +779,24 @@ namespace Libra
             this.recycleTimer.Start();
         }
 
+        private void pageNumberTextTimer_Tick(object sender, object e)
+        {
+            pageNumberTextTimer.Stop();
+            this.pageNumberGrid.Visibility = Visibility.Collapsed;
+        }
+
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
+            // Determine visible page range
+            this.visiblePageRange = FindVisibleRange();
+            this.pageNumberTextBlock.Text = this.visiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
+            this.pageNumberGrid.Visibility = Visibility.Visible;
             if (fileLoaded && !e.IsIntermediate)
             {
                 refreshTimer.Stop();
                 refreshTimer.Start();
+                pageNumberTextTimer.Stop();
+                pageNumberTextTimer.Start();
             }
         }
 
@@ -828,6 +860,15 @@ namespace Libra
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
             this.inkProcessMode = InkInputProcessingMode.Erasing;
             UpdateDrawingAttributes();
+        }
+
+        private async void Close_Click(object sender, RoutedEventArgs e)
+        {
+            SuspensionManager.viewerState = SaveViewerState();
+            await SuspensionManager.SaveSessionAsync();
+            this.fileLoaded = false;
+            InitializeViewer();
+            this.Frame.Navigate(typeof(MainPage));
         }
     }
 }

@@ -55,11 +55,6 @@ namespace Libra
                 this.RecentFileList.DataContext = mruFiles;
                 AppEventSource.Log.Debug("MainPage: Recent files added.");
             }
-            // Set viewer state
-            if (SuspensionManager.sessionState != null)
-            {
-                SuspensionManager.sessionState.ViewerMode = 0;
-            }
         }
 
         private async void RecentFileItem_Click(object sender, RoutedEventArgs e)

@@ -15,7 +15,7 @@
             <AppBarButton Icon="Setting" Label="Pen Settings" />
             <AppBarSeparator />
             <AppBarButton Icon="SaveLocal" Label="Export Inking"/>
-            <AppBarButton Icon="Cancel" Label="Close File"/>
+            <AppBarButton Icon="Cancel" Label="Close File" Click="Close_Click"/>
         </CommandBar>
         <Grid Margin="0,48,0,0">
             <!--<TextBlock x:Name="statusOutput" Height="20" VerticalAlignment="Top" Canvas.ZIndex="100" Margin="200,0,0,0" Foreground="#FF979797"/>-->
@@ -28,13 +28,16 @@
                           MinZoomFactor="0.5" 
                           MaxZoomFactor="5" 
                           ViewChanged="scrollViewer_ViewChanged">
-                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,0,0,0" HorizontalAlignment="Center">
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MinHeight="320">
+                    <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,0,10,0" HorizontalAlignment="Center">
                     </StackPanel>
                 </Grid>
             </ScrollViewer>
+            <Grid x:Name="pageNumberGrid" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold" />
+            </Grid>
             <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
-                <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened" FontSize="24" FontWeight="Bold"/>
+                <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
             </Grid>
         </Grid>
     </Grid>

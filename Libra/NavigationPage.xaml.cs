@@ -39,7 +39,7 @@ namespace NavigationMenu
                 {
                     Symbol = Symbol.TwoPage,
                     Label = "Horizontal View",
-                    DestPage = null
+                    DestPage = typeof(ViewerPage)
                 },
                 new NavMenuItem()
                 {
@@ -51,7 +51,7 @@ namespace NavigationMenu
                 {
                     Symbol = Symbol.Setting,
                     Label = "Settings",
-                    DestPage = null
+                    DestPage = typeof(SettingsPage)
                 },
             });
 
@@ -194,6 +194,9 @@ namespace NavigationMenu
                     item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
                     await SuspensionManager.SaveViewerAsync();
+                    // Reset viewer mode
+                    if (SuspensionManager.sessionState != null)
+                        SuspensionManager.sessionState.ViewerMode = 0;
                     this.AppFrame.Navigate(item.DestPage, item.Arguments);
                 }
             }
