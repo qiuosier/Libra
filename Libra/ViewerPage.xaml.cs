@@ -34,6 +34,7 @@ namespace Libra
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
+        private const int DEFAULT_RENDER_WIDTH = 1500;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
@@ -63,7 +64,6 @@ namespace Libra
         private InkingSetting inkingSetting;
         private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
         private InkInputProcessingMode inkProcessMode;
-
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
         private int pageCount;
@@ -77,7 +77,8 @@ namespace Libra
         private int penSize;
         private int highlighterSize;
         private string futureAccessToken;
-        
+
+        private uint[] renderWidthArray;
 
         public ViewerPage()
         {
@@ -205,7 +206,9 @@ namespace Libra
                 if (viewerState.vScrollableOffset > 0)
                     vScale = this.scrollViewer.ScrollableHeight / viewerState.vScrollableOffset;
                 // Scale could be 0 when there is no scrollable offset
-                float zoomFactor = Math.Min((float) (1 / Math.Max(hScale, vScale)),this.scrollViewer.ZoomFactor);
+                // Max is used to eliminate the 0 scale, and
+                // Min is used to eliminate the case of both scales are 0
+                float zoomFactor = Math.Min((float) (1 / Math.Max(hScale, vScale)),this.scrollViewer.MaxZoomFactor);
                 // Restore viewer offsets
                 double honrizontalOffset = viewerState.hOffset;
                 double verticalOffset = viewerState.vOffset;
@@ -360,6 +363,7 @@ namespace Libra
 
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
+            this.renderWidthArray = new uint[this.pageCount];
             this.pageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
             // Load drawing preference
@@ -518,7 +522,12 @@ namespace Libra
             while (renderPagesQueue.Count > 0)
             {
                 int i = renderPagesQueue.Dequeue();
-                await LoadPage(i);
+                // Load page at a higer resolution if it is zoomed in. Otherwise, load page at default resolution
+                if (this.imagePanel.ActualWidth * this.scrollViewer.ZoomFactor > DEFAULT_RENDER_WIDTH && 
+                    i >= visiblePageRange.first && i <= visiblePageRange.last)
+                    await LoadPage(i, 2 * DEFAULT_RENDER_WIDTH);
+                else
+                    await LoadPage(i);
             }
             this.isRenderingPage = false;
         }
@@ -566,7 +575,7 @@ namespace Libra
             }
         }
 
-        private async Task LoadPage(int pageNumber, uint renderWidth = 1500)
+        private async Task LoadPage(int pageNumber, uint renderWidth = DEFAULT_RENDER_WIDTH)
         {
             if (pageNumber <= 0 || pageNumber > this.pageCount) return;
             // Render pdf image
@@ -576,8 +585,8 @@ namespace Libra
                 AppEventSource.Log.Warn("ViewerPage: Image container for page " + pageNumber.ToString() + " not found.");
                 return;
             }
-            // Check if page is already loaded
-            if (image.Source == null)
+            // Check if page is already loaded, or re-render the page if a different resolution is specified.
+            if (image.Source == null || renderWidth != this.renderWidthArray[pageNumber - 1])
             {
                 // Render page
                 InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
@@ -589,6 +598,7 @@ namespace Libra
                 BitmapImage bitmapImage = new BitmapImage();
                 bitmapImage.SetSource(stream);
                 image.Source = bitmapImage;
+                this.renderWidthArray[pageNumber - 1] = renderWidth;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
         }
@@ -812,6 +822,7 @@ namespace Libra
         {
             // Determine visible page range
             this.visiblePageRange = FindVisibleRange();
+            // Show page number
             this.pageNumberTextBlock.Text = this.visiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
             this.pageNumberGrid.Visibility = Visibility.Visible;
             if (fileLoaded && !e.IsIntermediate)
