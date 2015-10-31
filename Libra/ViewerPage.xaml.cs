@@ -56,6 +56,7 @@ namespace Libra
         private DispatcherTimer recycleTimer;
         private DispatcherTimer pageNumberTextTimer;
         private Queue<int> recyclePagesQueue;
+        private Queue<int> renderPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
@@ -72,6 +73,7 @@ namespace Libra
         private bool fileLoaded;
         private bool isSavingInking;
         private bool inkingChanged;
+        private bool isRenderingPage;
         private int penSize;
         private int highlighterSize;
         private string futureAccessToken;
@@ -117,6 +119,8 @@ namespace Libra
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
+            this.renderPagesQueue = new Queue<int>();
+            this.isRenderingPage = false;
             this.scrollViewer.ChangeView(0, 0, 1);
             this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
@@ -472,7 +476,13 @@ namespace Libra
             }
         }
 
-        private async void PreparePages(PageRange range)
+        /// <summary>
+        /// Prepare a range of pages to be displayed. Visiable pages and buffer pages (before/after the visible pages)
+        /// are added to a queue for rendering. Other pages are added to the recycle queue so that memeory will be release
+        /// when the a page is removed later.
+        /// </summary>
+        /// <param name="range"></param>
+        private void PreparePages(PageRange range)
         {
             // Add invisible pages to recycle list
             for (int i = inkingPageRange.first - SIZE_PAGE_BUFFER; i <= inkingPageRange.last + SIZE_PAGE_BUFFER; i++)
@@ -483,17 +493,34 @@ namespace Libra
             }
             // Update visible range
             this.inkingPageRange = range;
-            // Load visible pages
+            // Clear render page queue
+            this.renderPagesQueue.Clear();
+            // Add visible pages to queue
             for (int i = range.first; i <= range.last; i++)
             {
-                await LoadPage(i);
+                renderPagesQueue.Enqueue(i);
                 LoadInkCanvas(i);
             }
-            // Load buffer pages
+            // Add buffer pages to queue
             for (int i = range.first - SIZE_PAGE_BUFFER; i <= range.last + SIZE_PAGE_BUFFER; i++)
             {
+                if (i > 0 && i <= pageCount && !renderPagesQueue.Contains(i))
+                    renderPagesQueue.Enqueue(i);
+            }
+            // Start rendering pages
+            if (!this.isRenderingPage)
+                RenderPages();
+        }
+
+        private async void RenderPages()
+        {
+            this.isRenderingPage = true;
+            while (renderPagesQueue.Count > 0)
+            {
+                int i = renderPagesQueue.Dequeue();
                 await LoadPage(i);
             }
+            this.isRenderingPage = false;
         }
 
         private void RemovePage(int pageNumber)
@@ -536,10 +563,6 @@ namespace Libra
                     grid.Children.RemoveAt(1);
                     this.inkCanvasList.Remove(pageNumber);
                 }
-            }
-            else // Something is wrong
-            {
-                AppEventSource.Log.Warn("ViewerPage: Page " + pageNumber.ToString() + " does not have an ink canvas.");
             }
         }
 
@@ -666,7 +689,7 @@ namespace Libra
         {
             // Find a page that is currently visible
             // Check current page range
-            for (int i = inkingPageRange.first; i <= inkingPageRange.last; i++)
+            for (int i = visiblePageRange.first; i <= visiblePageRange.last; i++)
             {
                 if (IsPageVisible(i)) return i;
             }

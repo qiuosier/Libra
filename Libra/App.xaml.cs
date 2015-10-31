@@ -128,7 +128,7 @@ namespace Libra
 
         private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            AppEventSource.Log.Error("App: Unhandled Exception. " + e.Message);
+            AppEventSource.Log.Error("App: Unhandled Exception. " + sender.ToString() + e.Message);
             libraListener.Flush();
         }
     }

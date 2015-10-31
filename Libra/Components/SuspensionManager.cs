@@ -67,6 +67,7 @@ namespace Libra
         /// <returns>An asynchronous task that reflects when session state has been saved.</returns>
         public static async Task SaveSessionAsync()
         {
+            // Move away from the current page (to a blank page), and then go back, so that the OnNavigatedFrom will be called.
             appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
             appFrame.GoBack();
             await SaveViewerAsync();
