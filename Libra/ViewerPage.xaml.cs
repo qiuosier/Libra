@@ -69,7 +69,6 @@ namespace Libra
         private int pageCount;
         private double pageHeight;
         private double pageWidth;
-        private double inkCanvasScaleFactor;
         private bool fileLoaded;
         private bool isSavingInking;
         private bool inkingChanged;
@@ -116,7 +115,6 @@ namespace Libra
             this.pageHeight = 0;
             this.pageWidth = 0;
             this.pageCount = 0;
-            this.inkCanvasScaleFactor = 0;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
@@ -326,9 +324,7 @@ namespace Libra
             this.drawingAttributes.Size = new Size(penSize, penSize);
             this.drawingAttributes.IgnorePressure = false;
             this.drawingAttributes.FitToCurve = true;
-            // Set ink canvas scale factor
-            this.inkCanvasScaleFactor = this.pageWidth / inkingSetting.pageWidth;
-            AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor set to " + this.inkCanvasScaleFactor.ToString());
+            
             Pencil_Click(null, null);
         }
 
@@ -557,7 +553,7 @@ namespace Libra
             if (grid.Children.Count > 1)
             {
                 // Save ink strokes, if there is any
-                InkCanvas inkCanvas = (InkCanvas)grid.Children[1];
+                InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
                 if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
                 {
                     // Remove old item in dictionary
@@ -623,14 +619,15 @@ namespace Libra
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
-                // Scale ink canvas
-                Windows.UI.Xaml.Media.ScaleTransform scaleTransform = new Windows.UI.Xaml.Media.ScaleTransform();
-                scaleTransform.ScaleX = this.inkCanvasScaleFactor;
-                scaleTransform.ScaleY = this.inkCanvasScaleFactor;
-                inkCanvas.RenderTransform = scaleTransform;
 
-                grid.Children.Add(inkCanvas);
-                this.inkCanvasList.Add(pageNumber);
+                // Calculate ink canvas scale factor
+                double inkCanvasScaleFactor = this.pageWidth / inkingSetting.pageWidth;
+                AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString() 
+                    + " set to " + inkCanvasScaleFactor.ToString());
+                // 
+                inkCanvas.Height = grid.ActualHeight / inkCanvasScaleFactor;
+                inkCanvas.Width = grid.ActualWidth / inkCanvasScaleFactor;
+
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
                 if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
@@ -638,6 +635,14 @@ namespace Libra
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
                 }
+
+                Viewbox viewbox = new Viewbox();
+                viewbox.Child = inkCanvas;
+                viewbox.Height = grid.ActualHeight;
+                viewbox.Width = grid.ActualWidth;
+
+                grid.Children.Add(viewbox);
+                this.inkCanvasList.Add(pageNumber);
             }
         }
 

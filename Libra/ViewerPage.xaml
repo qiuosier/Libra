@@ -34,7 +34,7 @@
                 </Grid>
             </ScrollViewer>
             <Grid x:Name="pageNumberGrid" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
-                <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold" />
+                <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold"/>
             </Grid>
             <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
                 <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
