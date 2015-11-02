@@ -35,6 +35,7 @@ namespace Libra
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int DEFAULT_RENDER_WIDTH = 1500;
+        private const double PAGE_NUMBER_OPACITY = 0.75;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
@@ -67,8 +68,8 @@ namespace Libra
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
         private int pageCount;
-        private double pageHeight;
-        private double pageWidth;
+        private double defaultPageHeight;
+        private double defaultPageWidth;
         private bool fileLoaded;
         private bool isSavingInking;
         private bool inkingChanged;
@@ -108,24 +109,23 @@ namespace Libra
 
         private void InitializeViewer()
         {
+            //this.scrollViewer.ChangeView(null, null, 1);
             this.imagePanel.Children.Clear();
             this.imagePanel.UpdateLayout();
             this.inkingPageRange = new PageRange();
             this.visiblePageRange = new PageRange();
-            this.pageHeight = 0;
-            this.pageWidth = 0;
+            this.defaultPageHeight = 0;
+            this.defaultPageWidth = 0;
             this.pageCount = 0;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.renderPagesQueue = new Queue<int>();
             this.isRenderingPage = false;
-            this.scrollViewer.ChangeView(0, 0, 1);
             this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
-            this.pageNumberGrid.Visibility = Visibility.Collapsed;
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
@@ -153,7 +153,7 @@ namespace Libra
             }
         }
 
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        protected override async void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
             if (this.fileLoaded)
@@ -161,6 +161,8 @@ namespace Libra
                 // Save viewer state to suspension manager
                 SuspensionManager.viewerState = SaveViewerState();
                 AppEventSource.Log.Debug("ViewerPage: Saved viewer state to suspension manager.");
+                if (!SuspensionManager.IsSuspending)
+                    await SuspensionManager.SaveViewerAsync();
             }
         }
 
@@ -169,10 +171,9 @@ namespace Libra
             ViewerState viewerState = new ViewerState(this.futureAccessToken);
             viewerState.hOffset = this.scrollViewer.HorizontalOffset;
             viewerState.vOffset = this.scrollViewer.VerticalOffset;
-            viewerState.hScrollableOffset = this.scrollViewer.ScrollableWidth;
-            viewerState.vScrollableOffset = this.scrollViewer.ScrollableHeight;
+            viewerState.panelWidth = this.imagePanel.ActualWidth;
+            viewerState.panelHeight = this.imagePanel.ActualHeight;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
-            //viewerState.pageWidth = this.pageWidth;
             return viewerState;
         }
 
@@ -183,36 +184,41 @@ namespace Libra
             StorageFile file = await SuspensionManager.GetSavedFileAsync(SuspensionManager.FILENAME_VIEWER_STATE, this.dataFolder);
             ViewerState viewerState = await SuspensionManager.DeserializeFromFileAsync(typeof(ViewerState), file) as ViewerState;
             if (viewerState != null)
-            { 
+            {
                 // Check if the viewer state is for this file
-                if (viewerState.pdfToken != this.futureAccessToken)
+                if (viewerState.version != ViewerState.CURRENT_VIEWER_STATE_VERSION)
+                {
+                    AppEventSource.Log.Warn("ViewerPage: Saved viewer state is not for the current App version.");
+                }
+                else if (viewerState.pdfToken != this.futureAccessToken)
                 {
                     AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token.");
                 }
-                AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
-                // Scale the offsets if the App window has a different size
-                // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
-                // Zoom factor for scroll viewer will always be 1 when the App opens.
-                // The file may be displayed at different zoom level even if the zoom factor is the same.
-                // Therefore zoom factor is not reliable for restoring the view of the file.
-                // The goal for restoring the view is to make the file zoomed at the same level.
-                // If the same file is zoomed at the same level, the scrollable offsets should also be the same.
-                // We can use the scrollable offset the determine the zoom factor.
-                double hScale = 0, vScale = 0;
-                if (viewerState.hScrollableOffset > 0)
-                    hScale = this.scrollViewer.ScrollableWidth / viewerState.hScrollableOffset;
-                if (viewerState.vScrollableOffset > 0)
-                    vScale = this.scrollViewer.ScrollableHeight / viewerState.vScrollableOffset;
-                // Scale could be 0 when there is no scrollable offset
-                // Max is used to eliminate the 0 scale, and
-                // Min is used to eliminate the case of both scales are 0
-                float zoomFactor = Math.Min((float) (1 / Math.Max(hScale, vScale)),this.scrollViewer.MaxZoomFactor);
-                // Restore viewer offsets
-                double honrizontalOffset = viewerState.hOffset;
-                double verticalOffset = viewerState.vOffset;
-                this.scrollViewer.ChangeView(honrizontalOffset, verticalOffset, zoomFactor);
-                AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                else
+                {
+                    AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
+                    // Scale the offsets if the App window has a different size
+                    // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
+                    // Zoom factor for scroll viewer will always be 1 when the App opens.
+                    // The file may be displayed at different zoom level even if the zoom factor is the same.
+                    // Therefore zoom factor is not reliable for restoring the view of the file.
+                    // The goal for restoring the view is to make the file zoomed at the same level.
+                    // If the same file is zoomed at the same level, the scrollable offsets should also be the same.
+                    // We can use the scrollable offset to determine zoomed height/width of the whole file, then determine the zoom factor.
+                    this.scrollViewer.UpdateLayout();
+                    double hScale = imagePanel.ActualWidth / (viewerState.panelWidth * viewerState.zFactor);
+                    double vScale = imagePanel.ActualHeight / (viewerState.panelHeight * viewerState.zFactor);
+                    // Scale could be 0 when there is no scrollable offset
+                    // Max is used to eliminate the 0 scale, and
+                    // Min is used to eliminate the case of both scales are 0
+                    float zoomFactor = Math.Min((float)(1 / Math.Max(hScale, vScale)), this.scrollViewer.MaxZoomFactor);
+                    // Restore viewer offsets
+                    this.scrollViewer.ChangeView(viewerState.hOffset, viewerState.vOffset, zoomFactor);
+                    AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                }
             }
+            // Reset the scroll viewer if no state is restored.
+            else this.scrollViewer.ChangeView(0, 0, 1);
         }
 
         private async Task SaveInking()
@@ -311,7 +317,7 @@ namespace Libra
             {
                 // Create drawing preference file if one does not exist
                 AppEventSource.Log.Debug("ViewerPage: No saved drawing preference found. Creating a new one for " + dataFolder.Name);
-                inkingSetting = new InkingSetting(this.pageWidth);
+                inkingSetting = new InkingSetting(this.defaultPageWidth);
                 file = await dataFolder.CreateFileAsync(INKING_SETTING_FILENAME, CreationCollisionOption.ReplaceExisting);
                 await SuspensionManager.SerializeToFileAsync(this.inkingSetting, typeof(InkingSetting), file);
             }
@@ -360,36 +366,33 @@ namespace Libra
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             this.renderWidthArray = new uint[this.pageCount];
-            this.pageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
-            AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.pageWidth.ToString());
+            this.defaultPageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
+            AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.defaultPageWidth.ToString());
             // Load drawing preference
             await LoadDrawingPreference();
             // Add and load the first two pages
             Image image;
-            for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
-            {
+            int i = 1;
+            //for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
+            //{
                 Grid grid = new Grid();
                 grid.Name = PREFIX_GRID + i.ToString();
                 grid.Margin = pageMargin;
                 image = new Image();
                 image.Name = PREFIX_PAGE + i.ToString();
-                image.Width = pageWidth;
+                image.Width = defaultPageWidth;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
                 await LoadPage(i);
-            }
+            //}
             AppEventSource.Log.Debug("ViewerPage: First " + Math.Min(FIRST_LOAD_PAGES, pageCount).ToString() + " pages rendered.");
-            // Update layout to force the calculation of actual height and width of the image
-            // otherwise, the following code may be executed BEFORE the stack panel update layout.
+            // Update layout to force the calculation of actual height and width of the image.
+            // Otherwise, the following code may be executed BEFORE the stack panel update layout.
+            // The height and width of the first page will be used to initialize the rest of the document.
             this.imagePanel.UpdateLayout();
-            // Use the height of the second page to initialize the rest of the document
-            // This may cause some problem... will fix this later
-            if (pageCount > 1)
-            {
-                image = (Image)this.FindName(PREFIX_PAGE + "2");
-                this.pageHeight = image.ActualHeight;
-                AppEventSource.Log.Debug("ViewerPage: Page height set to " + this.pageHeight.ToString());
-            }
+            image = (Image)this.FindName(PREFIX_PAGE + "1");
+            this.defaultPageHeight = image.ActualHeight;
+            AppEventSource.Log.Debug("ViewerPage: Default Page height set to " + this.defaultPageHeight.ToString());
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start(); 
         }
@@ -398,7 +401,7 @@ namespace Libra
         {
             this.imagePanel.UpdateLayout();
             // Calculate the minimum zoom factor
-            SetZoomFactor();
+            // SetMinZoomFactor();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             // Restore view
             await RestoreViewerState();
@@ -596,6 +599,14 @@ namespace Libra
                 image.Source = bitmapImage;
                 this.renderWidthArray[pageNumber - 1] = renderWidth;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
+                // Ajust image container height and width
+                //if (this.imagePanel.Orientation == Orientation.Vertical)
+                //{
+                //    image.Width = this.defaultPageWidth;
+                //    image.Height = bitmapImage.PixelHeight * this.defaultPageWidth / bitmapImage.PixelWidth;
+                //}
+                //else
+                //{ }
             }
         }
 
@@ -621,7 +632,7 @@ namespace Libra
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
 
                 // Calculate ink canvas scale factor
-                double inkCanvasScaleFactor = this.pageWidth / inkingSetting.pageWidth;
+                double inkCanvasScaleFactor = this.defaultPageWidth / inkingSetting.pageWidth;
                 AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString() 
                     + " set to " + inkCanvasScaleFactor.ToString());
                 // 
@@ -757,12 +768,24 @@ namespace Libra
             return range;
         }
 
-        private void SetZoomFactor()
+        private void SetMinZoomFactor()
         {
+            // Update visible page range
+            this.visiblePageRange = FindVisibleRange();
+            // Find the max page height and width in the visible pages
+            double maxHeight = 0;
+            double maxWidth = 0;
+            for (int i = this.visiblePageRange.first; i <= this.visiblePageRange.last; i++)
+            {
+                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
+                if (image.ActualHeight > maxHeight) maxHeight = image.ActualHeight;
+                if (image.ActualWidth > maxWidth) maxWidth = image.MaxWidth;
+            }
+
             double hZoomFactor = (this.scrollViewer.ActualHeight - SCROLLBAR_WIDTH
-                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / pageHeight;
+                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / maxHeight;
             double wZoomFactor = (this.scrollViewer.ActualWidth - SCROLLBAR_WIDTH
-                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / pageWidth;
+                - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Left)) / maxWidth;
             if (hZoomFactor < 0.1)
             {
                 hZoomFactor = 0.1;
@@ -793,8 +816,8 @@ namespace Libra
                 grid.Margin = pageMargin;
                 Image image = new Image();
                 image.Name = PREFIX_PAGE + i.ToString();
-                image.Width = pageWidth;
-                image.Height = pageHeight;
+                image.Width = defaultPageWidth;
+                image.Height = defaultPageHeight;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
             }
@@ -820,7 +843,7 @@ namespace Libra
         private void pageNumberTextTimer_Tick(object sender, object e)
         {
             pageNumberTextTimer.Stop();
-            this.pageNumberGrid.Visibility = Visibility.Collapsed;
+            this.pageNumberFadeOut.Begin();
         }
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -829,7 +852,8 @@ namespace Libra
             this.visiblePageRange = FindVisibleRange();
             // Show page number
             this.pageNumberTextBlock.Text = this.visiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
-            this.pageNumberGrid.Visibility = Visibility.Visible;
+            this.pageNumberGrid.Opacity = PAGE_NUMBER_OPACITY;
+            // The following code acts like a filter to prevent the timer ticking too frequently
             if (fileLoaded && !e.IsIntermediate)
             {
                 refreshTimer.Stop();
@@ -846,7 +870,7 @@ namespace Libra
                 // Store current zoom factor
                 double factor = scrollViewer.ZoomFactor;
                 // Recalculate min and max zoom factor
-                SetZoomFactor();
+                //SetMinZoomFactor();
                 // Recalculate offsets
                 factor = scrollViewer.ZoomFactor / factor;
                 scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset, 

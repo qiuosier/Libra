@@ -24,6 +24,7 @@ namespace Libra
         private const string FILENAME_SESSION_STATE = "_sessionState.xml";
         public const string FILENAME_VIEWER_STATE = "_viewerState.xml";
         private static Frame appFrame;
+        public static bool IsSuspending { get; set; }
 
         /// <summary>
         /// Provides access to global session state for the current session.  This state is
@@ -67,6 +68,7 @@ namespace Libra
         /// <returns>An asynchronous task that reflects when session state has been saved.</returns>
         public static async Task SaveSessionAsync()
         {
+            IsSuspending = true;
             // Move away from the current page (to a blank page), and then go back, so that the OnNavigatedFrom will be called.
             appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
             appFrame.GoBack();
@@ -78,6 +80,7 @@ namespace Libra
                     ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
                 await SerializeToFileAsync(sessionState, typeof(SessionState), file);
             }
+            IsSuspending = false;
         }
 
         /// <summary>
