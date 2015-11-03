@@ -40,6 +40,7 @@ namespace Libra
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
+        private const string PREFIX_VIEWBOX = "viewbox";
         private const string EXT_INKING = ".gif";
         private const string EXT_VIEW = ".xml";
         private const string INKING_FOLDER = "Inking";
@@ -620,19 +621,19 @@ namespace Libra
                 image.Source = bitmapImage;
                 this.renderWidthArray[pageNumber - 1] = renderWidth;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
-                // Ajust image container height and width
-                if (this.imagePanel.Orientation == Orientation.Vertical)
+            }
+            // Ajust image container height and width
+            if (this.imagePanel.Orientation == Orientation.Vertical)
+            {
+                image.Width = this.defaultPageWidth;
+                image.Height = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
+            }
+            else
+            {
+                if (defaultPageHeight > 0)
                 {
-                    image.Width = this.defaultPageWidth;
-                    image.Height = bitmapImage.PixelHeight * this.defaultPageWidth / bitmapImage.PixelWidth;
-                }
-                else
-                {
-                    if (defaultPageHeight > 0)
-                    {
-                        image.Height = this.defaultPageHeight;
-                        image.Width = bitmapImage.PixelWidth * this.defaultPageHeight / bitmapImage.PixelHeight;
-                    }
+                    image.Height = this.defaultPageHeight;
+                    image.Width = ((BitmapImage)(image.Source)).PixelWidth * this.defaultPageHeight / ((BitmapImage)(image.Source)).PixelHeight;
                 }
             }
         }
@@ -645,16 +646,15 @@ namespace Libra
                 AppEventSource.Log.Warn("ViewerPage: Grid container for page " + pageNumber.ToString() + " not found.");
                 return;
             }
+            // Update the grid size to match the image size
+            Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
+            grid.Width = image.Width;
+            grid.Height = image.Height;
             // Find existing ink canvas
             InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
             // If an ink canvas does not exist, add a new one
             if (inkCanvas == null)
             {
-                // Update the grid size to match the image size
-                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
-                grid.Width = image.Width;
-                grid.Height = image.Height;
-
                 // Add ink canvas
                 inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
@@ -665,7 +665,7 @@ namespace Libra
 
                 // Calculate ink canvas scale factor
                 double inkCanvasScaleFactor = this.defaultPageWidth / inkingSetting.pageWidth;
-                AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString() 
+                AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString()
                     + " set to " + inkCanvasScaleFactor.ToString());
                 // 
                 inkCanvas.Height = image.Height / inkCanvasScaleFactor;
@@ -678,15 +678,23 @@ namespace Libra
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
                 }
-                
+
                 // Use viewbox to scale the ink canvas
                 Viewbox viewbox = new Viewbox();
+                viewbox.Name = PREFIX_VIEWBOX + pageNumber.ToString();
                 viewbox.Child = inkCanvas;
                 viewbox.Height = image.Height;
                 viewbox.Width = image.Width;
 
                 grid.Children.Add(viewbox);
                 this.inkCanvasList.Add(pageNumber);
+            }
+            else
+            {
+                // Adjust viewbox size
+                Viewbox viewbox = (Viewbox)grid.FindName(PREFIX_VIEWBOX + pageNumber.ToString());
+                viewbox.Height = image.Height;
+                viewbox.Width = image.Width;
             }
         }
 
@@ -981,6 +989,7 @@ namespace Libra
             ClearViewModeToggleBtn();
             this.VerticalViewBtn.IsChecked = true;
             this.imagePanel.Orientation = Orientation.Vertical;
+            RefreshViewer();
         }
 
         private void HorizontalView_Click(object sender, RoutedEventArgs e)
@@ -988,6 +997,7 @@ namespace Libra
             ClearViewModeToggleBtn();
             this.HorizontalViewBtn.IsChecked = true;
             this.imagePanel.Orientation = Orientation.Horizontal;
+            RefreshViewer();
         }
 
         private void GridView_Click(object sender, RoutedEventArgs e)

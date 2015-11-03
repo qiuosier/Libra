@@ -16,7 +16,7 @@ namespace Libra
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private const string MRU_DELIMITER = "<###>";
+        public const string MRU_DELIMITER = "<###>";
         private const string PREFIX_RECENT_FILE = "RecentFile#";
         //private CultureInfo culture = new CultureInfo("en-us");
         private ObservableCollection<RecentFile> mruFiles = new ObservableCollection<RecentFile>();

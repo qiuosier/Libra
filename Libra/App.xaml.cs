@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Linq;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu;
 using System.Diagnostics.Tracing;
+using Windows.Storage;
+using Windows.Storage.AccessCache;
 
 namespace Libra
 {
@@ -56,16 +59,7 @@ namespace Libra
             if (shell == null)
             {
                 // Create a navigation page to act as the navigation context and navigate to the first page
-                shell = new NavigationPage();
-
-                // Register the Frame in navigation page to suspension manager
-                SuspensionManager.RegisterFrame(shell.AppFrame);
-                AppEventSource.Log.Debug("App: AppFrame registered in suspension manager.");
-
-                // Set the default language
-                shell.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
-
-                shell.AppFrame.NavigationFailed += OnNavigationFailed;
+                shell = CreateNewNavigationPage();
 
                 if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
                 {
@@ -92,6 +86,23 @@ namespace Libra
 
             // Ensure the current window is active
             Window.Current.Activate();
+        }
+
+        private NavigationPage CreateNewNavigationPage()
+        {
+            // Create a navigation page to act as the navigation context and navigate to the first page
+            NavigationPage shell = new NavigationPage();
+
+            // Register the Frame in navigation page to suspension manager
+            SuspensionManager.RegisterFrame(shell.AppFrame);
+            AppEventSource.Log.Debug("App: AppFrame registered in suspension manager.");
+
+            // Set the default language
+            shell.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
+
+            shell.AppFrame.NavigationFailed += OnNavigationFailed;
+
+            return shell;
         }
 
         /// <summary>
@@ -124,6 +135,34 @@ namespace Libra
             AppEventSource.Log.Info("App: Suspension Completed in " + suspensionWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
             libraListener.Flush();
             deferral.Complete();
+        }
+
+        protected override void OnFileActivated(FileActivatedEventArgs e)
+        {
+            AppEventSource.Log.Debug("App: Activated by opening pdf file.");
+            NavigationPage shell = Window.Current.Content as NavigationPage;
+
+            // Do not repeat app initialization when the Window already has content,
+            // just ensure that the window is active
+            if (shell == null)
+            {
+                // Create a navigation page to act as the navigation context and navigate to the first page
+                shell = CreateNewNavigationPage();
+            }
+
+            // Place our app shell in the current Window
+            Window.Current.Content = shell;
+
+            // Only open the first file, if there are more than one files
+            StorageFile pdfFile = (StorageFile) e.Files[0];
+
+            // Update recent file list
+            StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MainPage.MRU_DELIMITER + DateTime.Now.ToString());
+            SuspensionManager.pdfFile = pdfFile;
+            shell.AppFrame.Navigate(typeof(ViewerPage));
+
+            // Ensure the current window is active
+            Window.Current.Activate();
         }
 
         private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
