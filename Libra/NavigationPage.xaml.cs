@@ -31,27 +31,21 @@ namespace NavigationMenu
                 },
                 new NavMenuItem()
                 {
-                    Symbol = Symbol.Page,
+                    Symbol = Symbol.Setting,
+                    Label = "Settings",
+                    DestPage = typeof(SettingsPage)
+                },
+                new NavMenuItem()
+                {
+                    Symbol = Symbol.Page2,
                     Label = "Page View",
                     DestPage = typeof(ViewerPage)
                 },
                 new NavMenuItem()
                 {
-                    Symbol = Symbol.TwoPage,
-                    Label = "Horizontal View",
+                    Symbol = Symbol.Add,
+                    Label = "Add a New View",
                     DestPage = null
-                },
-                new NavMenuItem()
-                {
-                    Symbol = Symbol.ViewAll,
-                    Label = "Grid View",
-                    DestPage = null
-                },
-                new NavMenuItem()
-                {
-                    Symbol = Symbol.Setting,
-                    Label = "Settings",
-                    DestPage = typeof(SettingsPage)
                 },
             });
 

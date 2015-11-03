@@ -12,7 +12,11 @@
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
             <AppBarToggleButton x:Name="Eraser" Icon="Placeholder" Label="Eraser" Click="Eraser_Click"/>
-            <AppBarButton Icon="Setting" Label="Pen Settings" />
+            <AppBarButton Icon="Setting" Label="Stylus Settings" />
+            <AppBarSeparator />
+            <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click" />
+            <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click" />
+            <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click" />
             <AppBarSeparator />
             <AppBarButton Icon="SaveLocal" Label="Export Inking"/>
             <AppBarButton Icon="Cancel" Label="Close File" Click="Close_Click"/>

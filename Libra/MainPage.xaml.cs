@@ -63,8 +63,9 @@ namespace Libra
             RecentFile file = (RecentFile)((HyperlinkButton)e.OriginalSource).DataContext;
             StorageFile pdfFile = await StorageApplicationPermissions.MostRecentlyUsedList.GetFileAsync(file.mruToken);
             // Update recent file list
-            string k = StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
-            this.Frame.Navigate(typeof(ViewerPage), pdfFile);
+            StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
+            SuspensionManager.pdfFile = pdfFile;
+            this.Frame.Navigate(typeof(ViewerPage));
         }
 
         private async void OpenNew_Click(object sender, RoutedEventArgs e)
@@ -80,7 +81,8 @@ namespace Libra
             {
                 AppEventSource.Log.Debug("MainPage: Opening new file.");
                 StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
-                this.Frame.Navigate(typeof(ViewerPage), pdfFile);
+                SuspensionManager.pdfFile = pdfFile;
+                this.Frame.Navigate(typeof(ViewerPage));
             }
         }
     }

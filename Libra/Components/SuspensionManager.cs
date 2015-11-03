@@ -26,6 +26,8 @@ namespace Libra
         private static Frame appFrame;
         public static bool IsSuspending { get; set; }
 
+        public static StorageFile pdfFile { get; set; }
+
         /// <summary>
         /// Provides access to global session state for the current session.  This state is
         /// serialized by <see cref="SaveSessionAsync"/> and restored by
@@ -105,7 +107,8 @@ namespace Libra
                 {
                     StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(sessionState.FileToken);
                     AppEventSource.Log.Info("Suspension: Reopening " + pdfFile.Name);
-                    appFrame.Navigate(typeof(ViewerPage), pdfFile);
+                    SuspensionManager.pdfFile = pdfFile;
+                    appFrame.Navigate(typeof(ViewerPage));
                 }
                 else
                 {
