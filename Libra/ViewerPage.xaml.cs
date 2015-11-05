@@ -31,7 +31,6 @@ namespace Libra
         private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
-        private const int HIGHLIGHT_BTN_TIMER_TICKS = 900 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int DEFAULT_RENDER_WIDTH = 1500;
@@ -54,12 +53,12 @@ namespace Libra
         private PdfDocument pdfDocument;
         private Thickness pageMargin;
         private PageRange inkingPageRange;
-        private PageRange visiblePageRange;
+        private PageRange _visiblePageRange;
+        public PageRange VisiblePageRange { get { return this._visiblePageRange; } }
         private DispatcherTimer refreshTimer;
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private DispatcherTimer pageNumberTextTimer;
-        private DispatcherTimer highlightBtnTimer;
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
@@ -111,10 +110,6 @@ namespace Libra
             this.pageNumberTextTimer.Tick += pageNumberTextTimer_Tick;
             this.pageNumberTextTimer.Interval = new TimeSpan(0, 0, PAGE_NUMBER_TIMER_SECOND);
 
-            this.highlightBtnTimer = new DispatcherTimer();
-            this.highlightBtnTimer.Tick += HighlightBtnTimer_Tick;
-            this.highlightBtnTimer.Interval = new TimeSpan(HIGHLIGHT_BTN_TIMER_TICKS);
-
             this.Loaded += (sender, args) =>
             {
                 Current = this;
@@ -129,7 +124,7 @@ namespace Libra
             this.imagePanel.Children.Clear();
             this.imagePanel.UpdateLayout();
             this.inkingPageRange = new PageRange();
-            this.visiblePageRange = new PageRange();
+            this._visiblePageRange = new PageRange();
             this.defaultPageHeight = 0;
             this.defaultPageWidth = 0;
             this.pageCount = 0;
@@ -185,10 +180,13 @@ namespace Libra
                     SuspensionManager.viewerStateDictionary[this.ViewerKey] = SaveViewerState();
                     AppEventSource.Log.Debug("ViewerPage: Saved viewer state to suspension manager.");
                 }
-                // Save the viewer state to file if the App is not suspending.
+                // Save the viewer state to file and update navigation button label if the App is not suspending.
                 // Viewer state will be saved by the suspension manager if the App is suspending.
                 if (!SuspensionManager.IsSuspending)
+                {
+                    NavigationPage.Current.UpdateViewBtn(this.ViewerKey, this.VisiblePageRange.ToString());
                     await SuspensionManager.SaveViewerAsync();
+                }
             }
         }
 
@@ -201,6 +199,7 @@ namespace Libra
             viewerState.panelHeight = this.imagePanel.ActualHeight;
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
             viewerState.lastViewed = DateTime.Now;
+            viewerState.visibleRange = this.VisiblePageRange;
             if (this.imagePanel.Orientation == Orientation.Horizontal)
                 viewerState.isHorizontalView = true;
             return viewerState;
@@ -224,9 +223,8 @@ namespace Libra
                 }
             }
             this._viewerKey = key;
-            // Highlight the navigation button for the selected view.
-            // Since the buttons may not be initialized at this time, a timer is started to check the button when it ticks.
-            this.highlightBtnTimer.Start();
+
+            NavigationPage.Current.UpdateViewBtn(this.ViewerKey);
             
             ViewerState viewerState = SuspensionManager.viewerStateDictionary[this.ViewerKey];
             if (viewerState != null)
@@ -502,7 +500,7 @@ namespace Libra
             // Retore inking
             await LoadInking();
             // Make sure about the visible page range
-            this.visiblePageRange = FindVisibleRange();
+            this._visiblePageRange = FindVisibleRange();
             RefreshViewer();
             this.fileLoaded = true;
             this.fileLoadingWatch.Stop();
@@ -588,7 +586,7 @@ namespace Libra
                     && i > 0 && i <= pageCount)
                     this.recyclePagesQueue.Enqueue(i);
             }
-            // Update visible range
+            // Update inking range
             this.inkingPageRange = range;
             // Clear render page queue
             this.renderPagesQueue.Clear();
@@ -616,7 +614,7 @@ namespace Libra
                 int i = renderPagesQueue.Dequeue();
                 // Load page at a higer resolution if it is zoomed in. Otherwise, load page at default resolution
                 if (this.defaultPageWidth * this.scrollViewer.ZoomFactor > DEFAULT_RENDER_WIDTH && 
-                    i >= visiblePageRange.first && i <= visiblePageRange.last)
+                    i >= VisiblePageRange.first && i <= VisiblePageRange.last)
                     await LoadPage(i, 2 * DEFAULT_RENDER_WIDTH);
                 else
                     await LoadPage(i);
@@ -837,14 +835,14 @@ namespace Libra
 
         private void RefreshViewer()
         {
-            PreparePages(this.visiblePageRange);
+            PreparePages(this.VisiblePageRange);
         }
 
         private int FindVisiblePage()
         {
             // Find a page that is currently visible
             // Check current page range
-            for (int i = visiblePageRange.first; i <= visiblePageRange.last; i++)
+            for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
             {
                 if (IsPageVisible(i)) return i;
             }
@@ -872,7 +870,7 @@ namespace Libra
             if (visiblePage <= 0)
             {
                 AppEventSource.Log.Warn("ViewerPage: Visible page is incorrect. page = " + visiblePage.ToString());
-                return this.visiblePageRange;
+                return this.VisiblePageRange;
             }
             // Find the pages that are currently visible
             PageRange range = new PageRange(visiblePage, visiblePage);
@@ -900,11 +898,11 @@ namespace Libra
         private void SetMinZoomFactor()
         {
             // Update visible page range
-            this.visiblePageRange = FindVisibleRange();
+            this._visiblePageRange = FindVisibleRange();
             // Find the max page height and width in the visible pages
             double maxHeight = 0;
             double maxWidth = 0;
-            for (int i = this.visiblePageRange.first; i <= this.visiblePageRange.last; i++)
+            for (int i = this.VisiblePageRange.first; i <= this.VisiblePageRange.last; i++)
             {
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
                 if (image.ActualHeight > maxHeight) maxHeight = image.ActualHeight;
@@ -977,27 +975,12 @@ namespace Libra
             this.pageNumberFadeOut.Begin();
         }
 
-        private int HighlightBtnTickCounter = 0;
-        private void HighlightBtnTimer_Tick(object sender, object e)
-        {
-            if (NavigationPage.Current.HighlightViewBtn(this.ViewerKey))
-            {
-                // Stop the timeer if the button is successfully highlighted.
-                this.highlightBtnTimer.Stop();
-                HighlightBtnTickCounter = 0;
-            }
-            // Use this counter to prevent the timer running forever if something is wrong.
-            else if (HighlightBtnTickCounter > 10)
-                highlightBtnTimer.Stop();
-            else HighlightBtnTickCounter++;
-        }
-
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             // Determine visible page range
-            this.visiblePageRange = FindVisibleRange();
+            this._visiblePageRange = FindVisibleRange();
             // Show page number
-            this.pageNumberTextBlock.Text = this.visiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
+            this.pageNumberTextBlock.Text = this.VisiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
             this.pageNumberGrid.Opacity = PAGE_NUMBER_OPACITY;
             // The following code acts like a filter to prevent the timer ticking too frequently
             if (fileLoaded && !e.IsIntermediate)
@@ -1096,8 +1079,7 @@ namespace Libra
             if (imagePanel.Orientation != Orientation.Vertical)
             {
                 this.imagePanel.Orientation = Orientation.Vertical;
-                NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.Page2, "Vertical View");
-                this.highlightBtnTimer.Start();
+                NavigationPage.Current.UpdateViewBtn(this.ViewerKey, this.VisiblePageRange.ToString(), Symbol.Page2);
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Vertical View.");
                 RefreshViewer();
             }
@@ -1110,8 +1092,7 @@ namespace Libra
             if (imagePanel.Orientation != Orientation.Horizontal)
             {
                 this.imagePanel.Orientation = Orientation.Horizontal;
-                NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.TwoPage, "Horizontal View");
-                this.highlightBtnTimer.Start();
+                NavigationPage.Current.UpdateViewBtn(this.ViewerKey, this.VisiblePageRange.ToString(), Symbol.TwoPage);
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Horizontal View.");
                 RefreshViewer();
             }

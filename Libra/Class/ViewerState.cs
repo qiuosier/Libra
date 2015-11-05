@@ -43,6 +43,7 @@ namespace Libra
         public float zFactor { get; set; }
         public int version { get; set; }
         public DateTime lastViewed { get; set; }
+        public PageRange visibleRange { get; set; }
 
         public const int CURRENT_VIEWER_STATE_VERSION = 1;
     }

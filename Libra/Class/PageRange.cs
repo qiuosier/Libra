@@ -20,5 +20,12 @@ namespace Libra
             this.first = firstPage;
             this.last = lastPage;
         }
+
+        public override string ToString()
+        {
+            return first == last ?
+                "Page " + first.ToString() :
+                "Page " + first.ToString() + " - " + last.ToString();
+        }
     }
 }

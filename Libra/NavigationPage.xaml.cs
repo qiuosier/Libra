@@ -22,6 +22,9 @@ namespace NavigationMenu
     {
         private const string ARG_ADD_NEW_VIEW = "AddNewView";
         private const int NAV_LIST_STATIC_BTN_COUNT = 2;
+        private const int HIGHLIGHT_BTN_TIMER_TICKS = 750 * 10000;
+
+        private DispatcherTimer highlightBtnTimer;
 
         // Declare the top level nav items
         private ObservableCollection<NavMenuItem> navlist = new ObservableCollection<NavMenuItem>(
@@ -63,10 +66,13 @@ namespace NavigationMenu
                     continue;
                 }
                 // Viewer state is not null
+                string btnLabel = "View";
+                if (entry.Value.visibleRange != null)
+                    btnLabel = entry.Value.visibleRange.ToString();
                 this.navlist.Add(new NavMenuItem()
                 {
                     Symbol = entry.Value.isHorizontalView ? Symbol.TwoPage : Symbol.Page2,
-                    Label = entry.Value.isHorizontalView ? "Horizontal View" : "Vertical View",
+                    Label = btnLabel,
                     DestPage = typeof(ViewerPage),
                     Arguments = entry.Key
                 });
@@ -96,7 +102,7 @@ namespace NavigationMenu
             this.navlist.Insert(this.navlist.Count - 1, new NavMenuItem()
             {
                 Symbol = Symbol.Page2,
-                Label = "Vertical View",
+                Label = "Page 1",
                 DestPage = typeof(ViewerPage),
                 Arguments = viewKey
             });
@@ -121,23 +127,32 @@ namespace NavigationMenu
             this.AppFrame.Navigate(typeof(ViewerPage));
         }
 
-        public void UpdateViewBtn(Guid viewKey, Symbol newSymbol, string newLabel)
+        public void UpdateViewBtn(Guid viewKey, string newLabel = null, Symbol newSymbol = 0)
         {
-            // Find the button corresponding to the key
-            int i = FindNavListIndexByKey(viewKey);
-            if (i > 0)
+            if (newLabel != null)
             {
-                // Remove the button from the list
-                this.navlist.RemoveAt(i);
-                // Add a new button with the new label
-                this.navlist.Insert(i, new NavMenuItem()
+                // Find the button corresponding to the key
+                int i = FindNavListIndexByKey(viewKey);
+                if (i > 0)
                 {
-                    Symbol = newSymbol,
-                    Label = newLabel,
-                    DestPage = typeof(ViewerPage),
-                    Arguments = viewKey
-                });
+                    // Use the same symbol is a new symbol is not specified
+                    if (newSymbol == 0)
+                        newSymbol = this.navlist[i].Symbol;
+                    // Remove the button from the list
+                    this.navlist.RemoveAt(i);
+                    // Add a new button with the new label
+                    this.navlist.Insert(i, new NavMenuItem()
+                    {
+                        Symbol = newSymbol,
+                        Label = newLabel,
+                        DestPage = typeof(ViewerPage),
+                        Arguments = viewKey
+                    });
+                }
             }
+            // Highlight the navigation button for the selected view.
+            // Since the buttons may not be initialized at this time, a timer is started to check the button when it ticks.
+            this.highlightBtnTimer.Start();
         }
 
         /// <summary>
@@ -159,7 +174,7 @@ namespace NavigationMenu
         }
 
         public static NavigationPage Current = null;
-
+        
         /// <summary>
         /// Initializes a new instance of the AppShell, sets the static 'Current' reference,
         /// adds callbacks for Back requests and changes in the SplitView's DisplayMode, and
@@ -194,6 +209,25 @@ namespace NavigationMenu
             //}
 
             NavMenuList.ItemsSource = navlist;
+
+            this.highlightBtnTimer = new DispatcherTimer();
+            this.highlightBtnTimer.Tick += HighlightBtnTimer_Tick;
+            this.highlightBtnTimer.Interval = new TimeSpan(HIGHLIGHT_BTN_TIMER_TICKS);
+        }
+
+        private int HighlightBtnTickCounter = 0;
+        private void HighlightBtnTimer_Tick(object sender, object e)
+        {
+            if (HighlightViewBtn(ViewerPage.Current.ViewerKey))
+            {
+                // Stop the timeer if the button is successfully highlighted.
+                this.highlightBtnTimer.Stop();
+                HighlightBtnTickCounter = 0;
+            }
+            // Use this counter to prevent the timer running forever in case something is wrong.
+            else if (HighlightBtnTickCounter > 10)
+                highlightBtnTimer.Stop();
+            else HighlightBtnTickCounter++;
         }
 
         public Frame AppFrame { get { return this.frame; } }
@@ -361,7 +395,7 @@ namespace NavigationMenu
             else return false;
         }
 
-        public bool HighlightViewBtn(Guid viewKey)
+        private bool HighlightViewBtn(Guid viewKey)
         {
             // Find the button corresponding to the key
             int i = FindNavListIndexByKey(viewKey);
@@ -455,6 +489,13 @@ namespace NavigationMenu
             {
                 args.ItemContainer.ClearValue(AutomationProperties.NameProperty);
             }
+        }
+
+        private void TogglePaneButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Update button label
+            if(this.RootSplitView.IsPaneOpen)
+                UpdateViewBtn(ViewerPage.Current.ViewerKey, ViewerPage.Current.VisiblePageRange.ToString());
         }
     }
 }

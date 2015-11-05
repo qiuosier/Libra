@@ -109,6 +109,6 @@
                       Unchecked="TogglePaneButton_Checked"
                       AutomationProperties.Name="Menu"
                       ToolTipService.ToolTip="Menu" 
-                      Background="LightSteelBlue"/>
+                      Background="LightSteelBlue" Click="TogglePaneButton_Click"/>
     </Grid>
 </Page>
