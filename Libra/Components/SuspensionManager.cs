@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -41,7 +42,7 @@ namespace Libra
             set;
         }
 
-        public static List<ViewerState> viewerStateList
+        public static Dictionary<Guid, ViewerState> viewerStateDictionary
         {
             get;
             set;
@@ -121,13 +122,14 @@ namespace Libra
 
         public static async Task SaveViewerAsync()
         {
-            if (viewerStateList.Count > 0)
+            if (viewerStateDictionary.Count > 0)
             {
+                // Get the pdfToken from an (random) element in the viewer state dictionary
                 StorageFolder dataFolder = await 
-                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerStateList[0].pdfToken, CreationCollisionOption.OpenIfExists);
+                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerStateDictionary.First().Value.pdfToken, CreationCollisionOption.OpenIfExists);
                 StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
                 AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
-                await SerializeToFileAsync(viewerStateList, typeof(List<ViewerState>), file);
+                await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
                 //viewerState = null;
             }
         }

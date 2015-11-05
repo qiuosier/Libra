@@ -50,29 +50,35 @@ namespace NavigationMenu
                 this.navlist.RemoveAt(NAV_LIST_STATIC_BTN_COUNT);
             }
 
-            for (int i = 0; i < SuspensionManager.viewerStateList.Count; i++)
+            // Use a list to keep the null viewer state
+            List<Guid> entryToRemove = new List<Guid>();
+            // Go through the viewer states
+            foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
             {
-                ViewerState entry = SuspensionManager.viewerStateList[i];
                 // Check if the viewer state is null
-                if (entry == null)
+                if (entry.Value == null)
                 {
-                    // Remove the null entry
-                    SuspensionManager.viewerStateList.RemoveAt(i);
-                    AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, index = " + i.ToString());
-                    i--;
+                    // Add null entry to removal list
+                    entryToRemove.Add(entry.Key);
                     continue;
                 }
-                // Add VIEW button
+                // Viewer state is not null
                 this.navlist.Add(new NavMenuItem()
                 {
-                    Symbol = entry.isHorizontalView ? Symbol.TwoPage: Symbol.Page2,
-                    Label = entry.isHorizontalView ? "Horizontal View" : "Vertical View",
+                    Symbol = entry.Value.isHorizontalView ? Symbol.TwoPage : Symbol.Page2,
+                    Label = entry.Value.isHorizontalView ? "Horizontal View" : "Vertical View",
                     DestPage = typeof(ViewerPage),
-                    Arguments = i
+                    Arguments = entry.Key
                 });
             }
+            // Remove the null entry
+            foreach (Guid entry in entryToRemove)
+            {
+                SuspensionManager.viewerStateDictionary.Remove(entry);
+                AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, GUID = " + entry.ToString());
+            }
 
-            // Add ADD VIEW button
+            // Add an ADD VIEW button
             this.navlist.Add(new NavMenuItem()
             {
                 Symbol = Symbol.Add,
@@ -84,8 +90,9 @@ namespace NavigationMenu
 
         private void AddNewView()
         {
-            // Insert a new VIEW button
-            int viewKey = SuspensionManager.viewerStateList.Count;
+            // Generate a new GUID
+            Guid viewKey = Guid.NewGuid();
+            // Insert a button in the navigation menu
             this.navlist.Insert(this.navlist.Count - 1, new NavMenuItem()
             {
                 Symbol = Symbol.Page2,
@@ -94,23 +101,61 @@ namespace NavigationMenu
                 Arguments = viewKey
             });
             // Add a empty viewer state
-            SuspensionManager.viewerStateList.Add(null);
+            SuspensionManager.viewerStateDictionary.Add(viewKey, null);
             // Navigate to the new view
             this.AppFrame.Navigate(typeof(ViewerPage), viewKey);
         }
 
-        public void UpdateViewBtn(int viewKey, Symbol newSymbol, string newLabel)
+        /// <summary>
+        /// Remove a view based on the GUID key
+        /// </summary>
+        /// <param name="viewKey"></param>
+        public void RemoveView(Guid viewKey)
         {
-            // Remove the button from the list
-            this.navlist.RemoveAt(viewKey + NAV_LIST_STATIC_BTN_COUNT);
-            // Add a new button with the new label
-            this.navlist.Insert(viewKey + NAV_LIST_STATIC_BTN_COUNT, new NavMenuItem()
+            // Remove the button in the navigation menu
+            int i = FindNavListIndexByKey(viewKey);
+            if (i > 0) this.navlist.RemoveAt(i);
+            // Remove the viewer state in the suspension manager
+            SuspensionManager.viewerStateDictionary.Remove(viewKey);
+            // Navigate to last view
+            this.AppFrame.Navigate(typeof(ViewerPage));
+        }
+
+        public void UpdateViewBtn(Guid viewKey, Symbol newSymbol, string newLabel)
+        {
+            // Find the button corresponding to the key
+            int i = FindNavListIndexByKey(viewKey);
+            if (i > 0)
             {
-                Symbol = newSymbol,
-                Label = newLabel,
-                DestPage = typeof(ViewerPage),
-                Arguments = viewKey
-            });
+                // Remove the button from the list
+                this.navlist.RemoveAt(i);
+                // Add a new button with the new label
+                this.navlist.Insert(i, new NavMenuItem()
+                {
+                    Symbol = newSymbol,
+                    Label = newLabel,
+                    DestPage = typeof(ViewerPage),
+                    Arguments = viewKey
+                });
+            }
+        }
+
+        /// <summary>
+        /// Find the index of a button in the navigation menu (navlist) by the GUID of the view
+        /// </summary>
+        /// <param name="viewKey">The GUID of a view</param>
+        /// <returns>Index of the button associated with the view</returns>
+        private int FindNavListIndexByKey(Guid viewKey)
+        {
+            for (int i = NAV_LIST_STATIC_BTN_COUNT; i < this.navlist.Count - 1; i++)
+            {
+                if ((Guid)(this.navlist[i].Arguments) == viewKey)
+                {
+                    return i;
+                }
+            }
+            AppEventSource.Log.Warn("NavigationPage: Button to not found, GUID = " + viewKey.ToString());
+            return -1;
         }
 
         public static NavigationPage Current = null;
@@ -257,7 +302,7 @@ namespace NavigationMenu
                         AddNewView();
                     }
                 }
-                else if (item.DestPage == typeof(ViewerPage) && (int)item.Arguments != ViewerPage.Current.ViewerKey)
+                else if (item.DestPage == typeof(ViewerPage) && (Guid)item.Arguments != ViewerPage.Current.ViewerKey)
                 {
                     this.AppFrame.Navigate(item.DestPage, item.Arguments);
                 }
@@ -296,6 +341,11 @@ namespace NavigationMenu
             HighlightNavigationBtn((ListViewItem)NavMenuList.ContainerFromItem(item));
         }
 
+        /// <summary>
+        /// Highlight a navigation button for a view or page.
+        /// </summary>
+        /// <param name="container"></param>
+        /// <returns>True if the highlight is successful.</returns>
         private bool HighlightNavigationBtn(ListViewItem container)
         {
             // While updating the selection state of the item prevent it from taking keyboard focus.  If a
@@ -311,9 +361,14 @@ namespace NavigationMenu
             else return false;
         }
 
-        public bool HighlightViewBtn(int key)
+        public bool HighlightViewBtn(Guid viewKey)
         {
-            return HighlightNavigationBtn((ListViewItem)NavMenuList.ContainerFromIndex(key + NAV_LIST_STATIC_BTN_COUNT));
+            // Find the button corresponding to the key
+            int i = FindNavListIndexByKey(viewKey);
+            if (i > 0)
+                return HighlightNavigationBtn((ListViewItem)NavMenuList.ContainerFromIndex(i));
+            else
+                return false;
         }
 
         private void OnNavigatedToPage(object sender, NavigationEventArgs e)
