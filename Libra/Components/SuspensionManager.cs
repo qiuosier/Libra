@@ -41,7 +41,7 @@ namespace Libra
             set;
         }
 
-        public static ViewerState viewerState
+        public static List<ViewerState> viewerStateList
         {
             get;
             set;
@@ -121,14 +121,14 @@ namespace Libra
 
         public static async Task SaveViewerAsync()
         {
-            if (viewerState != null)
+            if (viewerStateList.Count > 0)
             {
                 StorageFolder dataFolder = await 
-                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerState.pdfToken, CreationCollisionOption.OpenIfExists);
+                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerStateList[0].pdfToken, CreationCollisionOption.OpenIfExists);
                 StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
                 AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
-                await SerializeToFileAsync(viewerState, typeof(ViewerState), file);
-                viewerState = null;
+                await SerializeToFileAsync(viewerStateList, typeof(List<ViewerState>), file);
+                //viewerState = null;
             }
         }
 

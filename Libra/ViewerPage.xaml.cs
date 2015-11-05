@@ -13,13 +13,12 @@ using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.Storage.AccessCache;
 using System.IO;
-
-// The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
+using NavigationMenu;
 
 namespace Libra
 {
     /// <summary>
-    /// 
+    /// Implement the pdf viewer using a scroll viewer.
     /// </summary>
     public sealed partial class ViewerPage : Page
     {
@@ -32,6 +31,7 @@ namespace Libra
         private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
+        private const int HIGHLIGHT_BTN_TIMER_TICKS = 900 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int DEFAULT_RENDER_WIDTH = 1500;
@@ -58,6 +58,7 @@ namespace Libra
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private DispatcherTimer pageNumberTextTimer;
+        private DispatcherTimer highlightBtnTimer;
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
@@ -68,7 +69,9 @@ namespace Libra
         private InkInputProcessingMode inkProcessMode;
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
-        private int viewerKey;
+        private int _viewerKey;
+        public int ViewerKey { get { return this._viewerKey; } }
+
         private int pageCount;
         private double defaultPageHeight;
         private double defaultPageWidth;
@@ -81,6 +84,8 @@ namespace Libra
         private string futureAccessToken;
 
         private uint[] renderWidthArray;
+
+        public static ViewerPage Current = null;
 
         public ViewerPage()
         {
@@ -104,8 +109,16 @@ namespace Libra
             this.pageNumberTextTimer.Tick += pageNumberTextTimer_Tick;
             this.pageNumberTextTimer.Interval = new TimeSpan(0, 0, PAGE_NUMBER_TIMER_SECOND);
 
-            InitializeViewer();
+            this.highlightBtnTimer = new DispatcherTimer();
+            this.highlightBtnTimer.Tick += HighlightBtnTimer_Tick;
+            this.highlightBtnTimer.Interval = new TimeSpan(HIGHLIGHT_BTN_TIMER_TICKS);
 
+            this.Loaded += (sender, args) =>
+            {
+                Current = this;
+            };
+
+            InitializeViewer();
             AppEventSource.Log.Debug("ViewerPage: Page initialized.");
         }
 
@@ -127,6 +140,7 @@ namespace Libra
             this.recycleTimer.Stop();
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
+            this.imagePanel.Orientation = Orientation.Horizontal;
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
@@ -136,30 +150,26 @@ namespace Libra
             // Set viewer mode
             if (SuspensionManager.sessionState != null)
                 SuspensionManager.sessionState.ViewerMode = 1;
-            if (e.Parameter == null)
+            // Check if a new file is opened
+            if (this.fileLoaded && !this.pdfFile.IsEqual(SuspensionManager.pdfFile))
             {
-                if (this.pdfFile != null && !this.pdfFile.IsEqual(SuspensionManager.pdfFile))
-                {
-                    // Another file already opened
-                    AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
-                    this.fileLoaded = false;
-                }
-                if (!this.fileLoaded)
-                {
-                    InitializeViewer();
-                    this.pdfFile = SuspensionManager.pdfFile;
-                    LoadFile(this.pdfFile);
-                }
-                else
-                { 
-                    // Go to the last active viewer
-                }
+                // Another file already opened
+                AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
+                this.fileLoaded = false;
+            }
+            if (!this.fileLoaded)
+            {
+                // Load a new file
+                InitializeViewer();
+                this.pdfFile = SuspensionManager.pdfFile;
+                LoadFile(this.pdfFile);
             }
             else
             {
-                this.viewerKey = (int)e.Parameter;
-                // Restore viewer state here
-            }
+                // File already loaded, restore viewer state
+                if (e.Parameter != null) RestoreViewerState((int)e.Parameter);
+                else RestoreViewerState();
+            }         
         }
 
         protected override async void OnNavigatedFrom(NavigationEventArgs e)
@@ -168,7 +178,7 @@ namespace Libra
             if (this.fileLoaded)
             {
                 // Save viewer state to suspension manager
-                SuspensionManager.viewerState = SaveViewerState();
+                SuspensionManager.viewerStateList[this.ViewerKey] = SaveViewerState();
                 AppEventSource.Log.Debug("ViewerPage: Saved viewer state to suspension manager.");
                 if (!SuspensionManager.IsSuspending)
                     await SuspensionManager.SaveViewerAsync();
@@ -185,17 +195,35 @@ namespace Libra
             viewerState.zFactor = this.scrollViewer.ZoomFactor;
             viewerState.lastViewed = DateTime.Now;
             if (this.imagePanel.Orientation == Orientation.Horizontal)
-                viewerState.horizontalView = true;
+                viewerState.isHorizontalView = true;
             return viewerState;
         }
 
         /// <summary>
-        /// Restore the saved view of a file.
-        /// This method may not work correctly if the file has pages of different sizes.
+        /// Restore a saved view of a file. 
         /// </summary>
-        /// <param name="viewerState"></param>
-        private void RestoreViewerState(ViewerState viewerState)
+        /// <param name="key">The key to identify which view to be restored, if there are more than one save views.
+        /// the latest view will be restored if key is not specified. </param>
+        private void RestoreViewerState(int key = -1)
         {
+            if (key < 0)
+            {
+                // Check which one is the latest view
+                key = 0;
+                for (int i = 0; i < SuspensionManager.viewerStateList.Count; i++)
+                {
+                    ViewerState entry = SuspensionManager.viewerStateList[i];
+                    if (entry.lastViewed > SuspensionManager.viewerStateList[key].lastViewed)
+                        key = i;
+                }
+            }
+            this._viewerKey = key;
+            // Highlight the navigation button for the selected view.
+            // Since the buttons may not be initialized at this time, a timer is started to check the button when it ticks.
+            this.highlightBtnTimer.Start();
+            
+            ViewerState viewerState = SuspensionManager.viewerStateList[this.ViewerKey];
+            // The following method may not work correctly if the file has pages of different sizes.
             if (viewerState != null)
             {
                 // Check if the viewer state is for this file
@@ -207,14 +235,22 @@ namespace Libra
                 {
                     AppEventSource.Log.Warn("ViewerPage: Token in the saved viewer state does not match the current file token.");
                 }
-                else if ((viewerState.horizontalView == true && this.imagePanel.Orientation == Orientation.Vertical) ||
-                    (viewerState.horizontalView == false && this.imagePanel.Orientation == Orientation.Horizontal))
-                {
-                    AppEventSource.Log.Info("ViewerPage: Saved viewer state if for different view orientation.");
-                }
                 else
                 {
                     AppEventSource.Log.Debug("ViewerPage: Restoring previously saved viewer state.");
+                    // Panel orientation
+                    ClearViewModeToggleBtn();
+                    if (viewerState.isHorizontalView == true)
+                    {
+                        this.imagePanel.Orientation = Orientation.Horizontal;
+                        this.HorizontalViewBtn.IsChecked = true;
+                    }
+                    else
+                    {
+                        this.imagePanel.Orientation = Orientation.Vertical;
+                        this.VerticalViewBtn.IsChecked = true;
+                    }
+                    this.imagePanel.UpdateLayout();
                     // Scale the offsets if the App window has a different size
                     // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
                     // Zoom factor for scroll viewer will always be 1 when the App opens.
@@ -227,10 +263,12 @@ namespace Libra
                     // Restore viewer offsets
                     this.scrollViewer.ChangeView(viewerState.hOffset, viewerState.vOffset, zoomFactor);
                     AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                    return;
                 }
             }
             // Reset the scroll viewer if failed to restore viewer state.
-            else this.scrollViewer.ChangeView(0, 0, 1);
+            this.imagePanel.Orientation = Orientation.Vertical;
+            this.scrollViewer.ChangeView(0, 0, 1);
         }
 
         private async Task LoadViewerState()
@@ -238,8 +276,16 @@ namespace Libra
             // Check viewer state file
             AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state...");
             StorageFile file = await SuspensionManager.GetSavedFileAsync(SuspensionManager.FILENAME_VIEWER_STATE, this.dataFolder);
-            ViewerState viewerState = await SuspensionManager.DeserializeFromFileAsync(typeof(ViewerState), file) as ViewerState;
-            RestoreViewerState(viewerState);
+            SuspensionManager.viewerStateList = await 
+                SuspensionManager.DeserializeFromFileAsync(typeof(List<ViewerState>), file) as List<ViewerState>;
+            // Create a new viewer state dictionary if none is loaded
+            if (SuspensionManager.viewerStateList == null)
+            {
+                SuspensionManager.viewerStateList = new List<ViewerState>();
+                SuspensionManager.viewerStateList.Add(SaveViewerState());
+            }
+            // Create navigation buttons for the views
+            NavigationPage.Current.InitializeViewBtn();
         }
 
         private async Task SaveInking()
@@ -426,6 +472,7 @@ namespace Libra
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             // Load viewer state
             await LoadViewerState();
+            RestoreViewerState();
             // Retore inking
             await LoadInking();
             // Make sure about the visible page range
@@ -887,6 +934,21 @@ namespace Libra
             this.pageNumberFadeOut.Begin();
         }
 
+        private int HighlightBtnTickCounter = 0;
+        private void HighlightBtnTimer_Tick(object sender, object e)
+        {
+            if (NavigationPage.Current.HighlightViewBtn(this.ViewerKey))
+            {
+                // Stop the timeer if the button is successfully highlighted.
+                this.highlightBtnTimer.Stop();
+                HighlightBtnTickCounter = 0;
+            }
+            // Use this counter to prevent the timer running forever if something is wrong.
+            else if (HighlightBtnTickCounter > 10)
+                highlightBtnTimer.Stop();
+            else HighlightBtnTickCounter++;
+        }
+
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             // Determine visible page range
@@ -989,6 +1051,8 @@ namespace Libra
             ClearViewModeToggleBtn();
             this.VerticalViewBtn.IsChecked = true;
             this.imagePanel.Orientation = Orientation.Vertical;
+            NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.Page2, "Vertical View");
+            AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Vertical View.");
             RefreshViewer();
         }
 
@@ -997,6 +1061,8 @@ namespace Libra
             ClearViewModeToggleBtn();
             this.HorizontalViewBtn.IsChecked = true;
             this.imagePanel.Orientation = Orientation.Horizontal;
+            NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.TwoPage, "Horizontal View");
+            AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Horizontal View.");
             RefreshViewer();
         }
 

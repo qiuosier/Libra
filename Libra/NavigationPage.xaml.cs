@@ -9,6 +9,8 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Navigation;
 using NavigationMenu.Controls;
 using Libra;
+using System.Collections.ObjectModel;
+using System;
 
 namespace NavigationMenu
 {
@@ -18,8 +20,11 @@ namespace NavigationMenu
     /// </summary>
     public sealed partial class NavigationPage : Page
     {
+        private const string ARG_ADD_NEW_VIEW = "AddNewView";
+        private const int NAV_LIST_STATIC_BTN_COUNT = 2;
+
         // Declare the top level nav items
-        private List<NavMenuItem> navlist = new List<NavMenuItem>(
+        private ObservableCollection<NavMenuItem> navlist = new ObservableCollection<NavMenuItem>(
             new[]
             {
                 new NavMenuItem()
@@ -35,19 +40,78 @@ namespace NavigationMenu
                     Label = "Settings",
                     DestPage = typeof(SettingsPage)
                 },
-                new NavMenuItem()
-                {
-                    Symbol = Symbol.Page2,
-                    Label = "Page View",
-                    DestPage = typeof(ViewerPage)
-                },
-                new NavMenuItem()
-                {
-                    Symbol = Symbol.Add,
-                    Label = "Add a New View",
-                    DestPage = null
-                },
             });
+
+        public void InitializeViewBtn()
+        {
+            // Clean up the buttons
+            while(this.navlist.Count > NAV_LIST_STATIC_BTN_COUNT)
+            {
+                this.navlist.RemoveAt(NAV_LIST_STATIC_BTN_COUNT);
+            }
+
+            for (int i = 0; i < SuspensionManager.viewerStateList.Count; i++)
+            {
+                ViewerState entry = SuspensionManager.viewerStateList[i];
+                // Check if the viewer state is null
+                if (entry == null)
+                {
+                    // Remove the null entry
+                    SuspensionManager.viewerStateList.RemoveAt(i);
+                    AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, index = " + i.ToString());
+                    i--;
+                    continue;
+                }
+                // Add VIEW button
+                this.navlist.Add(new NavMenuItem()
+                {
+                    Symbol = entry.isHorizontalView ? Symbol.TwoPage: Symbol.Page2,
+                    Label = entry.isHorizontalView ? "Horizontal View" : "Vertical View",
+                    DestPage = typeof(ViewerPage),
+                    Arguments = i
+                });
+            }
+
+            // Add ADD VIEW button
+            this.navlist.Add(new NavMenuItem()
+            {
+                Symbol = Symbol.Add,
+                Label = "Add a New View",
+                DestPage = null,
+                Arguments = ARG_ADD_NEW_VIEW
+            });
+        }
+
+        private void AddNewView()
+        {
+            // Insert a new VIEW button
+            int viewKey = SuspensionManager.viewerStateList.Count;
+            this.navlist.Insert(this.navlist.Count - 1, new NavMenuItem()
+            {
+                Symbol = Symbol.Page2,
+                Label = "Vertical View",
+                DestPage = typeof(ViewerPage),
+                Arguments = viewKey
+            });
+            // Add a empty viewer state
+            SuspensionManager.viewerStateList.Add(null);
+            // Navigate to the new view
+            this.AppFrame.Navigate(typeof(ViewerPage), viewKey);
+        }
+
+        public void UpdateViewBtn(int viewKey, Symbol newSymbol, string newLabel)
+        {
+            // Remove the button from the list
+            this.navlist.RemoveAt(viewKey + NAV_LIST_STATIC_BTN_COUNT);
+            // Add a new button with the new label
+            this.navlist.Insert(viewKey + NAV_LIST_STATIC_BTN_COUNT, new NavMenuItem()
+            {
+                Symbol = newSymbol,
+                Label = newLabel,
+                DestPage = typeof(ViewerPage),
+                Arguments = viewKey
+            });
+        }
 
         public static NavigationPage Current = null;
 
@@ -184,8 +248,20 @@ namespace NavigationMenu
 
             if (item != null)
             {
-                if (item.DestPage != null &&
-                    item.DestPage != this.AppFrame.CurrentSourcePageType)
+                if (item.DestPage == null)
+                {
+                    // The ADD button is clicked, add a new view
+                    if ((string)item.Arguments == ARG_ADD_NEW_VIEW)
+                    {
+                        // Add a new item to the navigation list
+                        AddNewView();
+                    }
+                }
+                else if (item.DestPage == typeof(ViewerPage) && (int)item.Arguments != ViewerPage.Current.ViewerKey)
+                {
+                    this.AppFrame.Navigate(item.DestPage, item.Arguments);
+                }
+                else if (item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
                     // Reset viewer mode
                     if (SuspensionManager.sessionState != null)
@@ -204,35 +280,40 @@ namespace NavigationMenu
         private void OnNavigatingToPage(object sender, NavigatingCancelEventArgs e)
         {
             //if (e.NavigationMode == NavigationMode.Back)
-            try
+            if (e.SourcePageType == typeof(ViewerPage)) return;
+            var item = (from p in this.navlist where p.DestPage == e.SourcePageType select p).SingleOrDefault();
+            //if (item == null && this.AppFrame.BackStackDepth > 0)
+            //{
+            //    // In cases where a page drills into sub-pages then we'll highlight the most recent
+            //    // navigation menu item that appears in the BackStack
+            //    foreach (var entry in this.AppFrame.BackStack.Reverse())
+            //    {
+            //        item = (from p in this.navlist where p.DestPage == entry.SourcePageType select p).SingleOrDefault();
+            //        if (item != null)
+            //            break;
+            //    }
+            //}
+            HighlightNavigationBtn((ListViewItem)NavMenuList.ContainerFromItem(item));
+        }
+
+        private bool HighlightNavigationBtn(ListViewItem container)
+        {
+            // While updating the selection state of the item prevent it from taking keyboard focus.  If a
+            // user is invoking the back button via the keyboard causing the selected nav menu item to change
+            // then focus will remain on the back button.
+            if (container != null)
             {
-                var item = (from p in this.navlist where p.DestPage == e.SourcePageType select p).SingleOrDefault();
-                if (item == null && this.AppFrame.BackStackDepth > 0)
-                {
-                    // In cases where a page drills into sub-pages then we'll highlight the most recent
-                    // navigation menu item that appears in the BackStack
-                    foreach (var entry in this.AppFrame.BackStack.Reverse())
-                    {
-                        item = (from p in this.navlist where p.DestPage == entry.SourcePageType select p).SingleOrDefault();
-                        if (item != null)
-                            break;
-                    }
-                }
-
-                var container = (ListViewItem)NavMenuList.ContainerFromItem(item);
-
-                // While updating the selection state of the item prevent it from taking keyboard focus.  If a
-                // user is invoking the back button via the keyboard causing the selected nav menu item to change
-                // then focus will remain on the back button.
-                if (container != null) container.IsTabStop = false;
+                container.IsTabStop = false;
                 NavMenuList.SetSelectedItem(container);
-                if (container != null) container.IsTabStop = true;
+                container.IsTabStop = true;
+                return true;
             }
-            catch
-            {
-                // Run the above code every time when navigating to a new page.
-                // There will be an exception when the app is starting.
-            }
+            else return false;
+        }
+
+        public bool HighlightViewBtn(int key)
+        {
+            return HighlightNavigationBtn((ListViewItem)NavMenuList.ContainerFromIndex(key + NAV_LIST_STATIC_BTN_COUNT));
         }
 
         private void OnNavigatedToPage(object sender, NavigationEventArgs e)

@@ -10,7 +10,7 @@ namespace Libra
         public ViewerState()
         {
             this.fileLoaded = false;
-            this.horizontalView = false;
+            this.isHorizontalView = false;
             this.version = CURRENT_VIEWER_STATE_VERSION;
         }
 
@@ -18,13 +18,24 @@ namespace Libra
         {
             this.pdfToken = token;
             this.fileLoaded = true;
-            this.horizontalView = false;
+            this.isHorizontalView = false;
             this.version = CURRENT_VIEWER_STATE_VERSION;
+        }
+
+        public void ResetView()
+        {
+            isHorizontalView = false;
+            hOffset = 0;
+            vOffset = 0;
+            panelHeight = 0;
+            panelWidth = 0;
+            zFactor = 1;
+            lastViewed = DateTime.Now;
         }
 
         public string pdfToken{ get; set; }
         public bool fileLoaded{ get; set; }
-        public bool horizontalView { get; set; }
+        public bool isHorizontalView { get; set; }
         public double hOffset { get; set; }
         public double vOffset { get; set; }
         public double panelHeight { get; set; }

@@ -7,12 +7,11 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
 
-// The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
 namespace Libra
 {
     /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
+    /// A home page for the App. This page is shown when the app is launched without openning any file.
     /// </summary>
     public sealed partial class MainPage : Page
     {
@@ -41,6 +40,7 @@ namespace Libra
             }
             else
             {
+                // Show a list of recent used file
                 for (int i = 0; i < mruEntries.Count; i++)
                 {
                     AccessListEntry entry = mruEntries[i];
@@ -57,6 +57,11 @@ namespace Libra
             }
         }
 
+        /// <summary>
+        /// Open a recent used file when an item is clicked.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void RecentFileItem_Click(object sender, RoutedEventArgs e)
         {
             AppEventSource.Log.Debug("MainPage: Recent file clicked.");
@@ -68,6 +73,11 @@ namespace Libra
             this.Frame.Navigate(typeof(ViewerPage));
         }
 
+        /// <summary>
+        /// Open a file picker for the user to select a pdf file.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void OpenNew_Click(object sender, RoutedEventArgs e)
         {
             // Select a pdf file

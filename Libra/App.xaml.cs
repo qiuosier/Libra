@@ -88,19 +88,21 @@ namespace Libra
             Window.Current.Activate();
         }
 
+        /// <summary>
+        /// Create a new navigation page and register it in the suspension manager. Language selection is also handled here.
+        /// </summary>
+        /// <returns></returns>
         private NavigationPage CreateNewNavigationPage()
         {
             // Create a navigation page to act as the navigation context and navigate to the first page
             NavigationPage shell = new NavigationPage();
-
+            shell.AppFrame.NavigationFailed += OnNavigationFailed;
             // Register the Frame in navigation page to suspension manager
             SuspensionManager.RegisterFrame(shell.AppFrame);
             AppEventSource.Log.Debug("App: AppFrame registered in suspension manager.");
 
             // Set the default language
             shell.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
-
-            shell.AppFrame.NavigationFailed += OnNavigationFailed;
 
             return shell;
         }
@@ -112,7 +114,6 @@ namespace Libra
         /// <param name="e">Details about the navigation failure</param>
         void OnNavigationFailed(object sender, NavigationFailedEventArgs e)
         {
-            AppEventSource.Log.Critical("App: Failed to load Page " + e.SourcePageType.FullName);
             throw new Exception("Failed to load Page " + e.SourcePageType.FullName);
         }
 
@@ -127,16 +128,22 @@ namespace Libra
         {
             var deferral = e.SuspendingOperation.GetDeferral();
             AppEventSource.Log.Info("App: Suspending...");
+            // Log the time used in suspension
             System.Diagnostics.Stopwatch suspensionWatch = new System.Diagnostics.Stopwatch();
             suspensionWatch.Start();
-            // Save application state and stop any background activity
+            // Save application state
             await SuspensionManager.SaveSessionAsync();
             suspensionWatch.Stop();
             AppEventSource.Log.Info("App: Suspension Completed in " + suspensionWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
+            // Save log file
             libraListener.Flush();
             deferral.Complete();
         }
 
+        /// <summary>
+        /// Navigate to viewer page when the app is activated by openning a pdf file. Initialize the navigation page if necessary.
+        /// </summary>
+        /// <param name="e"></param>
         protected override void OnFileActivated(FileActivatedEventArgs e)
         {
             AppEventSource.Log.Debug("App: Activated by opening pdf file.");
@@ -165,6 +172,11 @@ namespace Libra
             Window.Current.Activate();
         }
 
+        /// <summary>
+        /// Use this to log unhandled exceptions.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             AppEventSource.Log.Error("App: Unhandled Exception. " + sender.ToString() + e.Message);
