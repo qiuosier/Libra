@@ -45,6 +45,7 @@ namespace Libra
         private const string EXT_VIEW = ".xml";
         private const string INKING_FOLDER = "Inking";
         private const string INKING_SETTING_FILENAME = "_inkingSetting.xml";
+        private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
         private StorageFile pdfFile;
@@ -62,6 +63,7 @@ namespace Libra
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
+        private Dictionary<int, double> pageSizeDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
         private InkingSetting inkingSetting;
@@ -227,7 +229,6 @@ namespace Libra
             this.highlightBtnTimer.Start();
             
             ViewerState viewerState = SuspensionManager.viewerStateDictionary[this.ViewerKey];
-            // The following method may not work correctly if the file has pages of different sizes.
             if (viewerState != null)
             {
                 // Check if the viewer state is for this file
@@ -255,6 +256,7 @@ namespace Libra
                         this.VerticalViewBtn.IsChecked = true;
                     }
                     this.imagePanel.UpdateLayout();
+                    // The following method may not work correctly if the file has pages of different sizes.
                     // Scale the offsets if the App window has a different size
                     // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
                     // Zoom factor for scroll viewer will always be 1 when the App opens.
@@ -405,6 +407,24 @@ namespace Libra
             Pencil_Click(null, null);
         }
 
+        private async Task SavePageSizeFile()
+        {
+            AppEventSource.Log.Debug("ViewerPage: Saving page size to file...");
+            StorageFile file = await
+                dataFolder.CreateFileAsync(PAGE_SIZE_FILENAME, CreationCollisionOption.ReplaceExisting);
+            await SuspensionManager.SerializeToFileAsync(this.pageSizeDictionary, typeof(Dictionary<int, double>), file);
+        }
+
+        private async Task LoadPageSizeFile()
+        {
+            AppEventSource.Log.Debug("ViewerPage: Checking previously saved page size file...");
+            StorageFile file = await SuspensionManager.GetSavedFileAsync(PAGE_SIZE_FILENAME, this.dataFolder);
+            this.pageSizeDictionary = await
+                SuspensionManager.DeserializeFromFileAsync(typeof(Dictionary<int,double>), file) as Dictionary<int, double>;
+            // Create a new one if not loaded
+            if (this.pageSizeDictionary == null) this.pageSizeDictionary = new Dictionary<int, double>();
+        }
+
         private async void LoadFile(StorageFile pdfFile)
         {
             this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
@@ -464,6 +484,8 @@ namespace Libra
             image = (Image)this.FindName(PREFIX_PAGE + "1");
             this.defaultPageHeight = image.ActualHeight;
             AppEventSource.Log.Debug("ViewerPage: Default Page height set to " + this.defaultPageHeight.ToString());
+            // Load page size file
+            await LoadPageSizeFile();
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start(); 
         }
@@ -673,20 +695,35 @@ namespace Libra
                 this.renderWidthArray[pageNumber - 1] = renderWidth;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
-            // Ajust image container height and width
-            if (this.imagePanel.Orientation == Orientation.Vertical)
+
+            // Ajust image container height/width
+            // The following code may be re-used later.
+            //if (this.imagePanel.Orientation == Orientation.Vertical)
+            //{
+            //    image.Width = this.defaultPageWidth;
+            //    image.Height = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
+            //}
+            //else
+            //{
+            //    if (defaultPageHeight > 0)
+            //    {
+            //        image.Height = this.defaultPageHeight;
+            //        image.Width = ((BitmapImage)(image.Source)).PixelWidth * this.defaultPageHeight / ((BitmapImage)(image.Source)).PixelHeight;
+            //    }
+            //}
+
+            // Adjust image container height (width will be the same for all pages)
+            double newHeight = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
+            if (Math.Abs(newHeight - image.Height) > 1)
             {
-                image.Width = this.defaultPageWidth;
-                image.Height = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
+                image.Height = newHeight;
+                if (this.pageSizeDictionary.ContainsKey(pageNumber))
+                    this.pageSizeDictionary[pageNumber] = newHeight;
+                else this.pageSizeDictionary.Add(pageNumber, newHeight);
+                // Save the adjusted height/width to file
+                await SavePageSizeFile();
             }
-            else
-            {
-                if (defaultPageHeight > 0)
-                {
-                    image.Height = this.defaultPageHeight;
-                    image.Width = ((BitmapImage)(image.Source)).PixelWidth * this.defaultPageHeight / ((BitmapImage)(image.Source)).PixelHeight;
-                }
-            }
+
         }
 
         private void LoadInkCanvas(int pageNumber)
@@ -909,7 +946,9 @@ namespace Libra
                 Image image = new Image();
                 image.Name = PREFIX_PAGE + i.ToString();
                 image.Width = defaultPageWidth;
-                image.Height = defaultPageHeight;
+                if (this.pageSizeDictionary.ContainsKey(i))
+                    image.Height = pageSizeDictionary[i];
+                else image.Height = defaultPageHeight;
                 grid.Children.Add(image);
                 this.imagePanel.Children.Add(grid);
             }
@@ -1052,12 +1091,13 @@ namespace Libra
 
         private void VerticalView_Click(object sender, RoutedEventArgs e)
         {
+            ClearViewModeToggleBtn();
+            this.VerticalViewBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Vertical)
             {
-                ClearViewModeToggleBtn();
-                this.VerticalViewBtn.IsChecked = true;
                 this.imagePanel.Orientation = Orientation.Vertical;
                 NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.Page2, "Vertical View");
+                this.highlightBtnTimer.Start();
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Vertical View.");
                 RefreshViewer();
             }
@@ -1065,12 +1105,13 @@ namespace Libra
 
         private void HorizontalView_Click(object sender, RoutedEventArgs e)
         {
+            ClearViewModeToggleBtn();
+            this.HorizontalViewBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Horizontal)
             {
-                ClearViewModeToggleBtn();
-                this.HorizontalViewBtn.IsChecked = true;
                 this.imagePanel.Orientation = Orientation.Horizontal;
                 NavigationPage.Current.UpdateViewBtn(this.ViewerKey, Symbol.TwoPage, "Horizontal View");
+                this.highlightBtnTimer.Start();
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Horizontal View.");
                 RefreshViewer();
             }
