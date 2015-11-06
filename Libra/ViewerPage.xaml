@@ -9,17 +9,23 @@
     NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
     <Grid Background="Black">
         <CommandBar Background="LightSteelBlue">
+            <CommandBar.Content>
+                <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="60,12"/>
+            </CommandBar.Content>
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
             <AppBarToggleButton x:Name="Eraser" Icon="Placeholder" Label="Eraser" Click="Eraser_Click"/>
-            <AppBarButton Icon="Setting" Label="Stylus Settings" />
             <AppBarSeparator />
             <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click" />
             <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click" />
             <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click" Visibility="Collapsed"/>
             <AppBarSeparator />
-            <AppBarButton Icon="SaveLocal" Label="Export Inking" Click="SaveImage_Click"/>
             <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
+                <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
+                <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
+            </CommandBar.SecondaryCommands>
         </CommandBar>
         <Grid x:Name="viewerGrid" Margin="0,48,0,0">
             <ScrollViewer x:Name="scrollViewer" 

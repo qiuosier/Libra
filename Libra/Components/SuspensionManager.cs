@@ -72,12 +72,12 @@ namespace Libra
         public static async Task SaveSessionAsync()
         {
             IsSuspending = true;
-            // Move away from the current page (to a blank page), and then go back, so that the OnNavigatedFrom will be called.
-            appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
-            appFrame.GoBack();
-            await SaveViewerAsync();
             if (sessionState != null)
             {
+                // Move away from the current page (to a blank page), and then go back, so that the OnNavigatedFrom will be called.
+                appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                appFrame.GoBack();
+                await SaveViewerAsync();
                 AppEventSource.Log.Debug("Suspension: Saving session state to file...");
                 StorageFile file = await 
                     ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
@@ -117,20 +117,52 @@ namespace Libra
                     AppEventSource.Log.Info("Suspension: Viewer was not active when the App was suspended.");
                 }
             }
-            else AppEventSource.Log.Warn("Suspension: Previously saved session state does not contain file token.");
+            else AppEventSource.Log.Debug("Suspension: Previously saved session state not found.");
         }
 
         public static async Task SaveViewerAsync()
         {
-            if (viewerStateDictionary.Count > 0)
+            if (viewerStateDictionary != null && viewerStateDictionary.Count > 0)
             {
-                // Get the pdfToken from an (random) element in the viewer state dictionary
+                // Get the pdfToken and open the data folder
                 StorageFolder dataFolder = await 
-                    ApplicationData.Current.LocalFolder.CreateFolderAsync(viewerStateDictionary.First().Value.pdfToken, CreationCollisionOption.OpenIfExists);
+                    ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
                 StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
                 AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
                 await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
-                //viewerState = null;
+            }
+        }
+
+        public static async Task LoadViewerAsync()
+        {
+            // Get the pdfToken and open the data folder
+            StorageFolder dataFolder = await
+                ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+            // Check viewer state file
+            AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state...");
+            StorageFile file = await GetSavedFileAsync(FILENAME_VIEWER_STATE, dataFolder);
+            viewerStateDictionary = await
+                DeserializeFromFileAsync(typeof(Dictionary<Guid, ViewerState>), file) as Dictionary<Guid, ViewerState>;
+            // Make sure there no null viewer state in the dictionary
+            if (viewerStateDictionary != null)
+            {
+                // Use a list to keep the null viewer state
+                List<Guid> entryToRemove = new List<Guid>();
+                // Go through the dictionary
+                foreach (Guid key in viewerStateDictionary.Keys)
+                {
+                    if (viewerStateDictionary[key] == null)
+                    {
+                        // Add null entry to removal list
+                        entryToRemove.Add(key);
+                    }
+                }
+                // Remove the null entry
+                foreach (Guid key in entryToRemove)
+                {
+                    viewerStateDictionary.Remove(key);
+                    AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, GUID = " + key.ToString());
+                }
             }
         }
 

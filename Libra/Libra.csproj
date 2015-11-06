@@ -102,7 +102,10 @@
     <Compile Include="BlankPage.xaml.cs">
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Class\InkingSetting.cs" />
+    <Compile Include="Class\ExportPagesDialog.cs" />
+    <Compile Include="Class\InkingPreference.cs" />
+    <Compile Include="Class\InkingProfile.cs" />
+    <Compile Include="Class\InkingPreferenceDialog.cs" />
     <Compile Include="Components\AppEventSource.cs" />
     <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Class\SessionState.cs" />

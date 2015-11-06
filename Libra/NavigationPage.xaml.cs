@@ -53,18 +53,11 @@ namespace NavigationMenu
                 this.navlist.RemoveAt(NAV_LIST_STATIC_BTN_COUNT);
             }
 
-            // Use a list to keep the null viewer state
-            List<Guid> entryToRemove = new List<Guid>();
             // Go through the viewer states
             foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
             {
                 // Check if the viewer state is null
-                if (entry.Value == null)
-                {
-                    // Add null entry to removal list
-                    entryToRemove.Add(entry.Key);
-                    continue;
-                }
+                if (entry.Value == null) continue;
                 // Viewer state is not null
                 string btnLabel = "View";
                 if (entry.Value.visibleRange != null)
@@ -77,21 +70,18 @@ namespace NavigationMenu
                     Arguments = entry.Key
                 });
             }
-            // Remove the null entry
-            foreach (Guid entry in entryToRemove)
+            
+            // Add an ADD VIEW button if a file is opened
+            if (this.navlist.Count > NAV_LIST_STATIC_BTN_COUNT)
             {
-                SuspensionManager.viewerStateDictionary.Remove(entry);
-                AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, GUID = " + entry.ToString());
+                this.navlist.Add(new NavMenuItem()
+                {
+                    Symbol = Symbol.Add,
+                    Label = "Add a New View",
+                    DestPage = null,
+                    Arguments = ARG_ADD_NEW_VIEW
+                });
             }
-
-            // Add an ADD VIEW button
-            this.navlist.Add(new NavMenuItem()
-            {
-                Symbol = Symbol.Add,
-                Label = "Add a New View",
-                DestPage = null,
-                Arguments = ARG_ADD_NEW_VIEW
-            });
         }
 
         private void AddNewView()
@@ -215,18 +205,18 @@ namespace NavigationMenu
             this.highlightBtnTimer.Interval = new TimeSpan(HIGHLIGHT_BTN_TIMER_TICKS);
         }
 
+        // Use this counter to prevent the timer running forever in case something is wrong.
         private int HighlightBtnTickCounter = 0;
         private void HighlightBtnTimer_Tick(object sender, object e)
         {
-            if (HighlightViewBtn(ViewerPage.Current.ViewerKey))
+            if (this.AppFrame.CurrentSourcePageType != typeof(ViewerPage) 
+                || HighlightViewBtn(ViewerPage.Current.ViewerKey)
+                || HighlightBtnTickCounter > 10)
             {
                 // Stop the timeer if the button is successfully highlighted.
                 this.highlightBtnTimer.Stop();
                 HighlightBtnTickCounter = 0;
             }
-            // Use this counter to prevent the timer running forever in case something is wrong.
-            else if (HighlightBtnTickCounter > 10)
-                highlightBtnTimer.Stop();
             else HighlightBtnTickCounter++;
         }
 

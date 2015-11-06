@@ -47,7 +47,8 @@ namespace Libra
         private const string EXT_INKING = ".gif";
         private const string EXT_VIEW = ".xml";
         private const string INKING_FOLDER = "Inking";
-        private const string INKING_SETTING_FILENAME = "_inkingSetting.xml";
+        private const string INKING_PREFERENCE_FILENAME = "_inkingPreference.xml";
+        private const string INKING_PROFILE_FILENAME = "_inkingProfile.xml";
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
@@ -69,8 +70,9 @@ namespace Libra
         private Dictionary<int, double> pageSizeDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
-        private InkingSetting inkingSetting;
-        private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
+        private InkingProfile inkingProfile;
+        private InkingPreference inkingPreference;
+        //private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
         private InkInputProcessingMode inkProcessMode;
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
@@ -84,8 +86,8 @@ namespace Libra
         private bool isSavingInking;
         private bool inkingChanged;
         private bool isRenderingPage;
-        private int penSize;
-        private int highlighterSize;
+        //private int penSize;
+        //private int highlighterSize;
         private string futureAccessToken;
 
         private uint[] renderWidthArray;
@@ -141,6 +143,8 @@ namespace Libra
             this.recycleTimer.Stop();
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
+            this.pageNumberTextBlock.Text = "";
+            this.filenameTextBlock.Text = "";
             this.imagePanel.Orientation = Orientation.Vertical;
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
@@ -281,13 +285,9 @@ namespace Libra
 
         private async Task LoadViewerState()
         {
-            // Check viewer state file
-            AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state...");
-            StorageFile file = await SuspensionManager.GetSavedFileAsync(SuspensionManager.FILENAME_VIEWER_STATE, this.dataFolder);
-            SuspensionManager.viewerStateDictionary = await 
-                SuspensionManager.DeserializeFromFileAsync(typeof(Dictionary<Guid, ViewerState>), file) as Dictionary<Guid, ViewerState>;
+            await SuspensionManager.LoadViewerAsync();
             // Create a new viewer state dictionary if none is loaded
-            if (SuspensionManager.viewerStateDictionary == null)
+            if (SuspensionManager.viewerStateDictionary == null || SuspensionManager.viewerStateDictionary.Count == 0)
             {
                 SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
                 SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), SaveViewerState());
@@ -371,46 +371,56 @@ namespace Libra
             }
         }
 
-        private async void SaveDrawingPreference()
+        private async Task SaveDrawingPreference()
         {
-            AppEventSource.Log.Debug("ViewerPage: Saving drawing preference to " + dataFolder.Name);
-            this.inkingSetting.penSize = this.penSize;
-            this.inkingSetting.highlighterSize = this.highlighterSize;
-            this.inkingSetting.drawingDevice = this.drawingDevice;
-            this.inkingSetting.penColor = this.drawingAttributes.Color;
-            StorageFile file = await dataFolder.CreateFileAsync(INKING_SETTING_FILENAME, CreationCollisionOption.ReplaceExisting);
-            await SuspensionManager.SerializeToFileAsync(this.inkingSetting, typeof(InkingSetting), file);
+            AppEventSource.Log.Debug("ViewerPage: Saving drawing preference...");
+            StorageFile file = await 
+                ApplicationData.Current.LocalFolder.CreateFileAsync(INKING_PREFERENCE_FILENAME, CreationCollisionOption.ReplaceExisting);
+            await SuspensionManager.SerializeToFileAsync(this.inkingPreference, typeof(InkingPreference), file);
         }
 
         private async Task LoadDrawingPreference()
         {
             // Check drawing preference file
             AppEventSource.Log.Debug("ViewerPage: Checking previously saved drawing preference...");
-            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_SETTING_FILENAME, this.dataFolder);
-            this.inkingSetting = await
-                SuspensionManager.DeserializeFromFileAsync(typeof(InkingSetting), file) as InkingSetting;
+            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_PREFERENCE_FILENAME);
+            this.inkingPreference = await
+                SuspensionManager.DeserializeFromFileAsync(typeof(InkingPreference), file) as InkingPreference;
             // Discard the inking setting if it has a 0 page width
-            if (inkingSetting != null && inkingSetting.pageWidth == 0)
-                inkingSetting = null;
-            if (inkingSetting == null)
+            if (this.inkingPreference == null)
             {
                 // Create drawing preference file if one does not exist
-                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference found. Creating a new one for " + dataFolder.Name);
-                inkingSetting = new InkingSetting(this.defaultPageWidth);
-                file = await dataFolder.CreateFileAsync(INKING_SETTING_FILENAME, CreationCollisionOption.ReplaceExisting);
-                await SuspensionManager.SerializeToFileAsync(this.inkingSetting, typeof(InkingSetting), file);
+                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference found. Creating a new one...");
+                this.inkingPreference = new InkingPreference();
+                await SaveDrawingPreference();
             }
             // Drawing preference
-            this.penSize = inkingSetting.penSize;
-            this.highlighterSize = inkingSetting.highlighterSize;
-            this.drawingDevice = inkingSetting.drawingDevice;
             this.drawingAttributes = new InkDrawingAttributes();
-            this.drawingAttributes.Color = inkingSetting.penColor;
-            this.drawingAttributes.Size = new Size(penSize, penSize);
             this.drawingAttributes.IgnorePressure = false;
             this.drawingAttributes.FitToCurve = true;
             
             Pencil_Click(null, null);
+        }
+
+        private async Task LoadInkingProfile()
+        {
+            // Check inking profile
+            AppEventSource.Log.Debug("ViewerPage: Checking inking profile...");
+            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_PROFILE_FILENAME, this.dataFolder);
+            this.inkingProfile = await
+                SuspensionManager.DeserializeFromFileAsync(typeof(InkingProfile), file) as InkingProfile;
+            // Discard the inking setting if it has a 0 page width
+            if (inkingProfile != null && inkingProfile.PageWidth == 0)
+                inkingProfile = null;
+            if (inkingProfile == null)
+            {
+                // Create an inking profile if one does not exist.
+                // Inking profile will only be created and saved once (Read-only thereafter).
+                AppEventSource.Log.Debug("ViewerPage: No saved inking profile found. Creating a new one in " + dataFolder.Name);
+                inkingProfile = new InkingProfile(this.defaultPageWidth);
+                file = await dataFolder.CreateFileAsync(INKING_PROFILE_FILENAME, CreationCollisionOption.ReplaceExisting);
+                await SuspensionManager.SerializeToFileAsync(this.inkingProfile, typeof(InkingProfile), file);
+            }
         }
 
         private async Task SavePageSizeFile()
@@ -442,11 +452,12 @@ namespace Libra
                 return;
             }
             AppEventSource.Log.Info("ViewerPage: Loading file: " + this.pdfFile.Name);
-            // Display loading
+            // Update UI and Display loading
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = "Loading...";
+            this.filenameTextBlock.Text = this.pdfFile.Name;
             // Add file the future access list
-            this.futureAccessToken = Windows.Storage.AccessCache.StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
+            this.futureAccessToken = StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
@@ -465,6 +476,8 @@ namespace Libra
             this.renderWidthArray = new uint[this.pageCount];
             this.defaultPageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.defaultPageWidth.ToString());
+            // Load inking profile
+            await LoadInkingProfile();
             // Load drawing preference
             await LoadDrawingPreference();
             // Add and load the first two pages
@@ -564,8 +577,6 @@ namespace Libra
                         this.inkingFolder = await dataFolder.GetFolderAsync(INKING_FOLDER);
                         await LoadInking();
                         RefreshViewer();
-                        // Save current Preference
-                        SaveDrawingPreference();
                     }
                 }
                 catch (Exception e)
@@ -752,13 +763,13 @@ namespace Libra
                 // Add ink canvas
                 inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
-                inkCanvas.InkPresenter.InputDeviceTypes = drawingDevice;
+                inkCanvas.InkPresenter.InputDeviceTypes = inkingPreference.drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
 
                 // Calculate ink canvas scale factor
-                double inkCanvasScaleFactor = this.defaultPageWidth / inkingSetting.pageWidth;
+                double inkCanvasScaleFactor = this.defaultPageWidth / inkingProfile.PageWidth;
                 AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString()
                     + " set to " + inkCanvasScaleFactor.ToString());
                 // 
@@ -1028,7 +1039,8 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Pencil selected");
             this.Pencil.IsChecked = true;
-            this.drawingAttributes.Size = new Size(penSize, penSize);
+            this.drawingAttributes.Size = new Size(inkingPreference.penSize, inkingPreference.penSize);
+            this.drawingAttributes.Color = inkingPreference.penColor;
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
@@ -1041,7 +1053,8 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
-            this.drawingAttributes.Size = new Size(highlighterSize, highlighterSize);
+            this.drawingAttributes.Size = new Size(inkingPreference.highlighterSize, inkingPreference.highlighterSize);
+            this.drawingAttributes.Color = inkingPreference.highlighterColor;
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
@@ -1054,7 +1067,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Eraser selected");
             this.Eraser.IsChecked = true;
-            this.drawingAttributes.Size = new Size(penSize, penSize);
+            this.drawingAttributes.Size = new Size(inkingPreference.penSize, inkingPreference.penSize);
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
@@ -1064,13 +1077,19 @@ namespace Libra
 
         private void Close_Click(object sender, RoutedEventArgs e)
         {
-            //SuspensionManager.viewerState = SaveViewerState();
-            //await SuspensionManager.SaveSessionAsync();
-            //this.fileLoaded = false;
-            //InitializeViewer();
-            //this.Frame.Navigate(typeof(MainPage));
-            //May need to clear session state
             NavigationPage.Current.RemoveView(this.ViewerKey);
+        }
+
+        private async void CloseAll_Click(object sender, RoutedEventArgs e)
+        {
+            SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
+            SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), null);
+            await SuspensionManager.SaveViewerAsync();
+            SuspensionManager.sessionState.FileToken = null;
+            this.fileLoaded = false;
+            InitializeViewer();
+            NavigationPage.Current.InitializeViewBtn();
+            this.Frame.Navigate(typeof(MainPage));
         }
 
         private void ClearViewModeToggleBtn()
@@ -1119,77 +1138,7 @@ namespace Libra
         /// <param name="e"></param>
         private async void SaveImage_Click(object sender, RoutedEventArgs e)
         {
-            // Create a content dialog
-            ContentDialog dialog = new ContentDialog()
-            {
-                Title = "Export page as image",
-                MaxWidth = this.ActualWidth
-            };
-            dialog.PrimaryButtonText = "Export...";
-            dialog.SecondaryButtonText = "Cancel";
-            // Use a stack panel to hold the elements in the content dialog
-            StackPanel panel = new StackPanel();
-            // Display a message to user
-            panel.Children.Add(new TextBlock()
-            {
-                Text = "Export the following page(s) as images (e.g. 1-3, 8, 13-14): ",
-            });
-            // User will input page numbers in this TextBox
-            TextBox enterPagesTextBox = new TextBox()
-            {
-                Text = this.VisiblePageRange.ToString().Split(' ')[1],
-            };
-            panel.Children.Add(enterPagesTextBox);
-            // Show error messages to user
-            TextBlock errorMsgTextBlock = new TextBlock()
-            {
-                Text = " ",
-                Name = "errorMsgTextBlock",
-                Foreground = new SolidColorBrush(Colors.Red),
-            };
-            panel.Children.Add(errorMsgTextBlock);
-            // More info about exporting 
-            panel.Children.Add(new TextBlock()
-            {
-                Text = "Each page will be saved as an individual PNG image file in the folder you selected in the next step.\n\n" +
-                    "Preferred filename:",
-            });
-            // User will input filename in this TextBox
-            TextBox filenameTextBox = new TextBox()
-            {
-                Text = "PageSnapshot",
-            };
-            panel.Children.Add(filenameTextBox);
-            // Show filename examples to user
-            TextBlock fileExampleTextBlock = new TextBlock()
-            {
-                Text = "The exported images will be named as: PageSnapshot1.PNG, PageSnapshot2.PNG, ...",
-            };
-            panel.Children.Add(fileExampleTextBlock);
-            // Check page numbers
-            enterPagesTextBox.KeyUp += (sPages, ePages) =>
-            {
-                try
-                {
-                    pagesFromString(enterPagesTextBox.Text);
-                    errorMsgTextBlock.Text = " ";
-                    dialog.IsPrimaryButtonEnabled = true;
-                }
-                catch (Exception ex)
-                {
-                    errorMsgTextBlock.Text = ex.Message;
-                    dialog.IsPrimaryButtonEnabled = false;
-                }
-            };
-            // Check filename
-            filenameTextBox.KeyUp += (sFilename, eFilename) =>
-            {
-                fileExampleTextBlock.Text = "The exported images will be named as: " + 
-                    filenameTextBox.Text + "1.PNG" + ", " + filenameTextBox.Text + "2.PNG, ...";
-            };
-            AppEventSource.Log.Debug("ViewerPage: Exporting Pages: " + enterPagesTextBox.Text);
-            // Show dialog
-            dialog.Content = panel;
+            ExportPagesDialog dialog = new ExportPagesDialog(this.pageCount);
             if(await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
                 // Ask user to pick a folder
@@ -1199,14 +1148,15 @@ namespace Libra
                 StorageFolder folder = await folderPicker.PickSingleFolderAsync();
                 if (folder != null)
                 {
+                    AppEventSource.Log.Debug("ViewerPage: Exporting Pages: " + dialog.PagesToExportString);
                     // Export images
                     int exportingPageNumber = 0;
                     try
                     {
-                        foreach (int pageNumber in pagesFromString(enterPagesTextBox.Text))
+                        foreach (int pageNumber in dialog.PagesToExport)
                         {
                             exportingPageNumber = pageNumber;
-                            string filename = filenameTextBox.Text;
+                            string filename = dialog.ImageFilename;
                             string fileExtension = ".PNG";
                             StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
                                 CreationCollisionOption.GenerateUniqueName);
@@ -1219,37 +1169,6 @@ namespace Libra
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Convert a string to a list of page numbers (integers)
-        /// </summary>
-        /// <param name="s"></param>
-        /// <returns></returns>
-        private List<int> pagesFromString(string s)
-        {
-            string[] pageStrings = s.Split(',');
-            List<int> pageList = new List<int>();
-            foreach (string p in pageStrings)
-            {
-                string[] pages = p.Trim().Split('-');
-                if (pages.Length == 1)
-                {
-                    int i = Convert.ToInt32(pages[0]);
-                    if (i < 1 || i > this.pageCount)
-                        throw new Exception("Page number is out of range.");
-                    else pageList.Add(Convert.ToInt32(pages[0]));
-                }
-                else if (pages.Length == 2)
-                {
-                    for (int i = Convert.ToInt32(pages[0]); i <= Convert.ToUInt32(pages[1]); i++)
-                        if (i < 1 || i > this.pageCount)
-                            throw new Exception("Page number is out of range.");
-                        else pageList.Add(i);
-                }
-                else throw new Exception("The entered page numbers are not valid.");
-            }
-            return pageList;
         }
 
         /// <summary>
@@ -1283,6 +1202,20 @@ namespace Libra
             // Encode the image to the selected file on disk
             using (var fileStream = await saveFile.OpenAsync(FileAccessMode.ReadWrite))
                 await renderTarget.SaveAsync(fileStream, CanvasBitmapFileFormat.Png, 1f);
+        }
+
+        /// <summary>
+        /// Event handler for the "Inking Setting" button.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void InkingSetting_Click(object sender, RoutedEventArgs e)
+        {
+            InkingPreferenceDialog dialog = new InkingPreferenceDialog(this.inkingPreference);
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                // TODO
+            }
         }
 
         /// <summary>
