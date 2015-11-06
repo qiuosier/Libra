@@ -25,7 +25,7 @@ namespace Libra
         {
             return first == last ?
                 "Page " + first.ToString() :
-                "Page " + first.ToString() + " - " + last.ToString();
+                "Page " + first.ToString() + "-" + last.ToString();
         }
     }
 }

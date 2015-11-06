@@ -14,6 +14,10 @@ using Windows.UI.Popups;
 using Windows.Storage.AccessCache;
 using System.IO;
 using NavigationMenu;
+using Windows.Storage.Pickers;
+using Microsoft.Graphics.Canvas;
+using Windows.UI;
+using Windows.UI.Xaml.Media;
 
 namespace Libra
 {
@@ -310,16 +314,23 @@ namespace Libra
                 return;
             }
 
-            // Need to add try/catch here
-            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
+            // Save inking to file
+            try
             {
-                StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
-                    entry.Key.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
-                using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
+                foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
                 {
-                    await entry.Value.SaveAsync(inkStream);
+                    StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
+                        entry.Key.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
+                    using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
+                    {
+                        await entry.Value.SaveAsync(inkStream);
+                    }
+                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
                 }
-                AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
+            }
+            catch (Exception ex)
+            {
+                NotifyUser("An error occurred when saving inking. \n" + ex.Message, true);
             }
 
             AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
@@ -336,6 +347,7 @@ namespace Libra
             // TODO: Need to check if the inking is suitable for the file/page.
             //
             //
+            int loadingPageNumber = 0;
             try
             {
                 this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
@@ -355,11 +367,7 @@ namespace Libra
             }
             catch (Exception e)
             {
-                AppEventSource.Log.Error("ViewerPage: Error when loading inking for " + this.pdfFile.Name + " Exception: " + e.Message);
-                // Notify user
-                MessageDialog messageDialog = new MessageDialog("Error when loading inking: \n" + e.Message);
-                messageDialog.Commands.Add(new UICommand("OK", null, 0));
-                await messageDialog.ShowAsync();
+                NotifyUser("Error when loading inking for page " + loadingPageNumber.ToString() + "\n Exception: " + e.Message, true);
             }
         }
 
@@ -734,8 +742,8 @@ namespace Libra
             }
             // Update the grid size to match the image size
             Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
-            grid.Width = image.Width;
-            grid.Height = image.Height;
+            grid.Width = image.ActualWidth;
+            grid.Height = image.ActualHeight;
             // Find existing ink canvas
             InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
             // If an ink canvas does not exist, add a new one
@@ -754,8 +762,8 @@ namespace Libra
                 AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString()
                     + " set to " + inkCanvasScaleFactor.ToString());
                 // 
-                inkCanvas.Height = image.Height / inkCanvasScaleFactor;
-                inkCanvas.Width = image.Width / inkCanvasScaleFactor;
+                inkCanvas.Height = image.ActualHeight / inkCanvasScaleFactor;
+                inkCanvas.Width = image.ActualWidth / inkCanvasScaleFactor;
 
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
@@ -769,8 +777,8 @@ namespace Libra
                 Viewbox viewbox = new Viewbox();
                 viewbox.Name = PREFIX_VIEWBOX + pageNumber.ToString();
                 viewbox.Child = inkCanvas;
-                viewbox.Height = image.Height;
-                viewbox.Width = image.Width;
+                viewbox.Height = image.ActualHeight;
+                viewbox.Width = image.ActualWidth;
 
                 grid.Children.Add(viewbox);
                 this.inkCanvasList.Add(pageNumber);
@@ -779,8 +787,8 @@ namespace Libra
             {
                 // Adjust viewbox size
                 Viewbox viewbox = (Viewbox)grid.FindName(PREFIX_VIEWBOX + pageNumber.ToString());
-                viewbox.Height = image.Height;
-                viewbox.Width = image.Width;
+                viewbox.Height = image.ActualHeight;
+                viewbox.Width = image.ActualWidth;
             }
         }
 
@@ -1102,6 +1110,191 @@ namespace Libra
         {
             ClearViewModeToggleBtn();
             this.GridViewBtn.IsChecked = true;
+        }
+
+        // <summary>
+        /// Event handler for the "Export Inking to Image.." button.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void SaveImage_Click(object sender, RoutedEventArgs e)
+        {
+            // Create a content dialog
+            ContentDialog dialog = new ContentDialog()
+            {
+                Title = "Export page as image",
+                MaxWidth = this.ActualWidth
+            };
+            dialog.PrimaryButtonText = "Export...";
+            dialog.SecondaryButtonText = "Cancel";
+            // Use a stack panel to hold the elements in the content dialog
+            StackPanel panel = new StackPanel();
+            // Display a message to user
+            panel.Children.Add(new TextBlock()
+            {
+                Text = "Export the following page(s) as images (e.g. 1-3, 8, 13-14): ",
+            });
+            // User will input page numbers in this TextBox
+            TextBox enterPagesTextBox = new TextBox()
+            {
+                Text = this.VisiblePageRange.ToString().Split(' ')[1],
+            };
+            panel.Children.Add(enterPagesTextBox);
+            // Show error messages to user
+            TextBlock errorMsgTextBlock = new TextBlock()
+            {
+                Text = " ",
+                Name = "errorMsgTextBlock",
+                Foreground = new SolidColorBrush(Colors.Red),
+            };
+            panel.Children.Add(errorMsgTextBlock);
+            // More info about exporting 
+            panel.Children.Add(new TextBlock()
+            {
+                Text = "Each page will be saved as an individual PNG image file in the folder you selected in the next step.\n\n" +
+                    "Preferred filename:",
+            });
+            // User will input filename in this TextBox
+            TextBox filenameTextBox = new TextBox()
+            {
+                Text = "PageSnapshot",
+            };
+            panel.Children.Add(filenameTextBox);
+            // Show filename examples to user
+            TextBlock fileExampleTextBlock = new TextBlock()
+            {
+                Text = "The exported images will be named as: PageSnapshot1.PNG, PageSnapshot2.PNG, ...",
+            };
+            panel.Children.Add(fileExampleTextBlock);
+            // Check page numbers
+            enterPagesTextBox.KeyUp += (sPages, ePages) =>
+            {
+                try
+                {
+                    pagesFromString(enterPagesTextBox.Text);
+                    errorMsgTextBlock.Text = " ";
+                    dialog.IsPrimaryButtonEnabled = true;
+                }
+                catch (Exception ex)
+                {
+                    errorMsgTextBlock.Text = ex.Message;
+                    dialog.IsPrimaryButtonEnabled = false;
+                }
+            };
+            // Check filename
+            filenameTextBox.KeyUp += (sFilename, eFilename) =>
+            {
+                fileExampleTextBlock.Text = "The exported images will be named as: " + 
+                    filenameTextBox.Text + "1.PNG" + ", " + filenameTextBox.Text + "2.PNG, ...";
+            };
+            AppEventSource.Log.Debug("ViewerPage: Exporting Pages: " + enterPagesTextBox.Text);
+            // Show dialog
+            dialog.Content = panel;
+            if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                // Ask user to pick a folder
+                FolderPicker folderPicker = new FolderPicker();
+                folderPicker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+                folderPicker.FileTypeFilter.Add(".PNG");
+                StorageFolder folder = await folderPicker.PickSingleFolderAsync();
+                if (folder != null)
+                {
+                    // Export images
+                    int exportingPageNumber = 0;
+                    try
+                    {
+                        foreach (int pageNumber in pagesFromString(enterPagesTextBox.Text))
+                        {
+                            exportingPageNumber = pageNumber;
+                            string filename = filenameTextBox.Text;
+                            string fileExtension = ".PNG";
+                            StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
+                                CreationCollisionOption.GenerateUniqueName);
+                            await Export_Page(pageNumber, file);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        NotifyUser("An error occurred when exporting page " + exportingPageNumber.ToString() + ".\n" + ex.Message, true);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Convert a string to a list of page numbers (integers)
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        private List<int> pagesFromString(string s)
+        {
+            string[] pageStrings = s.Split(',');
+            List<int> pageList = new List<int>();
+            foreach (string p in pageStrings)
+            {
+                string[] pages = p.Trim().Split('-');
+                if (pages.Length == 1)
+                {
+                    int i = Convert.ToInt32(pages[0]);
+                    if (i < 1 || i > this.pageCount)
+                        throw new Exception("Page number is out of range.");
+                    else pageList.Add(Convert.ToInt32(pages[0]));
+                }
+                else if (pages.Length == 2)
+                {
+                    for (int i = Convert.ToInt32(pages[0]); i <= Convert.ToUInt32(pages[1]); i++)
+                        if (i < 1 || i > this.pageCount)
+                            throw new Exception("Page number is out of range.");
+                        else pageList.Add(i);
+                }
+                else throw new Exception("The entered page numbers are not valid.");
+            }
+            return pageList;
+        }
+
+        /// <summary>
+        /// Save a rendered pdf page with inking to png file.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <param name="saveFile"></param>
+        /// <returns></returns>
+        private async Task Export_Page(int pageNumber, StorageFile saveFile)
+        {
+            Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
+            InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
+            CanvasDevice device = CanvasDevice.GetSharedDevice();
+            CanvasRenderTarget renderTarget = new CanvasRenderTarget(device, (int)inkCanvas.ActualWidth, (int)inkCanvas.ActualHeight, 96 * 2);
+
+            // Render pdf page
+            InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
+            PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
+            PdfPageRenderOptions options = new PdfPageRenderOptions();
+            options.DestinationWidth = (uint)inkCanvas.ActualWidth * 2;
+            await page.RenderToStreamAsync(stream, options);
+            CanvasBitmap bitmap = await CanvasBitmap.LoadAsync(device, stream, 96 * 2);
+            // Draw image with ink
+            using (var ds = renderTarget.CreateDrawingSession())
+            {
+                ds.Clear(Colors.White);
+                ds.DrawImage(bitmap);
+                ds.DrawInk(inkCanvas.InkPresenter.StrokeContainer.GetStrokes());
+            }
+
+            // Encode the image to the selected file on disk
+            using (var fileStream = await saveFile.OpenAsync(FileAccessMode.ReadWrite))
+                await renderTarget.SaveAsync(fileStream, CanvasBitmapFileFormat.Png, 1f);
+        }
+
+        /// <summary>
+        /// Show a dialog with notification message.
+        /// </summary>
+        /// <param name="message">The message to be displayed to the user.</param>
+        private async void NotifyUser(string message, bool logMessage = false)
+        {
+            MessageDialog messageDialog = new MessageDialog(message);
+            messageDialog.Commands.Add(new UICommand("OK", null, 0));
+            await messageDialog.ShowAsync();
+            if (logMessage) AppEventSource.Log.Error("ViewerPage: " + message);
         }
     }
 }

@@ -18,7 +18,7 @@
             <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click" />
             <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click" Visibility="Collapsed"/>
             <AppBarSeparator />
-            <AppBarButton Icon="SaveLocal" Label="Export Inking"/>
+            <AppBarButton Icon="SaveLocal" Label="Export Inking" Click="SaveImage_Click"/>
             <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
         </CommandBar>
         <Grid x:Name="viewerGrid" Margin="0,48,0,0">
