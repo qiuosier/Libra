@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Libra
+namespace Libra.Class
 {
     /// <summary>
     /// Data to represent the state of a viewer page.

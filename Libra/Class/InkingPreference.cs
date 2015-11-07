@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Windows.UI;
 using Windows.UI.Core;
 
-namespace Libra
+namespace Libra.Class
 {
     /// <summary>
     /// Contains user preferences for inking.

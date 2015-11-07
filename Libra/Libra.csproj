@@ -103,9 +103,11 @@
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Class\ExportPagesDialog.cs" />
+    <Compile Include="Class\InkingPrefContentDialog.xaml.cs">
+      <DependentUpon>InkingPrefContentDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Class\InkingPreference.cs" />
     <Compile Include="Class\InkingProfile.cs" />
-    <Compile Include="Class\InkingPreferenceDialog.cs" />
     <Compile Include="Components\AppEventSource.cs" />
     <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Class\SessionState.cs" />
@@ -155,6 +157,10 @@
     <Page Include="BlankPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Class\InkingPrefContentDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="MainPage.xaml">
       <Generator>MSBuild:Compile</Generator>

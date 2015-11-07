@@ -11,6 +11,7 @@ using NavigationMenu.Controls;
 using Libra;
 using System.Collections.ObjectModel;
 using System;
+using Libra.Class;
 
 namespace NavigationMenu
 {

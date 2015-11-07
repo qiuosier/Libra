@@ -1,0 +1,53 @@
+﻿<ContentDialog
+    x:Class="Libra.Class.InkingPrefContentDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Libra"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Inking Preference"
+    PrimaryButtonText="OK"
+    SecondaryButtonText="Cancel"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
+    SecondaryButtonClick="ContentDialog_SecondaryButtonClick" Loaded="ContentDialog_Loaded">
+    <Grid>
+        <Grid.Resources>
+            <DataTemplate x:Key="colorPicker">
+                <Rectangle Fill="{Binding}" Height="30" Width="30"/>
+            </DataTemplate>
+            <ItemsPanelTemplate x:Key="colorPanel">
+                <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+        </Grid.Resources>
+        <StackPanel>
+            <TextBlock x:Name="penSizeLabel" Text="Pen Tip Size: " Margin="0,15,0,0"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid MinWidth="50" VerticalAlignment="Center">
+                    <Ellipse x:Name="penSizeEllipse" MinHeight="2" MinWidth="2" Fill="Red" Width="5" Height="5"/>
+                </Grid>
+                <Slider x:Name="penSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="15" Minimum="1" TickFrequency="1" ValueChanged="penSizeSlider_ValueChanged"/>
+            </StackPanel>
+            <TextBlock x:Name="penColorLabel" Text="Pen Color: "/>
+            <ListBox x:Name="penColorListBox" 
+                     ItemsSource="{Binding}" 
+                     ItemTemplate="{StaticResource colorPicker}" 
+                     ItemsPanel="{StaticResource colorPanel}" 
+                     SelectionChanged="penColorListBox_SelectionChanged" />
+            <TextBlock x:Name="highlighterSizeLabel" Text="Highlighter Size: " Margin="0,15,0,0"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid MinWidth="50" VerticalAlignment="Center">
+                    <Rectangle x:Name="highlighterSizeRectangle" MinHeight="5" MinWidth="5" Fill="Yellow" Width="15" Height="15"/>
+                </Grid>
+                <Slider x:Name="highlighterSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="35" Minimum="5" TickFrequency="1" ValueChanged="highlighterSizeSlider_ValueChanged"/>
+            </StackPanel>
+            <TextBlock x:Name="highlighterColorLabel" Text="Pen Color: "/>
+            <ListBox x:Name="highlighterColorListBox" 
+                     ItemsSource="{Binding}" 
+                     ItemTemplate="{StaticResource colorPicker}" 
+                     ItemsPanel="{StaticResource colorPanel}" 
+                     SelectionChanged="highlighterColorListBox_SelectionChanged"/>
+            <!--<CheckBox Margin="0,15,0,0" Content="Enable mouse drawing"/>-->
+        </StackPanel>
+    </Grid>
+</ContentDialog>

@@ -18,6 +18,7 @@ using Windows.Storage.Pickers;
 using Microsoft.Graphics.Canvas;
 using Windows.UI;
 using Windows.UI.Xaml.Media;
+using Libra.Class;
 
 namespace Libra
 {
@@ -86,8 +87,6 @@ namespace Libra
         private bool isSavingInking;
         private bool inkingChanged;
         private bool isRenderingPage;
-        //private int penSize;
-        //private int highlighterSize;
         private string futureAccessToken;
 
         private uint[] renderWidthArray;
@@ -820,7 +819,7 @@ namespace Libra
             }
         }
 
-        private void UpdateDrawingAttributes()
+        private void UpdateInkPresenter()
         {
             if (this.inkCanvasList == null)
             {
@@ -830,8 +829,9 @@ namespace Libra
             foreach (int pageNumber in inkCanvasList)
             {
                 InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+                inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(this.drawingAttributes);
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
+                inkCanvas.InkPresenter.InputDeviceTypes = this.inkingPreference.drawingDevice;
             }
             AppEventSource.Log.Debug("ViewerPage: Drawing attributes updated.");
         }
@@ -1045,7 +1045,7 @@ namespace Libra
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
             this.inkProcessMode = InkInputProcessingMode.Inking;
-            UpdateDrawingAttributes();
+            UpdateInkPresenter();
         }
 
         private void Highlighter_Click(object sender, RoutedEventArgs e)
@@ -1059,7 +1059,7 @@ namespace Libra
             this.drawingAttributes.DrawAsHighlighter = true;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
             this.inkProcessMode = InkInputProcessingMode.Inking;
-            UpdateDrawingAttributes();
+            UpdateInkPresenter();
         }
 
         private void Eraser_Click(object sender, RoutedEventArgs e)
@@ -1072,7 +1072,7 @@ namespace Libra
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
             this.inkProcessMode = InkInputProcessingMode.Erasing;
-            UpdateDrawingAttributes();
+            UpdateInkPresenter();
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)
@@ -1211,10 +1211,13 @@ namespace Libra
         /// <param name="e"></param>
         private async void InkingSetting_Click(object sender, RoutedEventArgs e)
         {
-            InkingPreferenceDialog dialog = new InkingPreferenceDialog(this.inkingPreference);
+            InkingPrefContentDialog dialog = new InkingPrefContentDialog(this.inkingPreference);
             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
-                // TODO
+                // Update drawing attributes
+                this.inkingPreference = dialog.InkingPreference;
+                if (this.Pencil.IsChecked == true) Pencil_Click(null, null);
+                else if (this.Highlighter.IsChecked == true) Highlighter_Click(null, null);
             }
         }
 

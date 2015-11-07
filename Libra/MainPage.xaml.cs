@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Libra.Class;
+using System;
 using System.Collections.ObjectModel;
 using Windows.Storage;
 using Windows.Storage.AccessCache;

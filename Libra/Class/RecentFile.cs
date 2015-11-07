@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Libra
+namespace Libra.Class
 {
     public class RecentFile
     {
