@@ -1131,6 +1131,7 @@ namespace Libra
             SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
             SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), null);
             await SuspensionManager.SaveViewerAsync();
+            SuspensionManager.viewerStateDictionary = null;
             SuspensionManager.sessionState.FileToken = null;
             this.fileLoaded = false;
             InitializeViewer();
@@ -1151,10 +1152,23 @@ namespace Libra
             this.VerticalViewBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Vertical)
             {
-                this.imagePanel.Orientation = Orientation.Vertical;
+                // Update navigation buttons
                 NavigationPage.Current.UpdateViewBtn(this.ViewerKey, this.VisiblePageRange.ToString(), Symbol.Page2);
+                // Save offset
+                double vOffsetPercent = (this.scrollViewer.ActualWidth / 2 + this.scrollViewer.HorizontalOffset)
+                    / (this.imagePanel.ActualWidth * this.scrollViewer.ZoomFactor);
+                vOffsetPercent = vOffsetPercent > 1 ? 0 : vOffsetPercent;
+                // Change layout
+                this.imagePanel.Orientation = Orientation.Vertical;
+                this.imagePanel.UpdateLayout();
+                // Recalculate offset
+                float zoomFactor = (float)(this.scrollViewer.ActualWidth / this.fitViewWidth);
+                double vOffset = 0;
+                double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
+                vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
+                vOffset = vOffset < 0 ? 0 : vOffset;
+                this.scrollViewer.ChangeView(0, vOffset, zoomFactor);
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Vertical View.");
-                RefreshViewer();
             }
         }
 
@@ -1164,10 +1178,23 @@ namespace Libra
             this.HorizontalViewBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Horizontal)
             {
-                this.imagePanel.Orientation = Orientation.Horizontal;
+                // Update navigation buttons
                 NavigationPage.Current.UpdateViewBtn(this.ViewerKey, this.VisiblePageRange.ToString(), Symbol.TwoPage);
+                // Save offset
+                double hOffsetPercent = (this.scrollViewer.ActualHeight / 2 + this.scrollViewer.VerticalOffset)
+                    / (this.imagePanel.ActualHeight * this.scrollViewer.ZoomFactor);
+                hOffsetPercent = hOffsetPercent > 1 ? 0 : hOffsetPercent;
+                // Change layout
+                this.imagePanel.Orientation = Orientation.Horizontal;
+                this.imagePanel.UpdateLayout();
+                // Recalculate offset
+                float zoomFactor = (float)(this.scrollViewer.ActualHeight / this.fitViewHeight);
+                double hOffset = 0;
+                double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
+                hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
+                hOffset = hOffset < 0 ? 0 : hOffset;
+                this.scrollViewer.ChangeView(hOffset, 0, zoomFactor);
                 AppEventSource.Log.Debug("ViewerPage: View " + ViewerKey.ToString() + "Changed to Horizontal View.");
-                RefreshViewer();
             }
         }
 
@@ -1276,15 +1303,40 @@ namespace Libra
         {
             if (this.imagePanel.Orientation == Orientation.Vertical && this.fitViewWidth > 0)
             {
-                float zoomFactor = 1 / (float)(this.fitViewWidth / this.scrollViewer.ActualWidth);
-                // Change the zoom factor.
-                // Also need to recalculate the offsets.
-                this.scrollViewer.ChangeView(null, null, zoomFactor);
+                // Calculate the zoom factor.
+                float zoomFactor = (float)(this.scrollViewer.ActualWidth / this.fitViewWidth);
+                // Calculate the vertical offset
+                double vOffset = 0;
+                double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
+                double vOffsetPercent = (this.scrollViewer.ActualHeight / 2 + this.scrollViewer.VerticalOffset)
+                    / (this.imagePanel.ActualHeight * this.scrollViewer.ZoomFactor);
+                vOffsetPercent = vOffsetPercent > 1 ? 0 : vOffsetPercent;
+                vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
+                vOffset = vOffset < 0 ? 0 : vOffset;
+                // Center the page horizontally
+                double hOffset = 0;
+                double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
+                if (panelWidth > this.scrollViewer.ActualWidth) hOffset = (panelWidth - this.scrollViewer.ActualWidth) / 2;
+                //
+                this.scrollViewer.ChangeView(hOffset, vOffset, zoomFactor);
             }
             else if (this.imagePanel.Orientation == Orientation.Horizontal && this.fitViewHeight > 0)
             {
-                float zoomFactor = 1 / (float)(this.fitViewHeight / this.scrollViewer.ActualHeight);
-                this.scrollViewer.ChangeView(null, null, zoomFactor);
+                float zoomFactor = (float)(this.scrollViewer.ActualHeight / this.fitViewHeight);
+                // Center the page vertically
+                double vOffset = 0;
+                double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
+                if (panelHeight > this.scrollViewer.ActualHeight) vOffset = (panelHeight - this.scrollViewer.ActualHeight) / 2;
+                // Calculate the horizontal offset
+                double hOffset = 0;
+                double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
+                double hOffsetPercent = (this.scrollViewer.ActualWidth / 2 + this.scrollViewer.HorizontalOffset)
+                    / (this.imagePanel.ActualWidth * this.scrollViewer.ZoomFactor);
+                hOffsetPercent = hOffsetPercent > 1 ? 0 : hOffsetPercent;
+                hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
+                hOffset = hOffset < 0 ? 0 : hOffset;
+                //
+                this.scrollViewer.ChangeView(hOffset, vOffset, zoomFactor);
             }
         }
 

@@ -10,7 +10,7 @@
     <Grid Background="Black">
         <CommandBar Background="LightSteelBlue">
             <CommandBar.Content>
-                <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="60,12"/>
+                <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12"/>
             </CommandBar.Content>
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>

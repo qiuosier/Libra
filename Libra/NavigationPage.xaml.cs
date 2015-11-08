@@ -55,6 +55,7 @@ namespace NavigationMenu
             }
 
             // Go through the viewer states
+            if (SuspensionManager.viewerStateDictionary == null) return;
             foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
             {
                 // Check if the viewer state is null
