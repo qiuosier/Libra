@@ -73,7 +73,6 @@ namespace Libra
         private InkDrawingAttributes drawingAttributes;
         private InkingProfile inkingProfile;
         private InkingPreference inkingPreference;
-        //private Windows.UI.Core.CoreInputDeviceTypes drawingDevice;
         private InkInputProcessingMode inkProcessMode;
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
@@ -83,6 +82,8 @@ namespace Libra
         private int pageCount;
         private double defaultPageHeight;
         private double defaultPageWidth;
+        private double fitViewHeight;
+        private double fitViewWidth;
         private bool fileLoaded;
         private bool isSavingInking;
         private bool inkingChanged;
@@ -132,6 +133,8 @@ namespace Libra
             this._visiblePageRange = new PageRange();
             this.defaultPageHeight = 0;
             this.defaultPageWidth = 0;
+            this.fitViewHeight = 0;
+            this.fitViewWidth = 0;
             this.pageCount = 0;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
@@ -626,11 +629,12 @@ namespace Libra
 
         private async void RenderPages()
         {
+            // Set isRenderingPage to true to prevent this method to be called multiple times before the rendering is finished.
             this.isRenderingPage = true;
             while (renderPagesQueue.Count > 0)
             {
                 int i = renderPagesQueue.Dequeue();
-                // Load page at a higer resolution if it is zoomed in. Otherwise, load page at default resolution
+                // Load page at a higer resolution if it is zoomed in. Otherwise, load page at default resolution.
                 if (this.defaultPageWidth * this.scrollViewer.ZoomFactor > DEFAULT_RENDER_WIDTH && 
                     i >= VisiblePageRange.first && i <= VisiblePageRange.last)
                     await LoadPage(i, 2 * DEFAULT_RENDER_WIDTH);
@@ -638,6 +642,40 @@ namespace Libra
                     await LoadPage(i);
                 // Add ink canvas
                 LoadInkCanvas(i);
+            }
+            // Update Fill window / Fit Window button and parameters.
+            // Calculate FitView height/width based of the actual page height/width of visible pages.
+            for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
+            {
+                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
+                if (i == VisiblePageRange.first)
+                {
+                    this.fitViewHeight = image.ActualHeight;
+                    this.fitViewWidth = image.ActualWidth;
+                }
+                else 
+                {
+                    if (image.ActualHeight > this.fitViewHeight) this.fitViewHeight = image.ActualHeight;
+                    if (image.ActualWidth > this.fitViewWidth) this.fitViewWidth = image.ActualWidth;
+                }
+            }
+            // Add the page margin and scroll bar width
+            this.fitViewHeight = this.fitViewHeight + 2 * SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
+            this.fitViewWidth = this.fitViewWidth + SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
+            // If FitView size if greater than the scroll viewer size, display the fit to window button (shrink).
+            // Otherwise, display the fill window button.
+            if (this.imagePanel.Orientation == Orientation.Vertical 
+                && (this.fitViewWidth * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualWidth
+                || this.imagePanel.Orientation == Orientation.Horizontal 
+                && (this.fitViewHeight * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualHeight)
+            {
+                this.FillWindowBtn.Visibility = Visibility.Collapsed;
+                this.FitToWindowBtn.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                this.FillWindowBtn.Visibility = Visibility.Visible;
+                this.FitToWindowBtn.Visibility = Visibility.Collapsed;
             }
             this.isRenderingPage = false;
         }
@@ -647,7 +685,7 @@ namespace Libra
             if (pageNumber < inkingPageRange.first - SIZE_PAGE_BUFFER || pageNumber > inkingPageRange.last + SIZE_PAGE_BUFFER)
             {
                 // Remove Image
-                Image image = (Image)this.FindName(PREFIX_PAGE + pageNumber.ToString());
+                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
                 if (image != null)
                 {
                     double x = image.ActualHeight;
@@ -1218,6 +1256,27 @@ namespace Libra
                 this.inkingPreference = dialog.InkingPreference;
                 if (this.Pencil.IsChecked == true) Pencil_Click(null, null);
                 else if (this.Highlighter.IsChecked == true) Highlighter_Click(null, null);
+            }
+        }
+
+        /// <summary>
+        /// Event handler to fit the page(s) to window / fill the window with page(s)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void FitToWindowBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.imagePanel.Orientation == Orientation.Vertical && this.fitViewWidth > 0)
+            {
+                float zoomFactor = 1 / (float)(this.fitViewWidth / this.scrollViewer.ActualWidth);
+                // Change the zoom factor.
+                // Also need to recalculate the offsets.
+                this.scrollViewer.ChangeView(null, null, zoomFactor);
+            }
+            else if (this.imagePanel.Orientation == Orientation.Horizontal && this.fitViewHeight > 0)
+            {
+                float zoomFactor = 1 / (float)(this.fitViewHeight / this.scrollViewer.ActualHeight);
+                this.scrollViewer.ChangeView(null, null, zoomFactor);
             }
         }
 

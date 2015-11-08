@@ -21,7 +21,7 @@
             </ItemsPanelTemplate>
         </Grid.Resources>
         <StackPanel>
-            <TextBlock x:Name="penSizeLabel" Text="Pen Tip Size: " Margin="0,15,0,0"/>
+            <TextBlock x:Name="penSizeLabel" Text="Pencil Tip Size: " Margin="0,15,0,0"/>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Grid MinWidth="50" VerticalAlignment="Center">
                     <Ellipse x:Name="penSizeEllipse" MinHeight="2" MinWidth="2" Fill="Red" Width="5" Height="5"/>
