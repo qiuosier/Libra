@@ -1126,12 +1126,15 @@ namespace Libra
             NavigationPage.Current.RemoveView(this.ViewerKey);
         }
 
+        public void AllViewClosed()
+        {
+            CloseAll_Click(null, null);
+        }
+
         private async void CloseAll_Click(object sender, RoutedEventArgs e)
         {
-            SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
-            SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), null);
-            await SuspensionManager.SaveViewerAsync();
             SuspensionManager.viewerStateDictionary = null;
+            await SuspensionManager.SaveViewerAsync();
             SuspensionManager.sessionState.FileToken = null;
             this.fileLoaded = false;
             InitializeViewer();
@@ -1143,6 +1146,8 @@ namespace Libra
         {
             this.VerticalViewBtn.IsChecked = false;
             this.HorizontalViewBtn.IsChecked = false;
+            //this.VerticalViewSecBtn.IsChecked = false;
+            //this.HorizontalViewSecBtn.IsChecked = false;
             this.GridViewBtn.IsChecked = false;
         }
 
@@ -1150,6 +1155,7 @@ namespace Libra
         {
             ClearViewModeToggleBtn();
             this.VerticalViewBtn.IsChecked = true;
+            //this.VerticalViewSecBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Vertical)
             {
                 // Update navigation buttons
@@ -1176,6 +1182,7 @@ namespace Libra
         {
             ClearViewModeToggleBtn();
             this.HorizontalViewBtn.IsChecked = true;
+            //this.HorizontalViewSecBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Horizontal)
             {
                 // Update navigation buttons

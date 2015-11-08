@@ -132,6 +132,17 @@ namespace Libra
                 AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
                 await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
             }
+            else
+            {
+                // Delete view state file if no viewer state (views are closed)
+                if (sessionState != null && sessionState.FileToken != null)
+                {
+                    StorageFolder dataFolder = await
+                        ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                    StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
+                    await file.DeleteAsync();
+                }
+            }
         }
 
         public static async Task LoadViewerAsync()

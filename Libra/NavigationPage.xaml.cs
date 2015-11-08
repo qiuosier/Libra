@@ -115,8 +115,11 @@ namespace NavigationMenu
             if (i > 0) this.navlist.RemoveAt(i);
             // Remove the viewer state in the suspension manager
             SuspensionManager.viewerStateDictionary.Remove(viewKey);
-            // Navigate to last view
-            this.AppFrame.Navigate(typeof(ViewerPage));
+            // Navigate to last view, if there is still any
+            if (SuspensionManager.viewerStateDictionary.Count > 0)
+                this.AppFrame.Navigate(typeof(ViewerPage));
+            // Otherwise navigate to main page
+            else ViewerPage.Current.AllViewClosed();
         }
 
         public void UpdateViewBtn(Guid viewKey, string newLabel = null, Symbol newSymbol = 0)
