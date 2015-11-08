@@ -38,7 +38,7 @@ namespace Libra
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
-        private const int DEFAULT_RENDER_WIDTH = 1500;
+        private const int MIN_RENDER_WIDTH = 500;
         private const double PAGE_NUMBER_OPACITY = 0.75;
 
         private const string PREFIX_PAGE = "page";
@@ -80,6 +80,7 @@ namespace Libra
         public Guid ViewerKey { get { return this._viewerKey; } }
 
         private int pageCount;
+        private uint defaultRenderWidth;
         private double defaultPageHeight;
         private double defaultPageWidth;
         private double fitViewHeight;
@@ -90,7 +91,7 @@ namespace Libra
         private bool isRenderingPage;
         private string futureAccessToken;
 
-        private uint[] renderWidthArray;
+        //private uint[] renderWidthArray;
 
         public static ViewerPage Current = null;
 
@@ -475,14 +476,14 @@ namespace Libra
 
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
-            this.renderWidthArray = new uint[this.pageCount];
             this.defaultPageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
             AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.defaultPageWidth.ToString());
             // Load inking profile
             await LoadInkingProfile();
             // Load drawing preference
             await LoadDrawingPreference();
-            // Add and load the first two pages
+            // Add and load the first page
+            this.defaultRenderWidth = (uint)(this.defaultPageWidth * 1.5);
             Image image;
             int i = 1;
             //for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
@@ -634,12 +635,19 @@ namespace Libra
             while (renderPagesQueue.Count > 0)
             {
                 int i = renderPagesQueue.Dequeue();
-                // Load page at a higer resolution if it is zoomed in. Otherwise, load page at default resolution.
-                if (this.defaultPageWidth * this.scrollViewer.ZoomFactor > DEFAULT_RENDER_WIDTH && 
-                    i >= VisiblePageRange.first && i <= VisiblePageRange.last)
-                    await LoadPage(i, 2 * DEFAULT_RENDER_WIDTH);
+                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
+                // The actual width that is diaplaying to the user
+                uint displayWidth = (uint)(((image.ActualWidth == 0) ? 
+                    this.defaultPageWidth : image.ActualWidth) * this.scrollViewer.ZoomFactor);
+                // Determine the render width, which will be 0.5/1.5/2.5/3.5... times default page width.
+                // Render width will be higher if a page is zoomed in.
+                uint renderWidth = (uint)(((displayWidth + this.defaultPageWidth / 2) / this.defaultPageWidth
+                    + 0.5) * this.defaultPageWidth);
+                // Load the visible pages with a higher resolution.
+                if (i >= VisiblePageRange.first && i <= VisiblePageRange.last)
+                    await LoadPage(i, renderWidth);
                 else
-                    await LoadPage(i);
+                    await LoadPage(i, Math.Min(renderWidth,this.defaultRenderWidth));
                 // Add ink canvas
                 LoadInkCanvas(i);
             }
@@ -723,30 +731,30 @@ namespace Libra
             }
         }
 
-        private async Task LoadPage(int pageNumber, uint renderWidth = DEFAULT_RENDER_WIDTH)
+        private async Task LoadPage(int pageNumber, uint renderWidth = 0)
         {
             if (pageNumber <= 0 || pageNumber > this.pageCount) return;
-            // Render pdf image
+            // Get the XAML image element
             Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
             if (image == null)
             {
                 AppEventSource.Log.Warn("ViewerPage: Image container for page " + pageNumber.ToString() + " not found.");
                 return;
             }
-            // Check if page is already loaded, or re-render the page if a different resolution is specified.
-            if (image.Source == null || renderWidth != this.renderWidthArray[pageNumber - 1])
+            // Render pdf page to image, if image is not rendered, or a HIGHER render width is specified,
+            if (image.Source == null || renderWidth > ((BitmapImage)(image.Source)).PixelWidth)
             {
-                // Render page
+                // Use default render width if render width is not specified.
+                if (renderWidth == 0) renderWidth = this.defaultRenderWidth;
+                // Render pdf image
                 InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
                 PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
                 PdfPageRenderOptions options = new PdfPageRenderOptions();
                 options.DestinationWidth = renderWidth;
-                IAsyncAction action = page.RenderToStreamAsync(stream, options);
-                await action;
+                await page.RenderToStreamAsync(stream, options);
                 BitmapImage bitmapImage = new BitmapImage();
                 bitmapImage.SetSource(stream);
                 image.Source = bitmapImage;
-                this.renderWidthArray[pageNumber - 1] = renderWidth;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
 
