@@ -132,6 +132,7 @@ namespace Libra
             this.imagePanel.UpdateLayout();
             this.inkingPageRange = new PageRange();
             this._visiblePageRange = new PageRange();
+            this._viewerKey = new Guid();
             this.defaultPageHeight = 0;
             this.defaultPageWidth = 0;
             this.fitViewHeight = 0;
@@ -1357,6 +1358,11 @@ namespace Libra
             messageDialog.Commands.Add(new UICommand("OK", null, 0));
             await messageDialog.ShowAsync();
             if (logMessage) AppEventSource.Log.Error("ViewerPage: " + message);
+        }
+
+        private void GoToPage_Click(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }

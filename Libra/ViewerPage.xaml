@@ -10,23 +10,23 @@
     <Grid Background="Black">
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>
-                <VisualState x:Name="showFilename">
+                <VisualState x:Name="showViewButton">
                     <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="800" />
+                        <AdaptiveTrigger MinWindowWidth="650" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
-                        <Setter Target="filenameTextBlock.Visibility" Value="Visible" />
                         <Setter Target="VerticalViewBtn.Visibility" Value="Visible" />
                         <Setter Target="HorizontalViewBtn.Visibility" Value="Visible" />
                         <Setter Target="VerticalViewSecBtn.Visibility" Value="Collapsed" />
                         <Setter Target="HorizontalViewSecBtn.Visibility" Value="Collapsed" />
                     </VisualState.Setters>
                 </VisualState>
-                <VisualState x:Name="showViewButton">
+                <VisualState x:Name="showFilename">
                     <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="650" />
+                        <AdaptiveTrigger MinWindowWidth="800" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
+                        <Setter Target="filenameTextBlock.Visibility" Value="Visible" />
                         <Setter Target="VerticalViewBtn.Visibility" Value="Visible" />
                         <Setter Target="HorizontalViewBtn.Visibility" Value="Visible" />
                         <Setter Target="VerticalViewSecBtn.Visibility" Value="Collapsed" />
@@ -54,6 +54,8 @@
                                     Visibility="Visible" IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
                 <AppBarToggleButton x:Name="HorizontalViewSecBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"  
                                     Visibility="Visible" IsChecked="{Binding ElementName=HorizontalViewBtn, Path=IsChecked}"/>
+                <AppBarSeparator />
+                <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
                 <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
                 <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>

@@ -8,6 +8,7 @@ using NavigationMenu;
 using System.Diagnostics.Tracing;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
+using Windows.ApplicationModel.Store;
 
 namespace Libra
 {
@@ -17,6 +18,8 @@ namespace Libra
     sealed partial class App : Application
     {
         private StorageFileEventListener libraListener;
+        public static LicenseInformation licenseInformation;
+        //public static LicenseInformation LicenseInformation { get { return _licenseInformation; } }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -35,6 +38,13 @@ namespace Libra
             libraListener = new StorageFileEventListener("LibraAppLog");
             libraListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
             AppEventSource.Log.Info("********** App is starting **********");
+
+            // Get the license info
+            // The next line is commented out for testing.
+            // licenseInformation = CurrentApp.LicenseInformation;
+
+            // The next line is commented out for production/release.       
+            licenseInformation = CurrentAppSimulator.LicenseInformation;
         }
 
         /// <summary>
@@ -179,8 +189,47 @@ namespace Libra
         /// <param name="e"></param>
         private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
+            if (e != null)
+            {
+                Exception exception = e.Exception;
+                if (exception is NullReferenceException && exception.ToString().ToUpper().Contains("SOMA"))
+                {
+                    AppEventSource.Log.Debug("Handled Smaato null reference exception " + e.Message);
+                    e.Handled = true;
+                    return;
+                }
+            }
             AppEventSource.Log.Error("App: Unhandled Exception. " + sender.ToString() + e.Message);
             libraListener.Flush();
+        }
+
+        public static async System.Threading.Tasks.Task<bool> RemoveAdsClick(object sender, RoutedEventArgs e)
+        {
+            if (!CurrentAppSimulator.LicenseInformation.ProductLicenses["removedAds"].IsActive)
+            {
+                try
+                {
+                    PurchaseResults result = await CurrentAppSimulator.RequestProductPurchaseAsync("removedAds");
+                    if (result.Status == ProductPurchaseStatus.Succeeded)
+                    {
+                        // Update license information
+                        licenseInformation = CurrentAppSimulator.LicenseInformation;
+                        return true;
+                    }
+                    else return false;
+                }
+                catch (Exception)
+                {
+                    // The in-app purchase was not completed because 
+                    // an error occurred.
+                    return false;
+                }
+            }
+            else
+            {
+                // The customer already owns this feature.
+                return true;
+            }
         }
     }
 }

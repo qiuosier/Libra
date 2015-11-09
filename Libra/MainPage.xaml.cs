@@ -1,6 +1,7 @@
 ﻿using Libra.Class;
 using System;
 using System.Collections.ObjectModel;
+using Windows.ApplicationModel.Store;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
@@ -30,6 +31,9 @@ namespace Libra
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            // Remove ads if purchased
+            if (App.licenseInformation.ProductLicenses["removedAds"].IsActive)
+                RemoveAds();
             // Show most recent files
             mruFiles = new ObservableCollection<RecentFile>();
             AccessListEntryView mruEntries = StorageApplicationPermissions.MostRecentlyUsedList.Entries;
@@ -37,6 +41,7 @@ namespace Libra
             if (mruEntries.Count == 0)
             {
                 this.recentFileTitle.Text = "No Recent File.";
+                this.OpenNew.Content = "Open a File...";
                 AppEventSource.Log.Debug("MainPage: No recent file found.");
             }
             else
@@ -95,6 +100,25 @@ namespace Libra
                 SuspensionManager.pdfFile = pdfFile;
                 this.Frame.Navigate(typeof(ViewerPage));
             }
+        }
+
+        /// <summary>
+        /// Event handler for removing ads.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void RemoveAdBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (await App.RemoveAdsClick(sender, e)) RemoveAds();
+        }
+
+        /// <summary>
+        /// Remove Ads
+        /// </summary>
+        private void RemoveAds()
+        {
+            this.AdMediator_BCA178.Visibility = Visibility.Collapsed;
+            this.RemoveAdBtn.Visibility = Visibility.Collapsed;
         }
     }
 }

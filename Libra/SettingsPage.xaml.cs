@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AdMediator.Core.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,11 +28,30 @@ namespace Libra
         public SettingsPage()
         {
             this.InitializeComponent();
+            this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Width"] = 728;
+            this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Height"] = 90;
+            // Remove ads if purchased
+            if (App.licenseInformation.ProductLicenses["removedAds"].IsActive)
+                RemoveAds();
         }
 
         private async void OpenLocalFolder_Click(object sender, RoutedEventArgs e)
         {
             await Launcher.LaunchFolderAsync(ApplicationData.Current.LocalFolder);
+        }
+
+        private async void RemoveAdBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (await App.RemoveAdsClick(sender, e)) RemoveAds();
+        }
+
+        /// <summary>
+        /// Remove Ads
+        /// </summary>
+        private void RemoveAds()
+        {
+            this.AdMediator_F5AAF9.Visibility = Visibility.Collapsed;
+            this.RemoveAdBtn.Visibility = Visibility.Collapsed;
         }
     }
 }

@@ -34,7 +34,7 @@ namespace NavigationMenu
                 new NavMenuItem()
                 {
                     Symbol = Symbol.Home,
-                    Label = "Home Page",
+                    Label = "Home",
                     DestPage = typeof(MainPage)
                     //Arguments = this;
                 },
@@ -489,7 +489,7 @@ namespace NavigationMenu
         private void TogglePaneButton_Click(object sender, RoutedEventArgs e)
         {
             // Update button label
-            if(this.RootSplitView.IsPaneOpen)
+            if(this.RootSplitView.IsPaneOpen && this.AppFrame.CurrentSourcePageType == typeof(ViewerPage))
                 UpdateViewBtn(ViewerPage.Current.ViewerKey, ViewerPage.Current.VisiblePageRange.ToString());
         }
     }

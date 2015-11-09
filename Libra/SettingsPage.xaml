@@ -1,16 +1,35 @@
 ﻿<Page
-    x:Class="Libra.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Libra"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:Universal="using:Microsoft.AdMediator.Universal"
+    x:Class="Libra.SettingsPage"
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <StackPanel x:Name="settingsPanel" Margin="15,48,0,32">
-            <TextBlock x:Name="settingsTitle" Text="Settings"/>
-            <HyperlinkButton Click="OpenLocalFolder_Click" Content="Open App local data folder"/>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="optionalPanelTrigger">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="800" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="optionalPanel.Visibility" Value="Visible" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <StackPanel x:Name="contentPanel" Margin="15,48,0,32" Orientation="Vertical">
+            <StackPanel x:Name="settingsPanel" Orientation="Vertical" MinWidth="380" MinHeight="450">
+                <TextBlock x:Name="settingsTitle" Text="Settings" FontWeight="Bold" Foreground="SteelBlue"/>
+                <HyperlinkButton Click="OpenLocalFolder_Click" Content="Open App local data folder"/>
+            </StackPanel>
+            <StackPanel x:Name="optionalPanel" Visibility="Visible" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                <HyperlinkButton x:Name="RemoveAdBtn" Content="Support the developer and Remove Ads..." HorizontalAlignment="Left" Click="RemoveAdBtn_Click"/>
+                <Universal:AdMediatorControl x:Name="AdMediator_F5AAF9" Height="100" Id="AdMediator-Id-6DE65DE2-19F7-4BD9-A207-B6BF348BA210" Width="730"/>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Page>
