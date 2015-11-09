@@ -40,9 +40,11 @@ namespace Libra
                 RemoveAds();
             // Show most recent files
             mruFiles = new ObservableCollection<RecentFile>();
-            AccessListEntryView mruEntries = StorageApplicationPermissions.MostRecentlyUsedList.Entries;
+            AccessListEntryView mruEntries = null;
+            if ((bool)App.AppSettings["showRecentFiles"])
+                mruEntries = StorageApplicationPermissions.MostRecentlyUsedList.Entries;
             // If no recent file
-            if (mruEntries.Count == 0)
+            if (mruEntries == null || mruEntries.Count == 0)
             {
                 this.recentFileTitle.Text = "No Recent File.";
                 this.OpenNew.Content = "Open a File...";

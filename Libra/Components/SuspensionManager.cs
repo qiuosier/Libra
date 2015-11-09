@@ -147,6 +147,7 @@ namespace Libra
 
         public static async Task LoadViewerAsync()
         {
+            if (!(bool)App.AppSettings["restoreView"]) return;
             // Get the pdfToken and open the data folder
             StorageFolder dataFolder = await
                 ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);

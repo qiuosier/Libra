@@ -9,6 +9,7 @@ using System.Diagnostics.Tracing;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.ApplicationModel.Store;
+using System.Collections.Generic;
 
 namespace Libra
 {
@@ -19,7 +20,8 @@ namespace Libra
     {
         private StorageFileEventListener libraListener;
         public static LicenseInformation licenseInformation;
-        //public static LicenseInformation LicenseInformation { get { return _licenseInformation; } }
+
+        public static Dictionary<string, object> AppSettings { get; set; }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -34,17 +36,39 @@ namespace Libra
             this.Suspending += OnSuspending;
             this.UnhandledException += OnUnhandledException;
 
-            // Enable Logging
-            libraListener = new StorageFileEventListener("LibraAppLog");
-            libraListener.EnableEvents(AppEventSource.Log, EventLevel.Verbose);
-            AppEventSource.Log.Info("********** App is starting **********");
-
             // Get the license info
             // The next line is commented out for testing.
             // licenseInformation = CurrentApp.LicenseInformation;
 
             // The next line is commented out for production/release.       
             licenseInformation = CurrentAppSimulator.LicenseInformation;
+
+            // Initialize App settings
+            AppSettings = new Dictionary<string, object>();
+            AppSettings.Add("reopenFile", true);
+            AppSettings.Add("restoreView", true);
+            AppSettings.Add("showRecentFiles", true);
+            AppSettings.Add("debugLogging", false);
+
+            // Load App settings
+            List<string> keys = new List<string>(AppSettings.Keys);
+            foreach (string key in keys)
+            {
+                object obj = ApplicationData.Current.RoamingSettings.Values[key];
+                if (obj != null)
+                {
+                    AppSettings[key] = obj;
+                }
+            }
+
+            // Enable Logging
+            EventLevel eLevel;
+            if ((bool)AppSettings["debugLogging"])
+                eLevel = EventLevel.Verbose;
+            else eLevel = EventLevel.Warning;
+            libraListener = new StorageFileEventListener("LibraAppLog");
+            libraListener.EnableEvents(AppEventSource.Log, eLevel);
+            AppEventSource.Log.Info("********** App is starting **********");
         }
 
         /// <summary>
@@ -71,7 +95,8 @@ namespace Libra
                 // Create a navigation page to act as the navigation context and navigate to the first page
                 shell = CreateNewNavigationPage();
 
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
+                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || 
+                    (e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser && (bool)App.AppSettings["reopenFile"]))
                 {
                     // Load state from previously suspended application
                     //AppEventSource.Log.Debug("App: Checking previously suspended state...");

@@ -9,10 +9,33 @@
     mc:Ignorable="d" SizeChanged="Page_SizeChanged">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <StackPanel x:Name="contentPanel" Margin="15,48,0,32" Orientation="Vertical">
-            <StackPanel x:Name="settingsPanel" Orientation="Vertical" MinWidth="380" MinHeight="450">
-                <TextBlock x:Name="settingsTitle" Text="Settings" FontWeight="Bold" Foreground="SteelBlue"/>
-                <HyperlinkButton Click="OpenLocalFolder_Click" Content="Open App local data folder"/>
+        <StackPanel x:Name="contentPanel" Margin="15,48,15,32" Orientation="Vertical">
+            <StackPanel x:Name="settingsPanel"  Orientation="Vertical" MinHeight="400">
+                <TextBlock x:Name="settingsTitle" Text="Settings" Style="{StaticResource PageTitleTextBlockStyle}"/>
+                    <ToggleSwitch x:Name="toggleSwitchReopenFile" Header="Reopen last viewed file when reopening the App" 
+                                  Toggled="toggleSwitchReopenFile_Toggled"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    <ToggleSwitch x:Name="toggleSwitchRestoreView" Header="Restore last view settings when reopening files" 
+                                  Toggled="toggleSwitchRestoreView_Toggled"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    <ToggleSwitch x:Name="toggleSwitchShowRecentFiles" Header="Show a list of recently used files" 
+                                  Toggled="toggleSwitchShowRecentFiles_Toggled"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    <StackPanel Orientation="Horizontal" Visibility="Collapsed">
+                        <TextBlock Text="Limit the recently used file list to " Height="30" Margin="0,5,10,10"/>
+                        <ComboBox x:Name="comboBoxRecentFilesLimit">
+                            <ComboBoxItem>3</ComboBoxItem>
+                            <ComboBoxItem>5</ComboBoxItem>
+                            <ComboBoxItem>10</ComboBoxItem>
+                            <ComboBoxItem>15</ComboBoxItem>
+                        </ComboBox>
+                        <TextBlock Text="items" Height="30" Margin="10,5,0,10"/>
+                    </StackPanel>
+                <Button x:Name="ClearRecentlyUsedFilesBtn" Content="Clear recently used file list" Margin="0, 10, 0, 15" Click="ClearRecentlyUsedFilesBtn_Click"/>
+                <ToggleSwitch x:Name="toggleSwitchLogging" Header="Enable verbose diagnostic logging" Toggled="toggleSwitchLogging_Toggled" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                <HyperlinkButton Content="Open App local data folder" Click="OpenLocalFolder_Click"/>
+                <HyperlinkButton Content="Send feedback"/>
+                <HyperlinkButton Content="Rate this App" Visibility="Collapsed"/>
             </StackPanel>
             <Grid x:Name="optionalPanelGrid">
                 <StackPanel x:Name="optionalPanel" Visibility="Visible" HorizontalAlignment="Left" VerticalAlignment="Bottom">
