@@ -1,20 +1,9 @@
 ﻿using Microsoft.AdMediator.Core.Models;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -25,6 +14,12 @@ namespace Libra
     /// </summary>
     public sealed partial class SettingsPage : Page
     {
+        /// <summary>
+        /// Do not display ads if the window height is smaller than this number
+        /// </summary>
+        private const int MIN_WINDOW_HEIGHT_FOR_ADS = 675;
+        private const int WINDOW_CONTENT_HEIGHT = 530;
+
         public SettingsPage()
         {
             this.InitializeComponent();
@@ -52,6 +47,16 @@ namespace Libra
         {
             this.AdMediator_F5AAF9.Visibility = Visibility.Collapsed;
             this.RemoveAdBtn.Visibility = Visibility.Collapsed;
+        }
+
+        private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (Window.Current.Bounds.Height > MIN_WINDOW_HEIGHT_FOR_ADS)
+            {
+                this.optionalPanelGrid.Visibility = Visibility.Visible;
+                this.optionalPanelGrid.Height = Window.Current.Bounds.Height - WINDOW_CONTENT_HEIGHT;
+            }
+            else this.optionalPanelGrid.Visibility = Visibility.Collapsed;
         }
     }
 }

@@ -39,6 +39,8 @@ namespace Libra
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int MIN_RENDER_WIDTH = 500;
+        private const int MIN_WINDOW_WIDTH_TO_SHOW_FILENAME = 650;
+        private const int MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN = 800;
         private const double PAGE_NUMBER_OPACITY = 0.75;
 
         private const string PREFIX_PAGE = "page";
@@ -390,11 +392,13 @@ namespace Libra
             StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_PREFERENCE_FILENAME);
             this.inkingPreference = await
                 SuspensionManager.DeserializeFromFileAsync(typeof(InkingPreference), file) as InkingPreference;
-            // Discard the inking setting if it has a 0 page width
+            // Discard the inking preference if it is not the current version
+            if (this.inkingPreference != null && this.inkingPreference.version != InkingPreference.CURRENT_INKING_PREF_VERSION)
+                this.inkingPreference = null;
+            // Create drawing preference file if one was not loaded.
             if (this.inkingPreference == null)
             {
-                // Create drawing preference file if one does not exist
-                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference found. Creating a new one...");
+                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference loaded. Creating a new one...");
                 this.inkingPreference = new InkingPreference();
                 await SaveDrawingPreference();
             }
@@ -961,8 +965,14 @@ namespace Libra
             return range;
         }
 
+        /// <summary>
+        /// This method is not used. 
+        /// </summary>
         private void SetMinZoomFactor()
         {
+            if (!this.fileLoaded) return;
+            // Store current zoom factor
+            double factor = scrollViewer.ZoomFactor;
             // Update visible page range
             this._visiblePageRange = FindVisibleRange();
             // Find the max page height and width in the visible pages
@@ -974,7 +984,7 @@ namespace Libra
                 if (image.ActualHeight > maxHeight) maxHeight = image.ActualHeight;
                 if (image.ActualWidth > maxWidth) maxWidth = image.MaxWidth;
             }
-
+            // Recalculate min zoom factor
             double hZoomFactor = (this.scrollViewer.ActualHeight - SCROLLBAR_WIDTH
                 - 2 * (PAGE_IMAGE_MARGIN + imagePanel.Margin.Top)) / maxHeight;
             double wZoomFactor = (this.scrollViewer.ActualWidth - SCROLLBAR_WIDTH
@@ -990,6 +1000,14 @@ namespace Libra
                 AppEventSource.Log.Debug("ViewerPage: Minimum horizontal zoom factor is too small");
             }
             this.scrollViewer.MinZoomFactor = (float)Math.Min(hZoomFactor, wZoomFactor);
+            // Recalculate offsets if zoom level changed
+            if (this.scrollViewer.MinZoomFactor > factor)
+            {
+                factor = this.scrollViewer.MinZoomFactor / factor;
+                scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset,
+                    factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor, true);
+                AppEventSource.Log.Debug("ViewerPage: zoom factor changed, offsets recalculated.");
+            }
         }
 
         private void RefreshTimer_Tick(object sender, object e)
@@ -1058,19 +1076,33 @@ namespace Libra
             }
         }
 
+        /// <summary>
+        /// Adjust the UI based on the window width.
+        /// This event handler does the same thing as adaptive trigger.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (fileLoaded)
+            // Filename Textblock
+            if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_TO_SHOW_FILENAME)
+                this.filenameTextBlock.Visibility = Visibility.Visible;
+            else
+                this.filenameTextBlock.Visibility = Visibility.Collapsed;
+            // View orientation buttons
+            if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN)
             {
-                // Store current zoom factor
-                double factor = scrollViewer.ZoomFactor;
-                // Recalculate min and max zoom factor
-                //SetMinZoomFactor();
-                // Recalculate offsets
-                factor = scrollViewer.ZoomFactor / factor;
-                scrollViewer.ChangeView(factor * scrollViewer.HorizontalOffset, 
-                    factor * scrollViewer.VerticalOffset, scrollViewer.ZoomFactor,true);
-                AppEventSource.Log.Debug("ViewerPage: Window size changed, offsets recalculated.");
+                this.VerticalViewBtn.Visibility = Visibility.Visible;
+                this.VerticalViewSecBtn.Visibility = Visibility.Collapsed;
+                this.HorizontalViewBtn.Visibility = Visibility.Visible;
+                this.HorizontalViewSecBtn.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                this.VerticalViewBtn.Visibility = Visibility.Collapsed;
+                this.VerticalViewSecBtn.Visibility = Visibility.Visible;
+                this.HorizontalViewBtn.Visibility = Visibility.Collapsed;
+                this.HorizontalViewSecBtn.Visibility = Visibility.Visible;
             }
         }
 
@@ -1299,6 +1331,8 @@ namespace Libra
                 this.inkingPreference = dialog.InkingPreference;
                 if (this.Pencil.IsChecked == true) Pencil_Click(null, null);
                 else if (this.Highlighter.IsChecked == true) Highlighter_Click(null, null);
+                // Save inking preference
+                await SaveDrawingPreference();
             }
         }
 

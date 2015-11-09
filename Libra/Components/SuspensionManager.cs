@@ -103,7 +103,7 @@ namespace Libra
             AppEventSource.Log.Debug("Suspension: Checking previously saved session state...");
             sessionState = await DeserializeFromFileAsync(typeof(SessionState), await GetSavedFileAsync(FILENAME_SESSION_STATE), true) as SessionState;
 
-            if (sessionState != null && sessionState.FileToken != null)
+            if (sessionState != null && sessionState.version == SessionState.CURRENT_SESSION_VERSION && sessionState.FileToken != null)
             {
                 if (sessionState.ViewerMode == 1)
                 {
@@ -118,7 +118,7 @@ namespace Libra
                     AppEventSource.Log.Info("Suspension: Viewer was not active when the App was suspended.");
                 }
             }
-            else AppEventSource.Log.Debug("Suspension: Previously saved session state not found.");
+            else AppEventSource.Log.Debug("Suspension: Previously saved session state not restored.");
         }
 
         public static async Task SaveViewerAsync()

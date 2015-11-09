@@ -1,7 +1,6 @@
 ﻿using Libra.Class;
 using System;
 using System.Collections.ObjectModel;
-using Windows.ApplicationModel.Store;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
@@ -21,6 +20,11 @@ namespace Libra
         private const string PREFIX_RECENT_FILE = "RecentFile#";
         //private CultureInfo culture = new CultureInfo("en-us");
         private ObservableCollection<RecentFile> mruFiles = new ObservableCollection<RecentFile>();
+
+        /// <summary>
+        /// Do not display ads if the window width is smaller than this number
+        /// </summary>
+        private const int MIN_WINDOW_WIDTH_FOR_ADS = 800;
 
         public MainPage()
         {
@@ -119,6 +123,12 @@ namespace Libra
         {
             this.AdMediator_BCA178.Visibility = Visibility.Collapsed;
             this.RemoveAdBtn.Visibility = Visibility.Collapsed;
+        }
+
+        private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_FOR_ADS)
+                this.optionalPanelGrid.Width = Window.Current.Bounds.Width - 500;
         }
     }
 }

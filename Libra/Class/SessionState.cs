@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Libra.Class
+﻿namespace Libra.Class
 {
     public class SessionState
     {
@@ -15,9 +9,13 @@ namespace Libra.Class
         {
             this.FileToken = token;
             this.ViewerMode = 1;
+            this.version = CURRENT_SESSION_VERSION;
         }
 
         public string FileToken { get; set; }
         public int ViewerMode { get; set; }
+        public int version { get; set; }
+
+        public const int CURRENT_SESSION_VERSION = 1;
     }
 }

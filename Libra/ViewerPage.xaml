@@ -8,33 +8,6 @@
     mc:Ignorable="d"
     NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
     <Grid Background="Black">
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup>
-                <VisualState x:Name="showViewButton">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="650" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="VerticalViewBtn.Visibility" Value="Visible" />
-                        <Setter Target="HorizontalViewBtn.Visibility" Value="Visible" />
-                        <Setter Target="VerticalViewSecBtn.Visibility" Value="Collapsed" />
-                        <Setter Target="HorizontalViewSecBtn.Visibility" Value="Collapsed" />
-                    </VisualState.Setters>
-                </VisualState>
-                <VisualState x:Name="showFilename">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="800" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="filenameTextBlock.Visibility" Value="Visible" />
-                        <Setter Target="VerticalViewBtn.Visibility" Value="Visible" />
-                        <Setter Target="HorizontalViewBtn.Visibility" Value="Visible" />
-                        <Setter Target="VerticalViewSecBtn.Visibility" Value="Collapsed" />
-                        <Setter Target="HorizontalViewSecBtn.Visibility" Value="Collapsed" />
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
         <CommandBar Background="LightSteelBlue">
             <CommandBar.Content>
                 <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12" Visibility="Collapsed"/>
@@ -43,17 +16,17 @@
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
             <AppBarToggleButton x:Name="Eraser" Icon="CellPhone" Label="Eraser" Click="Eraser_Click"/>
             <AppBarSeparator />
-            <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  Visibility="Collapsed"/>
-            <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"  Visibility="Collapsed"/>
+            <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"/>
+            <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"/>
             <AppBarButton x:Name="FitToWindowBtn" Icon="BackToWindow" Label="Fit to Window" Click="FitToWindowBtn_Click" Visibility="Collapsed"/>
             <AppBarButton x:Name="FillWindowBtn" Icon="FullScreen" Label="Fill Window" Click="FitToWindowBtn_Click"/>
             <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click" Visibility="Collapsed"/>
             <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
-                                    Visibility="Visible" IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
+                                    IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
                 <AppBarToggleButton x:Name="HorizontalViewSecBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"  
-                                    Visibility="Visible" IsChecked="{Binding ElementName=HorizontalViewBtn, Path=IsChecked}"/>
+                                    IsChecked="{Binding ElementName=HorizontalViewBtn, Path=IsChecked}"/>
                 <AppBarSeparator />
                 <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />

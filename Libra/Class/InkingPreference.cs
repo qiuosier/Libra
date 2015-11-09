@@ -15,11 +15,12 @@ namespace Libra.Class
     {
         public InkingPreference()
         { 
-            penSize = 1;
+            penSize = 2;
             highlighterSize = 12;
             penColor = Colors.Red;
             highlighterColor = Colors.Yellow;
             drawingDevice = CoreInputDeviceTypes.Mouse | CoreInputDeviceTypes.Pen;
+            this.version = CURRENT_INKING_PREF_VERSION;
         }
 
         public int penSize;
@@ -27,5 +28,8 @@ namespace Libra.Class
         public Color penColor;
         public Color highlighterColor;
         public CoreInputDeviceTypes drawingDevice;
+        public int version;
+
+        public const int CURRENT_INKING_PREF_VERSION = 1;
     }
 }
