@@ -17,8 +17,8 @@ using NavigationMenu;
 using Windows.Storage.Pickers;
 using Microsoft.Graphics.Canvas;
 using Windows.UI;
-using Windows.UI.Xaml.Media;
 using Libra.Class;
+using Windows.UI.Xaml.Data;
 
 namespace Libra
 {
@@ -27,7 +27,7 @@ namespace Libra
     /// </summary>
     public sealed partial class ViewerPage : Page
     {
-        private const int SCROLLBAR_WIDTH = 10;
+        private const int SCROLLBAR_WIDTH = 15;
         private const int PAGE_IMAGE_MARGIN = 10;
         private const int NAVIGATION_WIDTH = 48;
         private const int SIZE_PAGE_BUFFER = 5;
@@ -39,8 +39,8 @@ namespace Libra
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int MIN_RENDER_WIDTH = 500;
-        private const int MIN_WINDOW_WIDTH_TO_SHOW_FILENAME = 650;
-        private const int MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN = 800;
+        private const int MIN_WINDOW_WIDTH_TO_SHOW_FILENAME = 800;
+        private const int MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN = 650;
         private const double PAGE_NUMBER_OPACITY = 0.75;
 
         private const string PREFIX_PAGE = "page";
@@ -70,10 +70,8 @@ namespace Libra
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
-        private Dictionary<int, double> pageSizeDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
-        private InkingProfile inkingProfile;
         private InkingPreference inkingPreference;
         private InkInputProcessingMode inkProcessMode;
         private System.Diagnostics.Stopwatch fileLoadingWatch;
@@ -82,9 +80,6 @@ namespace Libra
         public Guid ViewerKey { get { return this._viewerKey; } }
 
         private int pageCount;
-        private uint defaultRenderWidth;
-        private double defaultPageHeight;
-        private double defaultPageWidth;
         private double fitViewHeight;
         private double fitViewWidth;
         private bool fileLoaded;
@@ -92,8 +87,6 @@ namespace Libra
         private bool inkingChanged;
         private bool isRenderingPage;
         private string futureAccessToken;
-
-        //private uint[] renderWidthArray;
 
         public static ViewerPage Current = null;
 
@@ -135,8 +128,6 @@ namespace Libra
             this.inkingPageRange = new PageRange();
             this._visiblePageRange = new PageRange();
             this._viewerKey = new Guid();
-            this.defaultPageHeight = 0;
-            this.defaultPageWidth = 0;
             this.fitViewHeight = 0;
             this.fitViewWidth = 0;
             this.pageCount = 0;
@@ -239,7 +230,7 @@ namespace Libra
             this._viewerKey = key;
 
             NavigationPage.Current.UpdateViewBtn(this.ViewerKey);
-            
+
             ViewerState viewerState = SuspensionManager.viewerStateDictionary[this.ViewerKey];
             if (viewerState != null)
             {
@@ -268,27 +259,38 @@ namespace Libra
                         this.VerticalViewBtn.IsChecked = true;
                     }
                     this.imagePanel.UpdateLayout();
-                    // The following method may not work correctly if the file has pages of different sizes.
-                    // Scale the offsets if the App window has a different size
-                    // Unit zoom factor of scroll viewer depends on the intial window size when the App is opened.
-                    // Zoom factor for scroll viewer will always be 1 when the App opens.
-                    // The file may be displayed at different zoom level even if the zoom factor is the same.
-                    // Therefore zoom factor is not reliable for restoring the view of the file.
-                    // The goal for restoring the view is to make the file zoomed at the same level.
-                    double hScale = imagePanel.ActualWidth / (viewerState.panelWidth * viewerState.zFactor);
-                    double vScale = imagePanel.ActualHeight / (viewerState.panelHeight * viewerState.zFactor);
-                    float zoomFactor = Math.Min((float)(1 / Math.Max(hScale, vScale)), this.scrollViewer.MaxZoomFactor);
-                    // Restore viewer offsets
-                    this.scrollViewer.ChangeView(viewerState.hOffset, viewerState.vOffset, zoomFactor);
+                    // Restore the previous view
+                    this.scrollViewer.ChangeView(viewerState.hOffset, viewerState.vOffset, viewerState.zFactor);
                     AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
                     return;
                 }
             }
             // Reset the scroll viewer if failed to restore viewer state.
-            this.imagePanel.Orientation = Orientation.Vertical;
-            this.scrollViewer.ChangeView(0, 0, 1);
+            ResetViewer();
         }
 
+        /// <summary>
+        /// Reset the scroll viewer to vertical orientation and display the beginning of the file.
+        /// The first page will be zoomed to fit the App window width.
+        /// </summary>
+        /// <returns></returns>
+        private bool ResetViewer()
+        {
+            this.imagePanel.Orientation = Orientation.Vertical;
+            this.imagePanel.UpdateLayout();
+            // Zoom the first page to fit the viewer window width
+            float zoomFactor = (float)((this.scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH) 
+                / this.pdfDocument.GetPage(0).Size.Width);
+            double hOffset = 0;
+            if (this.scrollViewer.ScrollableWidth > 0) hOffset = this.scrollViewer.ScrollableWidth / 2;
+            return this.scrollViewer.ChangeView(hOffset, 0, zoomFactor);
+        }
+
+        /// <summary>
+        /// Call LoadViewerStateAsync() method in suspension manager to load viewer state from file.
+        /// This method also create a new viewer state if none is loaded.
+        /// </summary>
+        /// <returns></returns>
         private async Task LoadViewerState()
         {
             await SuspensionManager.LoadViewerAsync();
@@ -302,6 +304,14 @@ namespace Libra
             NavigationPage.Current.InitializeViewBtn();
         }
 
+        /// <summary>
+        /// Save the inkstrokes from in each ink canvas to inking dictionary, and
+        /// save the inking dictionary to files in local app data folder.
+        /// Inking for each page will be saved in a individual file.
+        /// However, this method will save the inking for all pages,
+        /// whether the inking has been modified or not.
+        /// </summary>
+        /// <returns></returns>
         private async Task SaveInking()
         {
             System.Diagnostics.Stopwatch inkingSavingWatch = new System.Diagnostics.Stopwatch();
@@ -345,6 +355,10 @@ namespace Libra
             this.isSavingInking = false;
         }
 
+        /// <summary>
+        /// Load inking from files to inking dictionary.
+        /// </summary>
+        /// <returns></returns>
         private async Task LoadInking()
         {
             System.Diagnostics.Stopwatch inkingLoadingWatch = new System.Diagnostics.Stopwatch();
@@ -377,14 +391,23 @@ namespace Libra
             }
         }
 
+        /// <summary>
+        /// Save inking preference to file.
+        /// </summary>
+        /// <returns></returns>
         private async Task SaveDrawingPreference()
         {
             AppEventSource.Log.Debug("ViewerPage: Saving drawing preference...");
-            StorageFile file = await 
+            StorageFile file = await
                 ApplicationData.Current.LocalFolder.CreateFileAsync(INKING_PREFERENCE_FILENAME, CreationCollisionOption.ReplaceExisting);
             await SuspensionManager.SerializeToFileAsync(this.inkingPreference, typeof(InkingPreference), file);
         }
 
+        /// <summary>
+        /// Load inking preference from file. A new one will be created none is loaded.
+        /// This method will also create drawing attributes to be used by ink canvas.
+        /// </summary>
+        /// <returns></returns>
         private async Task LoadDrawingPreference()
         {
             // Check drawing preference file
@@ -406,47 +429,8 @@ namespace Libra
             this.drawingAttributes = new InkDrawingAttributes();
             this.drawingAttributes.IgnorePressure = false;
             this.drawingAttributes.FitToCurve = true;
-            
+
             Pencil_Click(null, null);
-        }
-
-        private async Task LoadInkingProfile()
-        {
-            // Check inking profile
-            AppEventSource.Log.Debug("ViewerPage: Checking inking profile...");
-            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_PROFILE_FILENAME, this.dataFolder);
-            this.inkingProfile = await
-                SuspensionManager.DeserializeFromFileAsync(typeof(InkingProfile), file) as InkingProfile;
-            // Discard the inking setting if it has a 0 page width
-            if (inkingProfile != null && inkingProfile.PageWidth == 0)
-                inkingProfile = null;
-            if (inkingProfile == null)
-            {
-                // Create an inking profile if one does not exist.
-                // Inking profile will only be created and saved once (Read-only thereafter).
-                AppEventSource.Log.Debug("ViewerPage: No saved inking profile found. Creating a new one in " + dataFolder.Name);
-                inkingProfile = new InkingProfile(this.defaultPageWidth);
-                file = await dataFolder.CreateFileAsync(INKING_PROFILE_FILENAME, CreationCollisionOption.ReplaceExisting);
-                await SuspensionManager.SerializeToFileAsync(this.inkingProfile, typeof(InkingProfile), file);
-            }
-        }
-
-        private async Task SavePageSizeFile()
-        {
-            AppEventSource.Log.Debug("ViewerPage: Saving page size to file...");
-            StorageFile file = await
-                dataFolder.CreateFileAsync(PAGE_SIZE_FILENAME, CreationCollisionOption.ReplaceExisting);
-            await SuspensionManager.SerializeToFileAsync(this.pageSizeDictionary, typeof(Dictionary<int, double>), file);
-        }
-
-        private async Task LoadPageSizeFile()
-        {
-            AppEventSource.Log.Debug("ViewerPage: Checking previously saved page size file...");
-            StorageFile file = await SuspensionManager.GetSavedFileAsync(PAGE_SIZE_FILENAME, this.dataFolder);
-            this.pageSizeDictionary = await
-                SuspensionManager.DeserializeFromFileAsync(typeof(Dictionary<int,double>), file) as Dictionary<int, double>;
-            // Create a new one if not loaded
-            if (this.pageSizeDictionary == null) this.pageSizeDictionary = new Dictionary<int, double>();
         }
 
         private async void LoadFile(StorageFile pdfFile)
@@ -478,50 +462,36 @@ namespace Libra
             this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
             // Wait until the file is loaded
             this.pdfDocument = await getPdfTask;
-
+            // Total number of pages
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
-            this.defaultPageWidth = Window.Current.Bounds.Width - NAVIGATION_WIDTH - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH;
-            AppEventSource.Log.Debug("ViewerPage: Page width set to " + this.defaultPageWidth.ToString());
-            // Load inking profile
-            await LoadInkingProfile();
+            ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
-            // Add and load the first page
-            this.defaultRenderWidth = (uint)(this.defaultPageWidth * 1.5);
-            Image image;
-            int i = 1;
-            //for (int i = 1; i <= Math.Min(FIRST_LOAD_PAGES, pageCount); i++)
-            //{
-                Grid grid = new Grid();
-                grid.Name = PREFIX_GRID + i.ToString();
-                grid.Margin = pageMargin;
-                image = new Image();
-                image.Name = PREFIX_PAGE + i.ToString();
-                image.Width = defaultPageWidth;
-                grid.Children.Add(image);
-                this.imagePanel.Children.Add(grid);
-                await LoadPage(i);
-            //}
-            AppEventSource.Log.Debug("ViewerPage: First " + Math.Min(FIRST_LOAD_PAGES, pageCount).ToString() + " pages rendered.");
-            // Update layout to force the calculation of actual height and width of the image.
-            // Otherwise, the following code may be executed BEFORE the stack panel update layout.
-            // The height and width of the first page will be used to initialize the rest of the document.
-            this.imagePanel.UpdateLayout();
-            image = (Image)this.FindName(PREFIX_PAGE + "1");
-            this.defaultPageHeight = image.ActualHeight;
-            AppEventSource.Log.Debug("ViewerPage: Default Page height set to " + this.defaultPageHeight.ToString());
-            // Load page size file
-            await LoadPageSizeFile();
+            // Render the first page
+            AddBlankImage(1);
+            await LoadPage(1, (uint)(1.5 * this.scrollViewer.Width));
             // Add blank pages for the rest of the file using the initialization timer
-            this.initializationTimer.Start(); 
+            this.initializationTimer.Start();
+        }
+
+        private void AddBlankImage(int pageNumber)
+        {
+            if (pageNumber < 1 || pageNumber > this.pageCount) return;
+            Grid grid = new Grid();
+            grid.Name = PREFIX_GRID + pageNumber.ToString();
+            grid.Margin = pageMargin;
+            Image image = new Image();
+            image.Name = PREFIX_PAGE + pageNumber.ToString();
+            image.Width = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Width;
+            image.Height = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Height;
+            grid.Children.Add(image);
+            this.imagePanel.Children.Add(grid);
         }
 
         private async void FinishInitialization()
         {
-            this.imagePanel.UpdateLayout();
-            // Calculate the minimum zoom factor
-            // SetMinZoomFactor();
+            ResetViewer();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             // Load viewer state
             await LoadViewerState();
@@ -537,7 +507,7 @@ namespace Libra
 
             this.recycleTimer.Start();
         }
-        
+
         /// <summary>
         /// This method is not reliable.
         /// This method should only be called either right after getting the future access token, 
@@ -641,21 +611,30 @@ namespace Libra
             {
                 int i = renderPagesQueue.Dequeue();
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
-                // The actual width that is diaplaying to the user
-                uint displayWidth = (uint)(((image.ActualWidth == 0) ? 
-                    this.defaultPageWidth : image.ActualWidth) * this.scrollViewer.ZoomFactor);
-                // Determine the render width, which will be 0.5/1.5/2.5/3.5... times default page width.
+                // The actual page width that is diaplaying to the user
+                double displayWidth = this.pdfDocument.GetPage((uint)(i-1)).Size.Width * this.scrollViewer.ZoomFactor;
+                // Determine the render width, which will be 0.5/1.5/2.5/3.5... times scroll viewer width.
                 // Render width will be higher if a page is zoomed in.
-                uint renderWidth = (uint)(((displayWidth + this.defaultPageWidth / 2) / this.defaultPageWidth
-                    + 0.5) * this.defaultPageWidth);
+                double standardWidth = this.scrollViewer.ActualWidth;
+                uint renderWidth = (uint)(((displayWidth + standardWidth / 2) / standardWidth + 0.5) * standardWidth);
                 // Load the visible pages with a higher resolution.
                 if (i >= VisiblePageRange.first && i <= VisiblePageRange.last)
                     await LoadPage(i, renderWidth);
                 else
-                    await LoadPage(i, Math.Min(renderWidth,this.defaultRenderWidth));
+                    await LoadPage(i, Math.Min(renderWidth, (uint)(1.5 * standardWidth)));
                 // Add ink canvas
                 LoadInkCanvas(i);
             }
+            this.isRenderingPage = false;
+            UpdateFitView();
+        }
+
+        /// <summary>
+        /// Calculate the maximum page height and width within the visible pages.
+        /// And determine whether to show fit to window button or fill window button.
+        /// </summary>
+        private void UpdateFitView()
+        {
             // Update Fill window / Fit Window button and parameters.
             // Calculate FitView height/width based of the actual page height/width of visible pages.
             for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
@@ -666,7 +645,7 @@ namespace Libra
                     this.fitViewHeight = image.ActualHeight;
                     this.fitViewWidth = image.ActualWidth;
                 }
-                else 
+                else
                 {
                     if (image.ActualHeight > this.fitViewHeight) this.fitViewHeight = image.ActualHeight;
                     if (image.ActualWidth > this.fitViewWidth) this.fitViewWidth = image.ActualWidth;
@@ -677,9 +656,9 @@ namespace Libra
             this.fitViewWidth = this.fitViewWidth + SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
             // If FitView size if greater than the scroll viewer size, display the fit to window button (shrink).
             // Otherwise, display the fill window button.
-            if (this.imagePanel.Orientation == Orientation.Vertical 
+            if (this.imagePanel.Orientation == Orientation.Vertical
                 && (this.fitViewWidth * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualWidth
-                || this.imagePanel.Orientation == Orientation.Horizontal 
+                || this.imagePanel.Orientation == Orientation.Horizontal
                 && (this.fitViewHeight * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualHeight)
             {
                 this.FillWindowBtn.Visibility = Visibility.Collapsed;
@@ -690,13 +669,19 @@ namespace Libra
                 this.FillWindowBtn.Visibility = Visibility.Visible;
                 this.FitToWindowBtn.Visibility = Visibility.Collapsed;
             }
-            this.isRenderingPage = false;
         }
 
+        /// <summary>
+        /// Remove ink canvas and image for a page to release memory. 
+        /// Ink strokes will also be saved to inking dictionary before the ink canvas is removed.
+        /// </summary>
+        /// <param name="pageNumber"></param>
         private void RemovePage(int pageNumber)
         {
             if (pageNumber < inkingPageRange.first - SIZE_PAGE_BUFFER || pageNumber > inkingPageRange.last + SIZE_PAGE_BUFFER)
             {
+                // Remove Ink Canvas
+                SaveInkCanvas(pageNumber, true);
                 // Remove Image
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
                 if (image != null)
@@ -707,11 +692,14 @@ namespace Libra
                     AppEventSource.Log.Debug("ViewerPage: Image in page " + pageNumber.ToString() + " removed.");
                 }
                 else AppEventSource.Log.Warn("ViewerPage: Image in page " + pageNumber.ToString() + " is empty.");
-                // Remove Ink Canvas
-                SaveInkCanvas(pageNumber, true);
             }
         }
 
+        /// <summary>
+        /// Save ink canvas to inking dictionary.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <param name="removeAfterSave"></param>
         private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
@@ -736,7 +724,7 @@ namespace Libra
             }
         }
 
-        private async Task LoadPage(int pageNumber, uint renderWidth = 0)
+        private async Task LoadPage(int pageNumber, uint renderWidth)
         {
             if (pageNumber <= 0 || pageNumber > this.pageCount) return;
             // Get the XAML image element
@@ -747,10 +735,8 @@ namespace Libra
                 return;
             }
             // Render pdf page to image, if image is not rendered, or a HIGHER render width is specified,
-            if (image.Source == null || renderWidth > ((BitmapImage)(image.Source)).PixelWidth)
+            if (image.Source == null || renderWidth != ((BitmapImage)(image.Source)).PixelWidth)
             {
-                // Use default render width if render width is not specified.
-                if (renderWidth == 0) renderWidth = this.defaultRenderWidth;
                 // Render pdf image
                 InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
                 PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
@@ -762,35 +748,6 @@ namespace Libra
                 image.Source = bitmapImage;
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
-
-            // Ajust image container height/width
-            // The following code may be re-used later.
-            //if (this.imagePanel.Orientation == Orientation.Vertical)
-            //{
-            //    image.Width = this.defaultPageWidth;
-            //    image.Height = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
-            //}
-            //else
-            //{
-            //    if (defaultPageHeight > 0)
-            //    {
-            //        image.Height = this.defaultPageHeight;
-            //        image.Width = ((BitmapImage)(image.Source)).PixelWidth * this.defaultPageHeight / ((BitmapImage)(image.Source)).PixelHeight;
-            //    }
-            //}
-
-            // Adjust image container height (width will be the same for all pages)
-            double newHeight = ((BitmapImage)(image.Source)).PixelHeight * this.defaultPageWidth / ((BitmapImage)(image.Source)).PixelWidth;
-            if (Math.Abs(newHeight - image.Height) > 1)
-            {
-                image.Height = newHeight;
-                if (this.pageSizeDictionary.ContainsKey(pageNumber))
-                    this.pageSizeDictionary[pageNumber] = newHeight;
-                else this.pageSizeDictionary.Add(pageNumber, newHeight);
-                // Save the adjusted height/width to file
-                await SavePageSizeFile();
-            }
-
         }
 
         private void LoadInkCanvas(int pageNumber)
@@ -810,6 +767,14 @@ namespace Libra
             // If an ink canvas does not exist, add a new one
             if (inkCanvas == null)
             {
+                Binding bindingHeight = new Binding();
+                bindingHeight.Mode = BindingMode.OneWay;
+                bindingHeight.Path = new PropertyPath("ActualHeight");
+                bindingHeight.Source = image;
+                Binding bindingWidth = new Binding();
+                bindingHeight.Mode = BindingMode.OneWay;
+                bindingHeight.Path = new PropertyPath("ActualWidth");
+                bindingHeight.Source = image;
                 // Add ink canvas
                 inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
@@ -817,15 +782,8 @@ namespace Libra
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
-
-                // Calculate ink canvas scale factor
-                double inkCanvasScaleFactor = this.defaultPageWidth / inkingProfile.PageWidth;
-                AppEventSource.Log.Debug("ViewerPage: Ink canvas scale factor for page " + pageNumber.ToString()
-                    + " set to " + inkCanvasScaleFactor.ToString());
-                // 
-                inkCanvas.Height = image.ActualHeight / inkCanvasScaleFactor;
-                inkCanvas.Width = image.ActualWidth / inkCanvasScaleFactor;
-
+                inkCanvas.SetBinding(HeightProperty, bindingHeight);
+                inkCanvas.SetBinding(WidthProperty, bindingWidth);
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
                 if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
@@ -833,27 +791,17 @@ namespace Libra
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
                 }
-
-                // Use viewbox to scale the ink canvas
-                Viewbox viewbox = new Viewbox();
-                viewbox.Name = PREFIX_VIEWBOX + pageNumber.ToString();
-                viewbox.Child = inkCanvas;
-                viewbox.Height = image.ActualHeight;
-                viewbox.Width = image.ActualWidth;
-
-                grid.Children.Add(viewbox);
+                // Add ink canvas page
+                grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
-            }
-            else
-            {
-                // Adjust viewbox size
-                Viewbox viewbox = (Viewbox)grid.FindName(PREFIX_VIEWBOX + pageNumber.ToString());
-                viewbox.Height = image.ActualHeight;
-                viewbox.Width = image.ActualWidth;
             }
         }
 
-
+        /// <summary>
+        /// Save inking after strokes are collected.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="args"></param>
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
         {
             this.inkingChanged = true;
@@ -870,6 +818,9 @@ namespace Libra
             }
         }
 
+        /// <summary>
+        /// Update drawing attributes of ink presenter in each ink canvas
+        /// </summary>
         private void UpdateInkPresenter()
         {
             if (this.inkCanvasList == null)
@@ -887,6 +838,12 @@ namespace Libra
             AppEventSource.Log.Debug("ViewerPage: Drawing attributes updated.");
         }
 
+        /// <summary>
+        /// Determine whether an element is visible, assuming the container is visible.
+        /// </summary>
+        /// <param name="element"></param>
+        /// <param name="container"></param>
+        /// <returns></returns>
         private Boolean IsUserVisible(FrameworkElement element, FrameworkElement container)
         {
             if (element == null)
@@ -898,16 +855,28 @@ namespace Libra
                 && (elementBounds.Left < containerBounds.Right && elementBounds.Right > containerBounds.Left);
         }
 
+        /// <summary>
+        /// Determine whether a page is visible.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <returns></returns>
         private Boolean IsPageVisible(int pageNumber)
         {
             return IsUserVisible((Image)imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString()), this.scrollViewer);
         }
 
+        /// <summary>
+        /// Refresh the visible pages.
+        /// </summary>
         private void RefreshViewer()
         {
             PreparePages(this.VisiblePageRange);
         }
 
+        /// <summary>
+        /// Find a visible page.
+        /// </summary>
+        /// <returns>A page number, which can be any visible page.</returns>
         private int FindVisiblePage()
         {
             // Find a page that is currently visible
@@ -933,6 +902,10 @@ namespace Libra
             return 0;
         }
 
+        /// <summary>
+        /// Determine the visible page range
+        /// </summary>
+        /// <returns></returns>
         private PageRange FindVisibleRange()
         {
             // Find a visible page,
@@ -1022,17 +995,7 @@ namespace Libra
             int count = imagePanel.Children.Count;
             for (int i = count + 1; i <= Math.Min(count + SIZE_PAGE_BATCH, pageCount); i++)
             {
-                Grid grid = new Grid();
-                grid.Name = PREFIX_GRID + i.ToString();
-                grid.Margin = pageMargin;
-                Image image = new Image();
-                image.Name = PREFIX_PAGE + i.ToString();
-                image.Width = defaultPageWidth;
-                if (this.pageSizeDictionary.ContainsKey(i))
-                    image.Height = pageSizeDictionary[i];
-                else image.Height = defaultPageHeight;
-                grid.Children.Add(image);
-                this.imagePanel.Children.Add(grid);
+                AddBlankImage(i);
             }
             this.fullScreenMessage.Text = "Loading... " + (this.imagePanel.Children.Count * 100 / this.pageCount).ToString() + "%";
             if (imagePanel.Children.Count >= pageCount)
@@ -1096,6 +1059,7 @@ namespace Libra
                 this.VerticalViewSecBtn.Visibility = Visibility.Collapsed;
                 this.HorizontalViewBtn.Visibility = Visibility.Visible;
                 this.HorizontalViewSecBtn.Visibility = Visibility.Collapsed;
+                this.ViewSecBtnSeparator.Visibility = Visibility.Collapsed;
             }
             else
             {
@@ -1103,7 +1067,9 @@ namespace Libra
                 this.VerticalViewSecBtn.Visibility = Visibility.Visible;
                 this.HorizontalViewBtn.Visibility = Visibility.Collapsed;
                 this.HorizontalViewSecBtn.Visibility = Visibility.Visible;
+                this.ViewSecBtnSeparator.Visibility = Visibility.Visible;
             }
+            if(this.fileLoaded) UpdateFitView();
         }
 
         private void ClearInputTypeToggleBtn()
@@ -1164,6 +1130,11 @@ namespace Libra
             CloseAll_Click(null, null);
         }
 
+        /// <summary>
+        /// Close all views.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void CloseAll_Click(object sender, RoutedEventArgs e)
         {
             SuspensionManager.viewerStateDictionary = null;

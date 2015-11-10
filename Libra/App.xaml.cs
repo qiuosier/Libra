@@ -65,7 +65,7 @@ namespace Libra
             EventLevel eLevel;
             if ((bool)AppSettings["debugLogging"])
                 eLevel = EventLevel.Verbose;
-            else eLevel = EventLevel.Warning;
+            else eLevel = EventLevel.Informational;
             libraListener = new StorageFileEventListener("LibraAppLog");
             libraListener.EnableEvents(AppEventSource.Log, eLevel);
             AppEventSource.Log.Info("********** App is starting **********");

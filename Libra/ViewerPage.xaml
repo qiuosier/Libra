@@ -27,7 +27,7 @@
                                     IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
                 <AppBarToggleButton x:Name="HorizontalViewSecBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"  
                                     IsChecked="{Binding ElementName=HorizontalViewBtn, Path=IsChecked}"/>
-                <AppBarSeparator />
+                <AppBarSeparator x:Name="ViewSecBtnSeparator"/>
                 <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
                 <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
@@ -45,7 +45,7 @@
                           MaxZoomFactor="5" 
                           ViewChanged="scrollViewer_ViewChanged">
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MinHeight="320">
-                    <StackPanel x:Name="imagePanel" Orientation="Vertical" Margin="0,0,10,10" HorizontalAlignment="Center">
+                    <StackPanel x:Name="imagePanel" Orientation="Vertical" HorizontalAlignment="Center">
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

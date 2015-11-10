@@ -108,7 +108,6 @@
       <DependentUpon>InkingPrefContentDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="Class\InkingPreference.cs" />
-    <Compile Include="Class\InkingProfile.cs" />
     <Compile Include="Components\AppEventSource.cs" />
     <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Class\SessionState.cs" />
