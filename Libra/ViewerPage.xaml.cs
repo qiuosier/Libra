@@ -19,6 +19,7 @@ using Microsoft.Graphics.Canvas;
 using Windows.UI;
 using Libra.Class;
 using Windows.UI.Xaml.Data;
+using System.Collections.ObjectModel;
 
 namespace Libra
 {
@@ -117,11 +118,11 @@ namespace Libra
                 Current = this;
             };
 
-            InitializeViewer();
+            InitializeZoomInView();
             AppEventSource.Log.Debug("ViewerPage: Page initialized.");
         }
 
-        private void InitializeViewer()
+        private void InitializeZoomInView()
         {
             this.imagePanel.Children.Clear();
             this.imagePanel.UpdateLayout();
@@ -140,6 +141,7 @@ namespace Libra
             this.recycleTimer.Stop();
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
+            this.commandBar.IsEnabled = false;
             this.pageNumberTextBlock.Text = "";
             this.filenameTextBlock.Text = "";
             this.imagePanel.Orientation = Orientation.Vertical;
@@ -162,7 +164,7 @@ namespace Libra
             if (!this.fileLoaded)
             {
                 // Load a new file
-                InitializeViewer();
+                InitializeZoomInView();
                 this.pdfFile = SuspensionManager.pdfFile;
                 LoadFile(this.pdfFile);
             }
@@ -470,7 +472,7 @@ namespace Libra
             await LoadDrawingPreference();
             // Render the first page
             AddBlankImage(1);
-            await LoadPage(1, (uint)(1.5 * this.scrollViewer.Width));
+            await AddPageImage(1, (uint)(1.5 * this.scrollViewer.Width));
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start();
         }
@@ -502,6 +504,7 @@ namespace Libra
             this._visiblePageRange = FindVisibleRange();
             RefreshViewer();
             this.fileLoaded = true;
+            this.commandBar.IsEnabled = true;
             this.fileLoadingWatch.Stop();
             AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
 
@@ -590,7 +593,8 @@ namespace Libra
             // Add visible pages to queue
             for (int i = range.first; i <= range.last; i++)
             {
-                renderPagesQueue.Enqueue(i);
+                if (i > 0 && i <= pageCount)
+                    renderPagesQueue.Enqueue(i);
             }
             // Add buffer pages to queue
             for (int i = range.first - SIZE_PAGE_BUFFER; i <= range.last + SIZE_PAGE_BUFFER; i++)
@@ -619,9 +623,9 @@ namespace Libra
                 uint renderWidth = (uint)(((displayWidth + standardWidth / 2) / standardWidth + 0.5) * standardWidth);
                 // Load the visible pages with a higher resolution.
                 if (i >= VisiblePageRange.first && i <= VisiblePageRange.last)
-                    await LoadPage(i, renderWidth);
+                    await AddPageImage(i, renderWidth);
                 else
-                    await LoadPage(i, Math.Min(renderWidth, (uint)(1.5 * standardWidth)));
+                    await AddPageImage(i, Math.Min(renderWidth, (uint)(1.5 * standardWidth)));
                 // Add ink canvas
                 LoadInkCanvas(i);
             }
@@ -640,6 +644,7 @@ namespace Libra
             for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
             {
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
+                if (image == null) return;
                 if (i == VisiblePageRange.first)
                 {
                     this.fitViewHeight = image.ActualHeight;
@@ -724,7 +729,7 @@ namespace Libra
             }
         }
 
-        private async Task LoadPage(int pageNumber, uint renderWidth)
+        private async Task AddPageImage(int pageNumber, uint renderWidth)
         {
             if (pageNumber <= 0 || pageNumber > this.pageCount) return;
             // Get the XAML image element
@@ -737,17 +742,22 @@ namespace Libra
             // Render pdf page to image, if image is not rendered, or a HIGHER render width is specified,
             if (image.Source == null || renderWidth != ((BitmapImage)(image.Source)).PixelWidth)
             {
-                // Render pdf image
-                InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
-                PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
-                PdfPageRenderOptions options = new PdfPageRenderOptions();
-                options.DestinationWidth = renderWidth;
-                await page.RenderToStreamAsync(stream, options);
-                BitmapImage bitmapImage = new BitmapImage();
-                bitmapImage.SetSource(stream);
-                image.Source = bitmapImage;
+                image.Source = await RenderPageImage(pageNumber, renderWidth);
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
+        }
+
+        private async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
+        {
+            // Render pdf image
+            InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
+            PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
+            PdfPageRenderOptions options = new PdfPageRenderOptions();
+            options.DestinationWidth = renderWidth;
+            await page.RenderToStreamAsync(stream, options);
+            BitmapImage bitmapImage = new BitmapImage();
+            bitmapImage.SetSource(stream);
+            return bitmapImage;
         }
 
         private void LoadInkCanvas(int pageNumber)
@@ -912,8 +922,8 @@ namespace Libra
             int visiblePage = FindVisiblePage();
             if (visiblePage <= 0)
             {
-                AppEventSource.Log.Warn("ViewerPage: Visible page is incorrect. page = " + visiblePage.ToString());
-                return this.VisiblePageRange;
+                AppEventSource.Log.Warn("ViewerPage: No visible page found.");
+                return new PageRange(1, 1);
             }
             // Find the pages that are currently visible
             PageRange range = new PageRange(visiblePage, visiblePage);
@@ -1141,7 +1151,7 @@ namespace Libra
             await SuspensionManager.SaveViewerAsync();
             SuspensionManager.sessionState.FileToken = null;
             this.fileLoaded = false;
-            InitializeViewer();
+            InitializeZoomInView();
             NavigationPage.Current.InitializeViewBtn();
             this.Frame.Navigate(typeof(MainPage));
         }
@@ -1213,6 +1223,7 @@ namespace Libra
         {
             ClearViewModeToggleBtn();
             this.GridViewBtn.IsChecked = true;
+            this.semanticZoom.IsZoomedInViewActive = !this.semanticZoom.IsZoomedInViewActive;
         }
 
         // <summary>
@@ -1368,6 +1379,34 @@ namespace Libra
         private void GoToPage_Click(object sender, RoutedEventArgs e)
         {
 
+        }
+
+        private async void semanticZoom_ViewChangeStarted(object sender, SemanticZoomViewChangedEventArgs e)
+        {
+            if (e.IsSourceZoomedInView)
+            {
+                if (this.pageThumbnails == null)
+                    InitializeGridView();
+                await RefreshGridView();
+            }
+        }
+
+        private const int MAX_EDGE_LENGTH = 200;
+        private ObservableCollection<PageDetail> pageThumbnails;
+
+        private void InitializeGridView()
+        {
+            this.pageThumbnails = new PageCollection(this.pdfDocument);
+            this.zoomOutGrid.ItemsSource = pageThumbnails;
+        }
+
+        private async Task RefreshGridView()
+        {
+            for (int i = 1; i <= pageCount; i++)
+            {
+                pageThumbnails.Add(new PageDetail(i, await RenderPageImage(i, MAX_EDGE_LENGTH - 10)));
+                if (i > 200) break;
+            }
         }
     }
 }

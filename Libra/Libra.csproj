@@ -108,6 +108,11 @@
       <DependentUpon>InkingPrefContentDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="Class\InkingPreference.cs" />
+    <Compile Include="Class\PageCollection.cs" />
+    <Compile Include="Class\PageDetail.cs" />
+    <Compile Include="Class\ZoomInGrid.xaml.cs">
+      <DependentUpon>ZoomInGrid.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Components\AppEventSource.cs" />
     <Compile Include="Class\RecentFile.cs" />
     <Compile Include="Class\SessionState.cs" />
@@ -159,6 +164,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Class\InkingPrefContentDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Class\ZoomInGrid.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

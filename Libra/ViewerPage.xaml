@@ -3,12 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Libra"
+    xmlns:LibraClass="using:Libra.Class"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
     <Grid Background="Black">
-        <CommandBar Background="LightSteelBlue">
+        <CommandBar x:Name="commandBar" Background="LightSteelBlue">
             <CommandBar.Content>
                 <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12" Visibility="Collapsed"/>
             </CommandBar.Content>
@@ -20,7 +21,7 @@
             <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"/>
             <AppBarButton x:Name="FitToWindowBtn" Icon="BackToWindow" Label="Fit to Window" Click="FitToWindowBtn_Click" Visibility="Collapsed"/>
             <AppBarButton x:Name="FillWindowBtn" Icon="FullScreen" Label="Fill Window" Click="FitToWindowBtn_Click"/>
-            <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click" Visibility="Collapsed"/>
+            <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click"/>
             <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
@@ -34,33 +35,59 @@
                 <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
-        <Grid x:Name="viewerGrid" Margin="0,48,0,0">
-            <ScrollViewer x:Name="scrollViewer" 
-                            ZoomMode="Enabled" 
-                            HorizontalScrollMode="Enabled" 
-                            VerticalScrollMode="Enabled"
-                            HorizontalScrollBarVisibility="Auto" 
-                          Margin="0,0,0,0"
-                          MinZoomFactor="0.25" 
-                          MaxZoomFactor="5" 
-                          ViewChanged="scrollViewer_ViewChanged">
-                <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MinHeight="320">
-                    <StackPanel x:Name="imagePanel" Orientation="Vertical" HorizontalAlignment="Center">
-                    </StackPanel>
-                </Grid>
-            </ScrollViewer>
-            <Grid x:Name="pageNumberGrid" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
-                <Grid.Resources>
-                    <Storyboard x:Name="pageNumberFadeOut">
-                        <DoubleAnimation Storyboard.TargetName="pageNumberGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
-                    </Storyboard>
-                </Grid.Resources>
-                <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold">
-                </TextBlock>
-            </Grid>
-            <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
-                <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
-            </Grid>
-        </Grid>
+        <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="True">
+            <SemanticZoom.ZoomedOutView>
+                <GridView x:Name="zoomOutGrid" >
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="200" Width="200" BorderBrush="SteelBlue" BorderThickness="1">
+                                <Viewbox>
+                                    <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>
+                                </Viewbox>
+                            </Grid>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+            </SemanticZoom.ZoomedOutView>
+            <SemanticZoom.ZoomedInView>
+                <LibraClass:ZoomInGrid x:Name="zoomInGrid">
+                    <Grid>
+                        <ScrollViewer x:Name="scrollViewer" 
+                                  TabNavigation='Local'
+                                  ZoomMode="Enabled" 
+                                  HorizontalScrollMode="Enabled" 
+                                  VerticalScrollMode="Enabled"
+                                  VerticalSnapPointsType='None'
+                                  HorizontalScrollBarVisibility="Auto"
+                                  HorizontalSnapPointsType='None'
+                                  IsHorizontalScrollChainingEnabled ="False"
+                                  IsVerticalScrollChainingEnabled ="False"
+                                  IsHorizontalRailEnabled='true'
+                                  IsVerticalRailEnabled='true'
+                                  Margin="0,0,0,0"
+                                  MinZoomFactor="0.5" 
+                                  MaxZoomFactor="5" 
+                                  ViewChanged="scrollViewer_ViewChanged">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MinHeight="320">
+                                <StackPanel x:Name="imagePanel" Orientation="Vertical" HorizontalAlignment="Center">
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                        <Grid x:Name="pageNumberGrid" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                            <Grid.Resources>
+                                <Storyboard x:Name="pageNumberFadeOut">
+                                    <DoubleAnimation Storyboard.TargetName="pageNumberGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
+                                </Storyboard>
+                            </Grid.Resources>
+                            <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold">
+                            </TextBlock>
+                        </Grid>
+                        <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
+                            <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
+                        </Grid>
+                    </Grid>
+                </LibraClass:ZoomInGrid>
+            </SemanticZoom.ZoomedInView>
+        </SemanticZoom>
     </Grid>
 </Page>
