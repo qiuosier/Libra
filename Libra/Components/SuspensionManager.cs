@@ -234,8 +234,9 @@ namespace Libra
             catch (Exception e)
             {
                 AppEventSource.Log.Error("Suspension: Error when deserializing object. Exception: " + e.Message);
-                MessageDialog messageDialog = new MessageDialog("Error when deserializing file: " + file.Name + "\n" + e.Message);
-                messageDialog.Commands.Add(new UICommand("Delete file", null, 0));
+                MessageDialog messageDialog = new MessageDialog("Error when deserializing App settings: " + file.Name + "\n" 
+                    + "The PDF file is not affected.\n " + "Details: \n" + e.Message);
+                messageDialog.Commands.Add(new UICommand("Reset Settings", null, 0));
                 messageDialog.Commands.Add(new UICommand("Ignore", null, 1));
                 IUICommand command = await messageDialog.ShowAsync();
                 switch ((int)command.Id)

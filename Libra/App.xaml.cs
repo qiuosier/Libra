@@ -49,6 +49,7 @@ namespace Libra
             AppSettings.Add("restoreView", true);
             AppSettings.Add("showRecentFiles", true);
             AppSettings.Add("debugLogging", false);
+            AppSettings.Add("inkingWarning", true);
 
             // Load App settings
             List<string> keys = new List<string>(AppSettings.Keys);

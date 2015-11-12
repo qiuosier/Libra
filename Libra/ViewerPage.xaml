@@ -46,7 +46,7 @@
                           Foreground="White">
                     <GridView.ItemTemplate>
                         <DataTemplate>
-                            <Grid Height="250" Width="250" PointerReleased="ThumbnailGrid_PointerReleased">
+                            <Grid Height="250" Width="200" PointerReleased="ThumbnailGrid_PointerReleased">
                                 <Viewbox>
                                     <Grid Background="White" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}">
                                         <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>

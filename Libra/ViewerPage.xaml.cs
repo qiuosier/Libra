@@ -372,13 +372,13 @@ namespace Libra
             // TODO: Need to check if the inking is suitable for the file/page.
             //
             //
-            int loadingPageNumber = 0;
-            try
+            this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
+            foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
             {
-                this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
-                foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
+                int pageNumber = 0;
+                try
                 {
-                    int pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
                     InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
                     using (var inkStream = await inkFile.OpenSequentialReadAsync())
                     {
@@ -387,13 +387,24 @@ namespace Libra
                     this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
                     AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
                 }
-                inkingLoadingWatch.Stop();
-                AppEventSource.Log.Info("ViewerPage: Inking loaded in " + inkingLoadingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
+                catch (Exception e)
+                {
+                    string errorMsg = "Error when loading inking for page " + pageNumber.ToString() + "\n Exception: " + e.Message;
+                    AppEventSource.Log.Error("ViewerPage: " + errorMsg);
+                    int userResponse = await ShowMessageDialog(errorMsg, new string[] { "Remove Inking", "Ignore" });
+                    switch (userResponse)
+                    {
+                        case 0: // Delete inking file
+                            await inkFile.DeleteAsync();
+                            AppEventSource.Log.Error("ViewerPage: File deleted.");
+                            break;
+                        default: break;
+                    }
+                    return;
+                }
             }
-            catch (Exception e)
-            {
-                NotifyUser("Error when loading inking for page " + loadingPageNumber.ToString() + "\n Exception: " + e.Message, true);
-            }
+            inkingLoadingWatch.Stop();
+            AppEventSource.Log.Info("ViewerPage: Inking loaded in " + inkingLoadingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
         }
 
         /// <summary>
@@ -806,15 +817,16 @@ namespace Libra
                 bindingHeight.Path = new PropertyPath("ActualHeight");
                 bindingHeight.Source = image;
                 Binding bindingWidth = new Binding();
-                bindingHeight.Mode = BindingMode.OneWay;
-                bindingHeight.Path = new PropertyPath("ActualWidth");
-                bindingHeight.Source = image;
+                bindingWidth.Mode = BindingMode.OneWay;
+                bindingWidth.Path = new PropertyPath("ActualWidth");
+                bindingWidth.Source = image;
                 // Add ink canvas
                 inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
                 inkCanvas.InkPresenter.InputDeviceTypes = inkingPreference.drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
                 inkCanvas.InkPresenter.StrokesCollected += InkPresenter_StrokesCollected;
+                inkCanvas.InkPresenter.StrokesErased += InkPresenter_StrokesErased;
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
                 inkCanvas.SetBinding(HeightProperty, bindingHeight);
                 inkCanvas.SetBinding(WidthProperty, bindingWidth);
@@ -831,23 +843,55 @@ namespace Libra
             }
         }
 
-        /// <summary>
-        /// Save inking after strokes are collected.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="args"></param>
+        private void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
+        {
+            InkPresenter_StrokesChanged(sender);
+        }
+
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
         {
+            // Notify user about the risk when using inking for the first time.
+            if ((bool)App.AppSettings["inkingWarning"])
+            {
+                int userResponse = await ShowMessageDialog("Ink strokes collection is an experimental feature. \n" +
+                    "Currently ink strokes are NOT SAVED to the PDF file. They are saved ONLY IN THIS APP. \n" +
+                    "You can export the ink strokes along with pdf pages as image file.",
+                    new string[] {"OK, do not show this again.", "Notify me again next time." });
+                switch (userResponse)
+                {
+                    case 0: // Do not show again
+                        ApplicationData.Current.RoamingSettings.Values["inkingWarning"] = false;
+                        App.AppSettings["inkingWarning"] = false;
+                        break;
+                    default:
+                        App.AppSettings["inkingWarning"] = false;
+                        break;
+                }
+            }
+            InkPresenter_StrokesChanged(sender);
+        }
+
+        /// <summary>
+        /// Save inking if strokes are changed.
+        /// </summary>
+        /// <param name="sender"></param>
+        private async void InkPresenter_StrokesChanged(InkPresenter sender)
+        {
+            // Indicate inking changed.
             this.inkingChanged = true;
-            // Pause recycling when saving inking.
+            // Invoke save inking only if SaveInking is not running.
+            // This will prevent running multiple saving instance at the same time.
             if (!this.isSavingInking)
             {
+                // Pause recycling when saving inking.
                 this.recycleTimer.Stop();
+                // Save inking again if inking is changed before previous saving is finished.
                 while (this.inkingChanged)
                 {
                     this.inkingChanged = false;
                     await SaveInking();
                 }
+                // Continue recycling
                 this.recycleTimer.Start();
             }
         }
@@ -1412,6 +1456,17 @@ namespace Libra
             if (logMessage) AppEventSource.Log.Error("ViewerPage: " + message);
         }
 
+        private async Task<int> ShowMessageDialog(string errorMsg, string[] optionsLabel)
+        {
+            MessageDialog messageDialog = new MessageDialog(errorMsg);
+            foreach (string label in optionsLabel)
+            {
+                messageDialog.Commands.Add(new UICommand(label, null, messageDialog.Commands.Count));
+            }
+            IUICommand command = await messageDialog.ShowAsync();
+            return (int)command.Id;
+        }
+
         private void GoToPage_Click(object sender, RoutedEventArgs e)
         {
 
@@ -1431,6 +1486,8 @@ namespace Libra
                 // Switching to zoom out view (Grid View)
                 this.GridViewBtn.IsChecked = true;
                 DisableInputTypeBtn();
+                this.FitToWindowBtn.IsEnabled = false;
+                this.FillWindowBtn.IsEnabled = false;
                 // Pause zoom in view rendering 
                 this.renderPagesQueue.Clear();
                 // Resume zoom out view rendering
@@ -1452,6 +1509,8 @@ namespace Libra
                     this.VerticalViewBtn.IsChecked = true;
                 else this.HorizontalViewBtn.IsChecked = true;
                 EnableInputTypeBtn();
+                this.FitToWindowBtn.IsEnabled = true;
+                this.FillWindowBtn.IsEnabled = true;
                 // Pause zoom out view rendering
                 this.pageThumbnails.PauseRendering();
                 // Resume zoom in view rendering
