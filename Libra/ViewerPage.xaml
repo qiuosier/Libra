@@ -35,9 +35,11 @@
                 <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
+        <Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>
         <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="True">
             <SemanticZoom.ZoomedOutView>
-                <GridView x:Name="zoomOutGrid" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                <GridView x:Name="zoomOutGrid" Margin="10"  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                           SelectionMode="Single"
                           ScrollViewer.IsHorizontalScrollChainingEnabled="False"
                           IsItemClickEnabled="False"
@@ -46,7 +48,9 @@
                         <DataTemplate>
                             <Grid Height="250" Width="250" PointerReleased="ThumbnailGrid_PointerReleased">
                                 <Viewbox>
-                                    <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>
+                                    <Grid Background="White" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}">
+                                        <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>
+                                    </Grid>
                                 </Viewbox>
                             </Grid>
                         </DataTemplate>

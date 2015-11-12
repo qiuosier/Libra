@@ -319,7 +319,7 @@ namespace NavigationMenu
         private void NavMenuList_ItemInvoked(object sender, ListViewItem listViewItem)
         {
             var item = (NavMenuItem)((NavMenuListView)sender).ItemFromContainer(listViewItem);
-
+            
             if (item != null)
             {
                 if (item.DestPage == null)

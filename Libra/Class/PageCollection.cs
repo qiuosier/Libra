@@ -24,10 +24,10 @@ namespace Libra.Class
         public PageCollection(PdfDocument pdfDoc)
         {
             this.pdfDocument = pdfDoc;
-            this.Add(new PageDetail(1));
             this.renderPagesQueue = new Queue<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.IsInitialized = false;
+            this.visibleRange = new ItemIndexRange(-1, 0);
         }
 
         /// <summary>
@@ -48,20 +48,28 @@ namespace Libra.Class
         {
             if (this.isInitializing) return;
             this.isInitializing = true;
-            this.Clear();
-            await Window.Current.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal,() =>
+            if (this.Count != this.pdfDocument.PageCount)
             {
-                for (int i = 1; i <= this.pdfDocument.PageCount; i++)
-                {
-                    this.Add(new PageDetail(i));
-                }
-            });
+                this.Clear();
+                await Window.Current.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                 {
+                     for (int i = 1; i <= this.pdfDocument.PageCount; i++)
+                     {
+                         double width = this.pdfDocument.GetPage((uint)(i - 1)).Size.Width;
+                         double height = this.pdfDocument.GetPage((uint)(i - 1)).Size.Height;
+                         this.Add(new PageDetail(i, height, width));
+                     }
+                 });
+            }
             this.IsInitialized = true;
+            this.isInitializing = false;
         }
 
         public async void RangesChanged(ItemIndexRange visibleRange, IReadOnlyList<ItemIndexRange> trackedItems)
         {
-            if (this.visibleRange == visibleRange) return;
+            if (this.visibleRange.FirstIndex == visibleRange.FirstIndex
+                && this.visibleRange.LastIndex == visibleRange.LastIndex)
+                return;
             if (!IsInitialized) await InitializeBlankPages();
             this.visibleRange = visibleRange;
             this.renderPagesQueue.Clear();
@@ -94,6 +102,8 @@ namespace Libra.Class
         /// </summary>
         private bool isRendering = false;
 
+        private bool isRedneringPaused = false;
+
         /// <summary>
         /// Render images for pages
         /// </summary>
@@ -101,18 +111,31 @@ namespace Libra.Class
         {
             // Set isRendering to true to prevent this method to be called multiple times before the rendering is finished.
             this.isRendering = true;
+            this.isRedneringPaused = false;
             while (renderPagesQueue.Count > 0)
             {
                 int i = this.renderPagesQueue.Dequeue();
                 if (this[i].PageImage != null) continue;
                 int pageNumber = this[i].PageNumber;
+                BitmapImage bitmap = await RenderPageImage(pageNumber, RENDERWIDTH_THUMBNAIL);
                 this.RemoveAt(i);
-                this.Insert(i, new PageDetail(pageNumber, await RenderPageImage(pageNumber, RENDERWIDTH_THUMBNAIL)));
+                this.Insert(i, new PageDetail(pageNumber, bitmap));
                 this.recyclePagesQueue.Enqueue(i);
+                if (isRedneringPaused) break;
             }
-            // Recycle pages when rendering is done
+            // Recycle pages after rendering is done
             RemovePages();
             this.isRendering = false;
+        }
+
+        public void PauseRendering()
+        {
+            this.isRedneringPaused = true;
+        }
+
+        public async void ResumeRendering()
+        {
+            if (!isRendering) await RenderPages();
         }
 
         /// <summary>

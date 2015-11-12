@@ -20,6 +20,7 @@ using Windows.UI;
 using Libra.Class;
 using Windows.UI.Xaml.Data;
 using System.Collections.ObjectModel;
+using Windows.UI.Xaml.Media;
 
 namespace Libra
 {
@@ -31,9 +32,9 @@ namespace Libra
         private const int SCROLLBAR_WIDTH = 15;
         private const int PAGE_IMAGE_MARGIN = 10;
         private const int NAVIGATION_WIDTH = 48;
-        private const int SIZE_PAGE_BUFFER = 5;
+        private const int SIZE_PAGE_BUFFER = 3;
         private const int SIZE_RECYCLE_QUEUE = 10;
-        private const int SIZE_PAGE_BATCH = 100;
+        private const int SIZE_PAGE_BATCH = 150;
         private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
@@ -141,10 +142,12 @@ namespace Libra
             this.recycleTimer.Stop();
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = DEFAULT_FULL_SCREEN_MSG;
-            this.commandBar.IsEnabled = false;
             this.pageNumberTextBlock.Text = "";
             this.filenameTextBlock.Text = "";
             this.imagePanel.Orientation = Orientation.Vertical;
+            this.semanticZoom.IsZoomedInViewActive = true;
+            this.pageThumbnails = null;
+            if (NavigationPage.Current != null) NavigationPage.Current.InitializeViewBtn();
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
         }
 
@@ -281,8 +284,8 @@ namespace Libra
             this.imagePanel.Orientation = Orientation.Vertical;
             this.imagePanel.UpdateLayout();
             // Zoom the first page to fit the viewer window width
-            float zoomFactor = (float)((this.scrollViewer.ActualWidth - 2 * PAGE_IMAGE_MARGIN - SCROLLBAR_WIDTH) 
-                / this.pdfDocument.GetPage(0).Size.Width);
+            float zoomFactor = (float)(this.scrollViewer.ActualWidth
+                / (this.pdfDocument.GetPage(0).Size.Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
             double hOffset = 0;
             if (this.scrollViewer.ScrollableWidth > 0) hOffset = this.scrollViewer.ScrollableWidth / 2;
             return this.scrollViewer.ChangeView(hOffset, 0, zoomFactor);
@@ -464,15 +467,18 @@ namespace Libra
             this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
             // Wait until the file is loaded
             this.pdfDocument = await getPdfTask;
+            AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
+            // Initialize thumbnails collection
+            this.pageThumbnails = new PageCollection(this.pdfDocument);
             // Render the first page
             AddBlankImage(1);
-            await AddPageImage(1, (uint)(1.5 * this.scrollViewer.Width));
+            await AddPageImage(1, (uint)(this.scrollViewer.ActualWidth));
             // Add blank pages for the rest of the file using the initialization timer
             this.initializationTimer.Start();
         }
@@ -480,15 +486,19 @@ namespace Libra
         private void AddBlankImage(int pageNumber)
         {
             if (pageNumber < 1 || pageNumber > this.pageCount) return;
+            // Add blank image
             Grid grid = new Grid();
             grid.Name = PREFIX_GRID + pageNumber.ToString();
             grid.Margin = pageMargin;
+            grid.Background = new SolidColorBrush(Colors.White);
             Image image = new Image();
             image.Name = PREFIX_PAGE + pageNumber.ToString();
             image.Width = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Width;
             image.Height = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Height;
             grid.Children.Add(image);
             this.imagePanel.Children.Add(grid);
+            // Add blank thumbnail
+            this.pageThumbnails.Add(new PageDetail(pageNumber, image.Height, image.Width));
         }
 
         private async void FinishInitialization()
@@ -502,12 +512,11 @@ namespace Libra
             await LoadInking();
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
-            RefreshViewer();
             this.fileLoaded = true;
-            this.commandBar.IsEnabled = true;
             this.fileLoadingWatch.Stop();
+            RefreshViewer();
             AppEventSource.Log.Info("ViewerPage: Finished Preparing the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
-
+            this.zoomOutGrid.ItemsSource = pageThumbnails;
             this.recycleTimer.Start();
         }
 
@@ -617,20 +626,33 @@ namespace Libra
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
                 // The actual page width that is diaplaying to the user
                 double displayWidth = this.pdfDocument.GetPage((uint)(i-1)).Size.Width * this.scrollViewer.ZoomFactor;
-                // Determine the render width, which will be 0.5/1.5/2.5/3.5... times scroll viewer width.
-                // Render width will be higher if a page is zoomed in.
+                // Render width depends on the display width. (higher if a page is zoomed in)
                 double standardWidth = this.scrollViewer.ActualWidth;
-                uint renderWidth = (uint)(((displayWidth + standardWidth / 2) / standardWidth + 0.5) * standardWidth);
+                uint renderWidth;
+                if (displayWidth < 0.3 * standardWidth)
+                    renderWidth = (uint)(0.3 * standardWidth);
+                else if (displayWidth < 0.6 * standardWidth)
+                    renderWidth = (uint)(0.6 * standardWidth);
+                else if (displayWidth < 1.1 * standardWidth)
+                    renderWidth = (uint)(1.0 * standardWidth);
+                else if (displayWidth < 2.1 * standardWidth)
+                    renderWidth = (uint)(2.0 * standardWidth);
+                else if (displayWidth < 3.1 * standardWidth)
+                    renderWidth = (uint)(3.0 * standardWidth);
+                else if (displayWidth < 4.1 * standardWidth)
+                    renderWidth = (uint)(4.0 * standardWidth);
+                else if (displayWidth < 5.1 * standardWidth)
+                    renderWidth = (uint)(5.0 * standardWidth);
+                else renderWidth = (uint)(6.0 * standardWidth);
                 // Load the visible pages with a higher resolution.
                 if (i >= VisiblePageRange.first && i <= VisiblePageRange.last)
                     await AddPageImage(i, renderWidth);
                 else
-                    await AddPageImage(i, Math.Min(renderWidth, (uint)(1.5 * standardWidth)));
+                    await AddPageImage(i, Math.Min(renderWidth, (uint)(standardWidth)));
                 // Add ink canvas
                 LoadInkCanvas(i);
             }
             this.isRenderingPage = false;
-            UpdateFitView();
         }
 
         /// <summary>
@@ -740,7 +762,9 @@ namespace Libra
                 return;
             }
             // Render pdf page to image, if image is not rendered, or a HIGHER render width is specified,
-            if (image.Source == null || renderWidth != ((BitmapImage)(image.Source)).PixelWidth)
+            if (image.Source == null || 
+                renderWidth > ((BitmapImage)(image.Source)).PixelWidth ||
+                renderWidth < ((BitmapImage)(image.Source)).PixelWidth / 2)
             {
                 image.Source = await RenderPageImage(pageNumber, renderWidth);
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
@@ -880,6 +904,7 @@ namespace Libra
         /// </summary>
         private void RefreshViewer()
         {
+            if(this.fileLoaded) UpdateFitView();
             PreparePages(this.VisiblePageRange);
         }
 
@@ -1089,6 +1114,20 @@ namespace Libra
             this.Eraser.IsChecked = false;
         }
 
+        private void DisableInputTypeBtn()
+        {
+            this.Pencil.Visibility = Visibility.Collapsed;
+            this.Eraser.Visibility = Visibility.Collapsed;
+            this.Highlighter.Visibility = Visibility.Collapsed;
+        }
+
+        private void EnableInputTypeBtn()
+        {
+            this.Pencil.Visibility = Visibility.Visible;
+            this.Eraser.Visibility = Visibility.Visible;
+            this.Highlighter.Visibility = Visibility.Visible;
+        }
+
         private void Pencil_Click(object sender, RoutedEventArgs e)
         {
             ClearInputTypeToggleBtn();
@@ -1160,16 +1199,14 @@ namespace Libra
         {
             this.VerticalViewBtn.IsChecked = false;
             this.HorizontalViewBtn.IsChecked = false;
-            //this.VerticalViewSecBtn.IsChecked = false;
-            //this.HorizontalViewSecBtn.IsChecked = false;
             this.GridViewBtn.IsChecked = false;
         }
 
         private void VerticalView_Click(object sender, RoutedEventArgs e)
         {
+            this.semanticZoom.IsZoomedInViewActive = true;
             ClearViewModeToggleBtn();
             this.VerticalViewBtn.IsChecked = true;
-            //this.VerticalViewSecBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Vertical)
             {
                 // Update navigation buttons
@@ -1194,9 +1231,9 @@ namespace Libra
 
         private void HorizontalView_Click(object sender, RoutedEventArgs e)
         {
+            this.semanticZoom.IsZoomedInViewActive = true;
             ClearViewModeToggleBtn();
             this.HorizontalViewBtn.IsChecked = true;
-            //this.HorizontalViewSecBtn.IsChecked = true;
             if (imagePanel.Orientation != Orientation.Horizontal)
             {
                 // Update navigation buttons
@@ -1222,7 +1259,6 @@ namespace Libra
         private void GridView_Click(object sender, RoutedEventArgs e)
         {
             ClearViewModeToggleBtn();
-            this.GridViewBtn.IsChecked = true;
             this.semanticZoom.IsZoomedInViewActive = !this.semanticZoom.IsZoomedInViewActive;
         }
 
@@ -1383,20 +1419,44 @@ namespace Libra
 
         // The following are for grid view
 
+        /// <summary>
+        /// Event handler for view switching
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void semanticZoom_ViewChangeStarted(object sender, SemanticZoomViewChangedEventArgs e)
         {
             if (e.IsSourceZoomedInView)
             {
-                if (this.pageThumbnails == null)
-                    InitializeGridView();
+                // Switching to zoom out view (Grid View)
+                this.GridViewBtn.IsChecked = true;
+                DisableInputTypeBtn();
+                // Pause zoom in view rendering 
+                this.renderPagesQueue.Clear();
+                // Resume zoom out view rendering
+                this.pageThumbnails.ResumeRendering();
+                // Initialize thumbnails
                 if (!this.pageThumbnails.IsInitialized)
                     await this.pageThumbnails.InitializeBlankPages();
+                // Sync current visible page between views
                 int pageIndex = this.VisiblePageRange.first - 1;
                 this.zoomOutGrid.ScrollIntoView(this.pageThumbnails[pageIndex]);
+                // Clear previous selected index
                 this.pageThumbnails.SelectedIndex = -1;
             }
             else
             {
+                // Switching to zoom in view
+                this.GridViewBtn.IsChecked = false;
+                if (this.imagePanel.Orientation == Orientation.Vertical)
+                    this.VerticalViewBtn.IsChecked = true;
+                else this.HorizontalViewBtn.IsChecked = true;
+                EnableInputTypeBtn();
+                // Pause zoom out view rendering
+                this.pageThumbnails.PauseRendering();
+                // Resume zoom in view rendering
+                RefreshViewer();
+                // Sync current visible page between views
                 int pageIndex = this.pageThumbnails.SelectedIndex;
                 if (pageIndex >= 0)
                 {
@@ -1418,15 +1478,15 @@ namespace Libra
 
         private PageCollection pageThumbnails;
 
-        private void InitializeGridView()
-        {
-            this.pageThumbnails = new PageCollection(this.pdfDocument);
-            this.zoomOutGrid.ItemsSource = pageThumbnails;
-        }
-
+        /// <summary>
+        /// Record the clicked item
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            this.pageThumbnails.SelectedIndex = ((PageDetail)((Grid)sender).DataContext).PageNumber - 1;
+            this.pageThumbnails.SelectedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
+                    - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
         }
     }
 }
