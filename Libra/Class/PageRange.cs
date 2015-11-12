@@ -10,6 +10,9 @@ namespace Libra.Class
     {
         public int first { get; set; }
         public int last { get; set; }
+
+        public int Length { get { return last - first + 1; } }
+
         public PageRange()
         {
             this.first = 0;

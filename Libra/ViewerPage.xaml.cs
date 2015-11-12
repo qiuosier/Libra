@@ -1381,18 +1381,42 @@ namespace Libra
 
         }
 
+        // The following are for grid view
+
         private async void semanticZoom_ViewChangeStarted(object sender, SemanticZoomViewChangedEventArgs e)
         {
             if (e.IsSourceZoomedInView)
             {
                 if (this.pageThumbnails == null)
                     InitializeGridView();
-                await RefreshGridView();
+                if (!this.pageThumbnails.IsInitialized)
+                    await this.pageThumbnails.InitializeBlankPages();
+                int pageIndex = this.VisiblePageRange.first - 1;
+                this.zoomOutGrid.ScrollIntoView(this.pageThumbnails[pageIndex]);
+                this.pageThumbnails.SelectedIndex = -1;
+            }
+            else
+            {
+                int pageIndex = this.pageThumbnails.SelectedIndex;
+                if (pageIndex >= 0)
+                {
+                    double pageOffset = 0;
+                    for (uint i = 0; i < pageIndex; i++)
+                    {
+                        pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
+                            this.pdfDocument.GetPage(i).Size.Height :
+                            this.pdfDocument.GetPage(i).Size.Width;
+                        pageOffset += 2 * PAGE_IMAGE_MARGIN;
+                    }
+                    pageOffset *= this.scrollViewer.ZoomFactor;
+                    if (this.imagePanel.Orientation == Orientation.Vertical)
+                        this.scrollViewer.ChangeView(null, pageOffset, null);
+                    else this.scrollViewer.ChangeView(pageOffset, null, null);
+                }
             }
         }
 
-        private const int MAX_EDGE_LENGTH = 200;
-        private ObservableCollection<PageDetail> pageThumbnails;
+        private PageCollection pageThumbnails;
 
         private void InitializeGridView()
         {
@@ -1400,13 +1424,9 @@ namespace Libra
             this.zoomOutGrid.ItemsSource = pageThumbnails;
         }
 
-        private async Task RefreshGridView()
+        private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            for (int i = 1; i <= pageCount; i++)
-            {
-                pageThumbnails.Add(new PageDetail(i, await RenderPageImage(i, MAX_EDGE_LENGTH - 10)));
-                if (i > 200) break;
-            }
+            this.pageThumbnails.SelectedIndex = ((PageDetail)((Grid)sender).DataContext).PageNumber - 1;
         }
     }
 }

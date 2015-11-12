@@ -37,10 +37,14 @@
         </CommandBar>
         <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="True">
             <SemanticZoom.ZoomedOutView>
-                <GridView x:Name="zoomOutGrid" >
+                <GridView x:Name="zoomOutGrid" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          SelectionMode="Single"
+                          ScrollViewer.IsHorizontalScrollChainingEnabled="False"
+                          IsItemClickEnabled="False"
+                          Foreground="White">
                     <GridView.ItemTemplate>
                         <DataTemplate>
-                            <Grid Height="200" Width="200" BorderBrush="SteelBlue" BorderThickness="1">
+                            <Grid Height="250" Width="250" PointerReleased="ThumbnailGrid_PointerReleased">
                                 <Viewbox>
                                     <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>
                                 </Viewbox>
@@ -73,14 +77,13 @@
                                 </StackPanel>
                             </Grid>
                         </ScrollViewer>
-                        <Grid x:Name="pageNumberGrid" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                        <Grid x:Name="pageNumberGrid" Margin="35,0,35,0" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
                             <Grid.Resources>
                                 <Storyboard x:Name="pageNumberFadeOut">
                                     <DoubleAnimation Storyboard.TargetName="pageNumberGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
                                 </Storyboard>
                             </Grid.Resources>
-                            <TextBlock x:Name="pageNumberTextBlock" Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold">
-                            </TextBlock>
+                            <TextBlock x:Name="pageNumberTextBlock"  Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold"/>
                         </Grid>
                         <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
                             <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>

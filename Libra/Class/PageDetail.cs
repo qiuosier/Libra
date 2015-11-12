@@ -9,6 +9,7 @@ namespace Libra.Class
 {
     public class PageDetail
     {
+        private const int DEFAULT_GRID_EDGE_SIZE = 300;
         private BitmapImage _pageImage;
         public BitmapImage PageImage
         {
@@ -19,9 +20,9 @@ namespace Libra.Class
             }
         }
 
-        public int PixelHeight { get { return this._pageImage.PixelHeight; } }
+        public int PixelHeight { get { return PageImage == null ? DEFAULT_GRID_EDGE_SIZE : PageImage.PixelHeight; } }
 
-        public int PixelWidth { get { return this._pageImage.PixelWidth; } }
+        public int PixelWidth { get { return PageImage == null ? DEFAULT_GRID_EDGE_SIZE : PageImage.PixelWidth; } }
 
         private int _pageNumber;
         public int PageNumber { get { return this._pageNumber; } }
