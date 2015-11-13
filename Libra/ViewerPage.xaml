@@ -10,18 +10,42 @@
     NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
     <Grid Background="Black">
         <CommandBar x:Name="commandBar" Background="LightSteelBlue">
+            <CommandBar.Resources>
+                <Style TargetType="FontIcon">
+                    <Setter Property="FontSize" Value="20"/>
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="HorizontalAlignment" Value="Center" />
+                </Style>
+            </CommandBar.Resources>
             <CommandBar.Content>
                 <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12" Visibility="Collapsed"/>
             </CommandBar.Content>
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
             <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
-            <AppBarToggleButton x:Name="Eraser" Icon="CellPhone" Label="Eraser" Click="Eraser_Click"/>
+            <AppBarToggleButton x:Name="Eraser" Label="Eraser" Click="Eraser_Click">
+                <AppBarToggleButton.Icon>
+                    <FontIcon Glyph="&#xE75C;"/>
+                </AppBarToggleButton.Icon>
+            </AppBarToggleButton>
             <AppBarSeparator />
             <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"/>
             <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"/>
-            <AppBarButton x:Name="FitToWindowBtn" Icon="BackToWindow" Label="Fit to Window" Click="FitToWindowBtn_Click" Visibility="Collapsed"/>
-            <AppBarButton x:Name="FillWindowBtn" Icon="FullScreen" Label="Fill Window" Click="FitToWindowBtn_Click"/>
             <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click"/>
+            <AppBarButton x:Name="ZoomBtn" Label="Zoom">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE759;"/>
+                </AppBarButton.Icon>
+                <AppBarButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Name="zoomInBtn" Text="Zoom In" Click="ZoomInBtn_Click"/>
+                        <MenuFlyoutItem x:Name="zoomOutBtn"  Text="Zoom Out" Click="ZoomOutBtn_Click"/>
+                        <MenuFlyoutItem x:Name="zoomActual"  Text="Actual Size" Click="ActualSizeBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitWidthBtn"  Text="Fit Width" Click="FitWidthBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitHeightBtn"  Text="Fit Height" Click="FitHeightBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitPageBtn"  Text="Fit Page" Click="FitPageBtn_Click"/>
+                    </MenuFlyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
             <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
@@ -35,11 +59,11 @@
                 <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
-        <Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
-                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>
-        <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="True">
+        <!--<Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>-->
+        <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="False">
             <SemanticZoom.ZoomedOutView>
-                <GridView x:Name="zoomOutGrid" Margin="10"  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                <GridView x:Name="zoomOutGrid" Padding="10"  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                           SelectionMode="Single"
                           ScrollViewer.IsHorizontalScrollChainingEnabled="False"
                           IsItemClickEnabled="False"
@@ -81,13 +105,16 @@
                                 </StackPanel>
                             </Grid>
                         </ScrollViewer>
-                        <Grid x:Name="pageNumberGrid" Margin="35,0,35,0" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                        <Grid x:Name="infoGrid" Margin="30,0,30,0" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
                             <Grid.Resources>
-                                <Storyboard x:Name="pageNumberFadeOut">
-                                    <DoubleAnimation Storyboard.TargetName="pageNumberGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
+                                <Storyboard x:Name="infoGridFadeOut">
+                                    <DoubleAnimation Storyboard.TargetName="infoGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
                                 </Storyboard>
                             </Grid.Resources>
-                            <TextBlock x:Name="pageNumberTextBlock"  Text="/" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock x:Name="pageNumberTextBlock" Margin="20,0,20,0" Text="1/10" Foreground="White" FontWeight="Bold"/>
+                                <TextBlock x:Name="zoomFactorTextBlock" Margin="20,0,20,0" Text="100%" Foreground="White" FontWeight="Bold"/>
+                            </StackPanel>
                         </Grid>
                         <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
                             <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>

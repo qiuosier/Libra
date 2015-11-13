@@ -43,7 +43,8 @@ namespace Libra
         private const int MIN_RENDER_WIDTH = 500;
         private const int MIN_WINDOW_WIDTH_TO_SHOW_FILENAME = 800;
         private const int MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN = 650;
-        private const double PAGE_NUMBER_OPACITY = 0.75;
+        private const double INFO_GRID_OPACITY = 0.75;
+        private const double ZOOM_STEP_SIZE = 0.25;
 
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
@@ -71,6 +72,7 @@ namespace Libra
         private DispatcherTimer pageNumberTextTimer;
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
+        private Queue<int> inkingChangedPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
         private List<int> inkCanvasList;
         private InkDrawingAttributes drawingAttributes;
@@ -82,11 +84,8 @@ namespace Libra
         public Guid ViewerKey { get { return this._viewerKey; } }
 
         private int pageCount;
-        private double fitViewHeight;
-        private double fitViewWidth;
         private bool fileLoaded;
         private bool isSavingInking;
-        private bool inkingChanged;
         private bool isRenderingPage;
         private string futureAccessToken;
 
@@ -130,13 +129,12 @@ namespace Libra
             this.inkingPageRange = new PageRange();
             this._visiblePageRange = new PageRange();
             this._viewerKey = new Guid();
-            this.fitViewHeight = 0;
-            this.fitViewWidth = 0;
             this.pageCount = 0;
             this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.renderPagesQueue = new Queue<int>();
+            this.inkingChangedPagesQueue = new Queue<int>();
             this.isRenderingPage = false;
             this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
@@ -286,8 +284,8 @@ namespace Libra
             // Zoom the first page to fit the viewer window width
             float zoomFactor = (float)(this.scrollViewer.ActualWidth
                 / (this.pdfDocument.GetPage(0).Size.Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
-            double hOffset = 0;
-            if (this.scrollViewer.ScrollableWidth > 0) hOffset = this.scrollViewer.ScrollableWidth / 2;
+            double hOffset = this.imagePanel.ActualWidth * zoomFactor - this.scrollViewer.ActualWidth;
+            hOffset = hOffset > 0 ? hOffset / 2 : 0;
             return this.scrollViewer.ChangeView(hOffset, 0, zoomFactor);
         }
 
@@ -303,7 +301,10 @@ namespace Libra
             if (SuspensionManager.viewerStateDictionary == null || SuspensionManager.viewerStateDictionary.Count == 0)
             {
                 SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
-                SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), SaveViewerState());
+                ViewerState viewerState = SaveViewerState();
+                viewerState.hOffset = this.scrollViewer.ScrollableWidth / 2;
+                viewerState.vOffset = 0;
+                SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), viewerState);
             }
             // Create navigation buttons for the views
             NavigationPage.Current.InitializeViewBtn();
@@ -317,10 +318,8 @@ namespace Libra
         /// whether the inking has been modified or not.
         /// </summary>
         /// <returns></returns>
-        private async Task SaveInking()
+        private async Task SaveInkingDictionary()
         {
-            System.Diagnostics.Stopwatch inkingSavingWatch = new System.Diagnostics.Stopwatch();
-            inkingSavingWatch.Start();
             // Save ink canvas
             this.isSavingInking = true;
             foreach (int pageNumber in this.inkCanvasList)
@@ -355,8 +354,37 @@ namespace Libra
             }
 
             AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
-            inkingSavingWatch.Stop();
-            AppEventSource.Log.Info("ViewerPage: Finished saving process in " + inkingSavingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
+            this.isSavingInking = false;
+        }
+
+        private async Task SaveInkingQueue()
+        {
+            this.isSavingInking = true;
+            while (this.inkingChangedPagesQueue.Count > 0)
+            {
+                int pageNumber = this.inkingChangedPagesQueue.Dequeue();
+                // Save ink strokes to dictionary
+                SaveInkCanvas(pageNumber);
+                // Save inking to file
+                try
+                {
+                    StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
+                        pageNumber.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
+                    using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
+                    {
+                        InkStrokeContainer inkStrokeContainer;
+                        if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+                        {
+                            await inkStrokeContainer.SaveAsync(inkStream);
+                        }
+                    }
+                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber + " saved.");
+                }
+                catch (Exception ex)
+                {
+                    NotifyUser("An error occurred when saving inking. \n" + ex.Message, true);
+                }
+            }
             this.isSavingInking = false;
         }
 
@@ -482,6 +510,7 @@ namespace Libra
             // Total number of pages
             this.pageCount = (int)pdfDocument.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
+            // Zoom the first page to fit the viewer window width
             ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
@@ -514,7 +543,6 @@ namespace Libra
 
         private async void FinishInitialization()
         {
-            ResetViewer();
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             // Load viewer state
             await LoadViewerState();
@@ -668,45 +696,32 @@ namespace Libra
 
         /// <summary>
         /// Calculate the maximum page height and width within the visible pages.
-        /// And determine whether to show fit to window button or fill window button.
         /// </summary>
-        private void UpdateFitView()
+        private Size MaxVisiblePageSize()
         {
-            // Update Fill window / Fit Window button and parameters.
+            double height = 0;
+            double width = 0;
             // Calculate FitView height/width based of the actual page height/width of visible pages.
             for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
             {
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
-                if (image == null) return;
+                if (image == null) continue;
                 if (i == VisiblePageRange.first)
                 {
-                    this.fitViewHeight = image.ActualHeight;
-                    this.fitViewWidth = image.ActualWidth;
+                    height = image.ActualHeight;
+                    width = image.ActualWidth;
                 }
                 else
                 {
-                    if (image.ActualHeight > this.fitViewHeight) this.fitViewHeight = image.ActualHeight;
-                    if (image.ActualWidth > this.fitViewWidth) this.fitViewWidth = image.ActualWidth;
+                    if (image.ActualHeight > height) height = image.ActualHeight;
+                    if (image.ActualWidth > width) width = image.ActualWidth;
                 }
             }
             // Add the page margin and scroll bar width
-            this.fitViewHeight = this.fitViewHeight + 2 * SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
-            this.fitViewWidth = this.fitViewWidth + SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
-            // If FitView size if greater than the scroll viewer size, display the fit to window button (shrink).
-            // Otherwise, display the fill window button.
-            if (this.imagePanel.Orientation == Orientation.Vertical
-                && (this.fitViewWidth * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualWidth
-                || this.imagePanel.Orientation == Orientation.Horizontal
-                && (this.fitViewHeight * this.scrollViewer.ZoomFactor) > this.scrollViewer.ActualHeight)
-            {
-                this.FillWindowBtn.Visibility = Visibility.Collapsed;
-                this.FitToWindowBtn.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                this.FillWindowBtn.Visibility = Visibility.Visible;
-                this.FitToWindowBtn.Visibility = Visibility.Collapsed;
-            }
+            height = height + 2 * SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
+            width = width + SCROLLBAR_WIDTH + 2 * PAGE_IMAGE_MARGIN;
+
+            return new Size(width, height);
         }
 
         /// <summary>
@@ -741,13 +756,13 @@ namespace Libra
         private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
-            if (grid.Children.Count > 1)
+            if (grid.Children.Count > 1)    // No inkcanvas if count < 1
             {
                 // Save ink strokes, if there is any
                 InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
                 if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
                 {
-                    // Remove old item in dictionary
+                    // Remove item in dictionary, it will return false if item not found
                     this.inkingDictionary.Remove(pageNumber);
                     // Add to dictionary
                     this.inkingDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
@@ -877,23 +892,25 @@ namespace Libra
         /// <param name="sender"></param>
         private async void InkPresenter_StrokesChanged(InkPresenter sender)
         {
-            // Indicate inking changed.
-            this.inkingChanged = true;
+            // Find the page number
+            int pageNumber = 0;
+            foreach (int i in inkCanvasList)
+            {
+                InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + i.ToString());
+                if (inkCanvas.InkPresenter == sender) pageNumber = i;
+            }
+            if (pageNumber == 0)
+            {
+                AppEventSource.Log.Error("ViewerPage: Strokes Changed but Ink canvas found.");
+                return;
+            }
+            // Enqueue the page if it is not already in the queue
+            if (!this.inkingChangedPagesQueue.Contains(pageNumber))
+                this.inkingChangedPagesQueue.Enqueue(pageNumber);
             // Invoke save inking only if SaveInking is not running.
             // This will prevent running multiple saving instance at the same time.
             if (!this.isSavingInking)
-            {
-                // Pause recycling when saving inking.
-                this.recycleTimer.Stop();
-                // Save inking again if inking is changed before previous saving is finished.
-                while (this.inkingChanged)
-                {
-                    this.inkingChanged = false;
-                    await SaveInking();
-                }
-                // Continue recycling
-                this.recycleTimer.Start();
-            }
+                await SaveInkingQueue();
         }
 
         /// <summary>
@@ -948,8 +965,8 @@ namespace Libra
         /// </summary>
         private void RefreshViewer()
         {
-            if(this.fileLoaded) UpdateFitView();
-            PreparePages(this.VisiblePageRange);
+            if(this.fileLoaded)
+                PreparePages(this.VisiblePageRange);
         }
 
         /// <summary>
@@ -1088,7 +1105,8 @@ namespace Libra
         private void RecycleTimer_Tick(object sender, object e)
         {
             this.recycleTimer.Stop();
-            while (this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
+            // Avoid recycling when saving inking
+            while (!this.isSavingInking && this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
             }
@@ -1098,7 +1116,7 @@ namespace Libra
         private void pageNumberTextTimer_Tick(object sender, object e)
         {
             pageNumberTextTimer.Stop();
-            this.pageNumberFadeOut.Begin();
+            this.infoGridFadeOut.Begin();
         }
 
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -1106,8 +1124,11 @@ namespace Libra
             // Determine visible page range
             this._visiblePageRange = FindVisibleRange();
             // Show page number
-            this.pageNumberTextBlock.Text = this.VisiblePageRange.last.ToString() + " / " + this.pageCount.ToString();
-            this.pageNumberGrid.Opacity = PAGE_NUMBER_OPACITY;
+            this.pageNumberTextBlock.Text = this.VisiblePageRange.ToString() + " / " + this.pageCount.ToString();
+            // Show zoom level
+            this.zoomFactorTextBlock.Text = ((int)(this.scrollViewer.ZoomFactor * 100)).ToString() + "%";
+            // Show information grid
+            this.infoGrid.Opacity = INFO_GRID_OPACITY;
             // The following code acts like a filter to prevent the timer ticking too frequently
             if (fileLoaded && !e.IsIntermediate)
             {
@@ -1148,7 +1169,6 @@ namespace Libra
                 this.HorizontalViewSecBtn.Visibility = Visibility.Visible;
                 this.ViewSecBtnSeparator.Visibility = Visibility.Visible;
             }
-            if(this.fileLoaded) UpdateFitView();
         }
 
         private void ClearInputTypeToggleBtn()
@@ -1263,7 +1283,7 @@ namespace Libra
                 this.imagePanel.Orientation = Orientation.Vertical;
                 this.imagePanel.UpdateLayout();
                 // Recalculate offset
-                float zoomFactor = (float)(this.scrollViewer.ActualWidth / this.fitViewWidth);
+                float zoomFactor = (float)(this.scrollViewer.ActualWidth / MaxVisiblePageSize().Width);
                 double vOffset = 0;
                 double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
                 vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
@@ -1290,7 +1310,7 @@ namespace Libra
                 this.imagePanel.Orientation = Orientation.Horizontal;
                 this.imagePanel.UpdateLayout();
                 // Recalculate offset
-                float zoomFactor = (float)(this.scrollViewer.ActualHeight / this.fitViewHeight);
+                float zoomFactor = (float)(this.scrollViewer.ActualHeight / MaxVisiblePageSize().Height);
                 double hOffset = 0;
                 double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
                 hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
@@ -1399,49 +1419,156 @@ namespace Libra
         }
 
         /// <summary>
-        /// Event handler to fit the page(s) to window / fill the window with page(s)
+        /// Calculate the new vertical offset after zoom factor changed
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void FitToWindowBtn_Click(object sender, RoutedEventArgs e)
+        /// <param name="newZoomFactor"></param>
+        /// <returns></returns>
+        private double ZoomVerticalOffset(float newZoomFactor)
         {
-            if (this.imagePanel.Orientation == Orientation.Vertical && this.fitViewWidth > 0)
+            double panelHeight = this.imagePanel.ActualHeight * newZoomFactor;
+            double vOffsetPercent = (this.scrollViewer.ActualHeight / 2 + this.scrollViewer.VerticalOffset)
+                / (this.imagePanel.ActualHeight * this.scrollViewer.ZoomFactor);
+            vOffsetPercent = vOffsetPercent > 1 ? 0 : vOffsetPercent;
+            double vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
+            return vOffset = vOffset < 0 ? 0 : vOffset;
+        }
+
+        /// <summary>
+        /// Calculate the new horizontal offset after zoom factor changed
+        /// </summary>
+        /// <param name="newZoomFactor"></param>
+        /// <returns></returns>
+        private double ZoomHorizontalOffset(float newZoomFactor)
+        {
+            double panelWidth = this.imagePanel.ActualWidth * newZoomFactor;
+            double hOffsetPercent = (this.scrollViewer.ActualWidth / 2 + this.scrollViewer.HorizontalOffset)
+                / (this.imagePanel.ActualWidth * this.scrollViewer.ZoomFactor);
+            hOffsetPercent = hOffsetPercent > 1 ? 0 : hOffsetPercent;
+            double hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
+            return hOffset = hOffset < 0 ? 0 : hOffset;
+        }
+
+        private Size FitOffset(float newZoomFactor)
+        {
+            double hOffset, vOffset;
+            if (this.imagePanel.Orientation == Orientation.Vertical)
+            {
+                // Calculate the vertical offset
+                vOffset = ZoomVerticalOffset(newZoomFactor);
+                // Center the page horizontally
+                double panelWidth = this.imagePanel.ActualWidth * newZoomFactor;
+                hOffset = panelWidth > this.scrollViewer.ActualWidth ? (panelWidth - this.scrollViewer.ActualWidth) / 2 : 0;
+            }
+            else
+            {
+                // Center the page vertically
+                double panelHeight = this.imagePanel.ActualHeight * newZoomFactor;
+                vOffset = panelHeight > this.scrollViewer.ActualHeight ? (panelHeight - this.scrollViewer.ActualHeight) / 2 : 0;
+                // Calculate the horizontal offset
+                hOffset = ZoomHorizontalOffset(newZoomFactor);
+            }
+            return new Size(hOffset, vOffset);
+        }
+
+        private void FitWidthBtn_Click(object sender, RoutedEventArgs e)
+        {
+            double pageWidth = MaxVisiblePageSize().Width;
+            if (pageWidth > 0)
             {
                 // Calculate the zoom factor.
-                float zoomFactor = (float)(this.scrollViewer.ActualWidth / this.fitViewWidth);
-                // Calculate the vertical offset
-                double vOffset = 0;
-                double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
-                double vOffsetPercent = (this.scrollViewer.ActualHeight / 2 + this.scrollViewer.VerticalOffset)
-                    / (this.imagePanel.ActualHeight * this.scrollViewer.ZoomFactor);
-                vOffsetPercent = vOffsetPercent > 1 ? 0 : vOffsetPercent;
-                vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
-                vOffset = vOffset < 0 ? 0 : vOffset;
-                // Center the page horizontally
-                double hOffset = 0;
-                double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
-                if (panelWidth > this.scrollViewer.ActualWidth) hOffset = (panelWidth - this.scrollViewer.ActualWidth) / 2;
-                //
-                this.scrollViewer.ChangeView(hOffset, vOffset, zoomFactor);
+                float zoomFactor = (float)(this.scrollViewer.ActualWidth / pageWidth);
+                // Calculate new offsets.
+                Size offset = FitOffset(zoomFactor);
+                // Scroll to a suitable page
+                this.scrollViewer.ChangeView(offset.Width, offset.Height, zoomFactor);
+                //ScrollToPage(this.VisiblePageRange.first - 1, zoomFactor);
             }
-            else if (this.imagePanel.Orientation == Orientation.Horizontal && this.fitViewHeight > 0)
+        }
+
+        private void FitHeightBtn_Click(object sender, RoutedEventArgs e)
+        {
+            double pageHeight = MaxVisiblePageSize().Height;
+            if (pageHeight > 0)
             {
-                float zoomFactor = (float)(this.scrollViewer.ActualHeight / this.fitViewHeight);
-                // Center the page vertically
-                double vOffset = 0;
-                double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
-                if (panelHeight > this.scrollViewer.ActualHeight) vOffset = (panelHeight - this.scrollViewer.ActualHeight) / 2;
-                // Calculate the horizontal offset
-                double hOffset = 0;
-                double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
-                double hOffsetPercent = (this.scrollViewer.ActualWidth / 2 + this.scrollViewer.HorizontalOffset)
-                    / (this.imagePanel.ActualWidth * this.scrollViewer.ZoomFactor);
-                hOffsetPercent = hOffsetPercent > 1 ? 0 : hOffsetPercent;
-                hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
-                hOffset = hOffset < 0 ? 0 : hOffset;
-                //
-                this.scrollViewer.ChangeView(hOffset, vOffset, zoomFactor);
+                float zoomFactor = (float)(this.scrollViewer.ActualHeight / pageHeight);
+                // Calculate new offsets.
+                Size offset = FitOffset(zoomFactor);
+                // Scroll to a suitable page 
+                this.scrollViewer.ChangeView(offset.Width, offset.Height, zoomFactor);
+                //ScrollToPage(this.VisiblePageRange.first - 1, zoomFactor);
             }
+        }
+
+        private void FitPageBtn_Click(object sender, RoutedEventArgs e)
+        {
+            Size pageSize = MaxVisiblePageSize();
+            if (pageSize.Height > pageSize.Width)
+                FitHeightBtn_Click(sender, e);
+            else
+                FitWidthBtn_Click(sender, e);
+        }
+
+        /// <summary>
+        /// Scroll to a specific page and center the view.
+        /// </summary>
+        /// <param name="pageIndex"></param>
+        /// <param name="zoomFactor"></param>
+        private bool ScrollToPage(int pageIndex, float? zoomFactor = null)
+        {
+            if (pageIndex < 0) return false;
+            if (zoomFactor == null) zoomFactor = this.scrollViewer.ZoomFactor;
+            double pageOffset = 0;
+            // Calculate Offset
+            for (uint i = 0; i < pageIndex; i++)
+            {
+                pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
+                    this.pdfDocument.GetPage(i).Size.Height :
+                    this.pdfDocument.GetPage(i).Size.Width;
+                pageOffset += 2 * PAGE_IMAGE_MARGIN;
+            }
+            pageOffset *= (float)zoomFactor;
+            double viewOffset;
+            if(this.imagePanel.Orientation == Orientation.Vertical)
+            {
+                double panelWidth = this.imagePanel.ActualWidth * (float)zoomFactor;
+                viewOffset = panelWidth > this.scrollViewer.ActualWidth ? (panelWidth - this.scrollViewer.ActualWidth) / 2 : 0;
+            }
+            else
+            {
+                double panelHeight = this.imagePanel.ActualHeight * (float)zoomFactor;
+                viewOffset = panelHeight > this.scrollViewer.ActualHeight ? (panelHeight - this.scrollViewer.ActualHeight) / 2 : 0;
+            }
+
+            // Change View
+            if (this.imagePanel.Orientation == Orientation.Vertical)
+                return this.scrollViewer.ChangeView(viewOffset, pageOffset, zoomFactor);
+            else return this.scrollViewer.ChangeView(pageOffset, viewOffset, zoomFactor);
+        }
+
+        private bool ZoomView(float zoomFactor)
+        {
+            double hOffset = ZoomHorizontalOffset(zoomFactor);
+            double vOffset = ZoomVerticalOffset(zoomFactor);
+            return this.scrollViewer.ChangeView(hOffset, vOffset, zoomFactor);
+        }
+
+        private void ActualSizeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ZoomView(1);
+        }
+
+        private void ZoomInBtn_Click(object sender, RoutedEventArgs e)
+        {
+            float newZoomFactor = (float)(this.scrollViewer.ZoomFactor * (1 + ZOOM_STEP_SIZE));
+            newZoomFactor = newZoomFactor > this.scrollViewer.MaxZoomFactor ? this.scrollViewer.MaxZoomFactor : newZoomFactor;
+            ZoomView(newZoomFactor);
+        }
+
+        private void ZoomOutBtn_Click(object sender, RoutedEventArgs e)
+        {
+            float newZoomFactor = (float)(this.scrollViewer.ZoomFactor * (1 - ZOOM_STEP_SIZE));
+            newZoomFactor = newZoomFactor < this.scrollViewer.MinZoomFactor ? this.scrollViewer.MinZoomFactor : newZoomFactor;
+            ZoomView(newZoomFactor);
         }
 
         /// <summary>
@@ -1486,8 +1613,7 @@ namespace Libra
                 // Switching to zoom out view (Grid View)
                 this.GridViewBtn.IsChecked = true;
                 DisableInputTypeBtn();
-                this.FitToWindowBtn.IsEnabled = false;
-                this.FillWindowBtn.IsEnabled = false;
+                this.ZoomBtn.IsEnabled = false;
                 // Pause zoom in view rendering 
                 this.renderPagesQueue.Clear();
                 // Resume zoom out view rendering
@@ -1509,8 +1635,7 @@ namespace Libra
                     this.VerticalViewBtn.IsChecked = true;
                 else this.HorizontalViewBtn.IsChecked = true;
                 EnableInputTypeBtn();
-                this.FitToWindowBtn.IsEnabled = true;
-                this.FillWindowBtn.IsEnabled = true;
+                this.ZoomBtn.IsEnabled = true;
                 // Pause zoom out view rendering
                 this.pageThumbnails.PauseRendering();
                 // Resume zoom in view rendering
@@ -1518,20 +1643,7 @@ namespace Libra
                 // Sync current visible page between views
                 int pageIndex = this.pageThumbnails.SelectedIndex;
                 if (pageIndex >= 0)
-                {
-                    double pageOffset = 0;
-                    for (uint i = 0; i < pageIndex; i++)
-                    {
-                        pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
-                            this.pdfDocument.GetPage(i).Size.Height :
-                            this.pdfDocument.GetPage(i).Size.Width;
-                        pageOffset += 2 * PAGE_IMAGE_MARGIN;
-                    }
-                    pageOffset *= this.scrollViewer.ZoomFactor;
-                    if (this.imagePanel.Orientation == Orientation.Vertical)
-                        this.scrollViewer.ChangeView(null, pageOffset, null);
-                    else this.scrollViewer.ChangeView(pageOffset, null, null);
-                }
+                    ScrollToPage(pageIndex);
             }
         }
 

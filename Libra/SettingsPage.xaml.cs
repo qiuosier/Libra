@@ -114,5 +114,10 @@ namespace Libra
             App.AppSettings["showRecentFiles"] = this.toggleSwitchShowRecentFiles.IsOn;
             ApplicationData.Current.RoamingSettings.Values["showRecentFiles"] = this.toggleSwitchShowRecentFiles.IsOn;
         }
+
+        private async void SendFeedback_Click(object sender, RoutedEventArgs e)
+        {
+            await Launcher.LaunchUriAsync(new Uri("mailto:cetrs@msn.com?subject=Feedback on Q PDF Pages App"));
+        }
     }
 }
