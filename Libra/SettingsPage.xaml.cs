@@ -1,4 +1,5 @@
-﻿using Microsoft.AdMediator.Core.Models;
+﻿using Libra.Class;
+using Microsoft.AdMediator.Core.Models;
 using System;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
@@ -29,10 +30,10 @@ namespace Libra
             if (App.licenseInformation.ProductLicenses["removedAds"].IsActive)
                 RemoveAds();
             // Load current settings
-            this.toggleSwitchLogging.IsOn = (bool)App.AppSettings["debugLogging"];
-            this.toggleSwitchReopenFile.IsOn = (bool)App.AppSettings["reopenFile"];
-            this.toggleSwitchRestoreView.IsOn = (bool)App.AppSettings["restoreView"];
-            this.toggleSwitchShowRecentFiles.IsOn = (bool)App.AppSettings["showRecentFiles"];
+            this.toggleSwitchLogging.IsOn = (bool)App.AppSettings[App.DEBUG_LOGGING];
+            this.toggleSwitchReopenFile.IsOn = (bool)App.AppSettings[App.REOPEN_FILE];
+            this.toggleSwitchRestoreView.IsOn = (bool)App.AppSettings[App.RESTORE_VIEW];
+            this.toggleSwitchShowRecentFiles.IsOn = (bool)App.AppSettings[App.SHOW_RECENT_FILES];
         }
 
         /// <summary>
@@ -93,31 +94,47 @@ namespace Libra
 
         private void toggleSwitchLogging_Toggled(object sender, RoutedEventArgs e)
         {
-            App.AppSettings["debugLogging"] = this.toggleSwitchLogging.IsOn;
-            ApplicationData.Current.RoamingSettings.Values["debugLogging"] = this.toggleSwitchLogging.IsOn;
+            App.AppSettings[App.DEBUG_LOGGING] = this.toggleSwitchLogging.IsOn;
+            ApplicationData.Current.RoamingSettings.Values[App.DEBUG_LOGGING] = this.toggleSwitchLogging.IsOn;
         }
 
         private void toggleSwitchReopenFile_Toggled(object sender, RoutedEventArgs e)
         {
-            App.AppSettings["reopenFile"] = this.toggleSwitchReopenFile.IsOn;
-            ApplicationData.Current.RoamingSettings.Values["reopenFile"] = this.toggleSwitchReopenFile.IsOn;
+            App.AppSettings[App.REOPEN_FILE] = this.toggleSwitchReopenFile.IsOn;
+            ApplicationData.Current.RoamingSettings.Values[App.REOPEN_FILE] = this.toggleSwitchReopenFile.IsOn;
         }
 
         private void toggleSwitchRestoreView_Toggled(object sender, RoutedEventArgs e)
         {
-            App.AppSettings["restoreView"] = this.toggleSwitchRestoreView.IsOn;
-            ApplicationData.Current.RoamingSettings.Values["restoreView"] = this.toggleSwitchRestoreView.IsOn;
+            App.AppSettings[App.RESTORE_VIEW] = this.toggleSwitchRestoreView.IsOn;
+            ApplicationData.Current.RoamingSettings.Values[App.RESTORE_VIEW] = this.toggleSwitchRestoreView.IsOn;
         }
 
         private void toggleSwitchShowRecentFiles_Toggled(object sender, RoutedEventArgs e)
         {
-            App.AppSettings["showRecentFiles"] = this.toggleSwitchShowRecentFiles.IsOn;
-            ApplicationData.Current.RoamingSettings.Values["showRecentFiles"] = this.toggleSwitchShowRecentFiles.IsOn;
+            App.AppSettings[App.SHOW_RECENT_FILES] = this.toggleSwitchShowRecentFiles.IsOn;
+            ApplicationData.Current.RoamingSettings.Values[App.SHOW_RECENT_FILES] = this.toggleSwitchShowRecentFiles.IsOn;
         }
 
         private async void SendFeedback_Click(object sender, RoutedEventArgs e)
         {
             await Launcher.LaunchUriAsync(new Uri("mailto:cetrs@msn.com?subject=Feedback on Q PDF Pages App"));
+        }
+
+        private void ResetNotification_Click(object sender, RoutedEventArgs e)
+        {
+            App.AppSettings[App.INKING_WARNING] = true;
+            ApplicationData.Current.RoamingSettings.Values[App.INKING_WARNING] = true;
+            App.AppSettings[App.ERASER_WARNING] = true;
+            ApplicationData.Current.RoamingSettings.Values[App.ERASER_WARNING] = true;
+            App.AppSettings[App.TUTORIAL] = true;
+            ApplicationData.Current.RoamingSettings.Values[App.TUTORIAL] = true;
+        }
+
+        private async void About_Click(object sender, RoutedEventArgs e)
+        {
+            AboutContentDialog dialog = new AboutContentDialog();
+            await dialog.ShowAsync();
         }
     }
 }

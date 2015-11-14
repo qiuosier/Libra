@@ -46,7 +46,7 @@
                     </MenuFlyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
-            <AppBarButton Icon="Cancel" Label="Close This View" Click="Close_Click"/>
+            <AppBarButton x:Name="closeThisView" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
                                     IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
@@ -56,11 +56,12 @@
                 <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
                 <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
-                <AppBarButton Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
+                <AppBarButton x:Name="closeThisViewSec" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
+                <AppBarButton x:Name="closeAllViews"  Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
-        <!--<Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
-                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>-->
+        <Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>
         <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="False">
             <SemanticZoom.ZoomedOutView>
                 <GridView x:Name="zoomOutGrid" Padding="10"  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
@@ -70,7 +71,7 @@
                           Foreground="White">
                     <GridView.ItemTemplate>
                         <DataTemplate>
-                            <Grid Height="250" Width="200" PointerReleased="ThumbnailGrid_PointerReleased">
+                            <Grid Height="250" Width="200" Tapped="ThumbnailGrid_Tapped">
                                 <Viewbox>
                                     <Grid Background="White" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}">
                                         <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>

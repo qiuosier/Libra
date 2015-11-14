@@ -41,8 +41,10 @@ namespace Libra
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
         private const int MIN_RENDER_WIDTH = 500;
-        private const int MIN_WINDOW_WIDTH_TO_SHOW_FILENAME = 800;
-        private const int MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN = 650;
+        private const int MIN_WIDTH_TO_SHOW_FILENAME = 850;
+        private const int MIN_WIDTH_TO_SHOW_ORIENTATION_BTN = 650;
+        private const int MIN_WIDTH_TO_SHOW_CLOSE_BTN = 750;
+        private const int MIN_WIDTH_TO_SHOW_PAN_BTN = 700;
         private const double INFO_GRID_OPACITY = 0.75;
         private const double ZOOM_STEP_SIZE = 0.25;
 
@@ -866,20 +868,20 @@ namespace Libra
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
         {
             // Notify user about the risk when using inking for the first time.
-            if ((bool)App.AppSettings["inkingWarning"])
+            if ((bool)App.AppSettings[App.INKING_WARNING])
             {
                 int userResponse = await ShowMessageDialog("Ink strokes collection is an experimental feature. \n" +
                     "Currently ink strokes are NOT SAVED to the PDF file. They are saved ONLY IN THIS APP. \n" +
                     "You can export the ink strokes along with pdf pages as image file.",
-                    new string[] {"OK, do not show this again.", "Notify me again next time." });
+                    new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
                     case 0: // Do not show again
-                        ApplicationData.Current.RoamingSettings.Values["inkingWarning"] = false;
-                        App.AppSettings["inkingWarning"] = false;
+                        ApplicationData.Current.RoamingSettings.Values[App.INKING_WARNING] = false;
+                        App.AppSettings[App.INKING_WARNING] = false;
                         break;
                     default:
-                        App.AppSettings["inkingWarning"] = false;
+                        App.AppSettings[App.INKING_WARNING] = false;
                         break;
                 }
             }
@@ -1148,12 +1150,12 @@ namespace Libra
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Filename Textblock
-            if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_TO_SHOW_FILENAME)
+            if (Window.Current.Bounds.Width > MIN_WIDTH_TO_SHOW_FILENAME)
                 this.filenameTextBlock.Visibility = Visibility.Visible;
             else
                 this.filenameTextBlock.Visibility = Visibility.Collapsed;
             // View orientation buttons
-            if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_TO_SHOW_VIEW_BTN)
+            if (Window.Current.Bounds.Width > MIN_WIDTH_TO_SHOW_ORIENTATION_BTN)
             {
                 this.VerticalViewBtn.Visibility = Visibility.Visible;
                 this.VerticalViewSecBtn.Visibility = Visibility.Collapsed;
@@ -1168,6 +1170,17 @@ namespace Libra
                 this.HorizontalViewBtn.Visibility = Visibility.Collapsed;
                 this.HorizontalViewSecBtn.Visibility = Visibility.Visible;
                 this.ViewSecBtnSeparator.Visibility = Visibility.Visible;
+            }
+            // Close view button
+            if (Window.Current.Bounds.Width > MIN_WIDTH_TO_SHOW_CLOSE_BTN)
+            {
+                this.closeThisView.Visibility = Visibility.Visible;
+                this.closeThisViewSec.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                this.closeThisView.Visibility = Visibility.Collapsed;
+                this.closeThisViewSec.Visibility = Visibility.Visible;
             }
         }
 
@@ -1220,7 +1233,7 @@ namespace Libra
             UpdateInkPresenter();
         }
 
-        private void Eraser_Click(object sender, RoutedEventArgs e)
+        private async void Eraser_Click(object sender, RoutedEventArgs e)
         {
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Eraser selected");
@@ -1231,6 +1244,24 @@ namespace Libra
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
             this.inkProcessMode = InkInputProcessingMode.Erasing;
             UpdateInkPresenter();
+            // Notify user about the risk when using eraser for the first time.
+            if ((bool)App.AppSettings[App.INKING_WARNING])
+            {
+                int userResponse = await ShowMessageDialog("Eraser deletes the entire stroke. \n" +
+                    "Eraser operation cannot be undo. \n" +
+                    "Please use with care. ",
+                    new string[] { "OK, do not show this again.", "Notify me again next time." });
+                switch (userResponse)
+                {
+                    case 0: // Do not show again
+                        ApplicationData.Current.RoamingSettings.Values[App.INKING_WARNING] = false;
+                        App.AppSettings[App.INKING_WARNING] = false;
+                        break;
+                    default:
+                        App.AppSettings[App.INKING_WARNING] = false;
+                        break;
+                }
+            }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)
@@ -1654,7 +1685,7 @@ namespace Libra
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void ThumbnailGrid_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
         {
             this.pageThumbnails.SelectedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfDocument.PageCount - this.pageThumbnails.Count));

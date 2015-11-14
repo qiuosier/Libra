@@ -3,7 +3,7 @@
   <Identity Name="19957f3f-f48d-4042-8acd-f0ee5196394f" Publisher="CN=Qiu" Version="1.0.0.0" />
   <mp:PhoneIdentity PhoneProductId="19957f3f-f48d-4042-8acd-f0ee5196394f" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
-    <DisplayName>Libra</DisplayName>
+    <DisplayName>Q PDF Pages</DisplayName>
     <PublisherDisplayName>Qiu</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -15,7 +15,7 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Libra.App">
-      <uap:VisualElements DisplayName="Libra" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" Description="A lightweight pdf viewer" BackgroundColor="transparent">
+      <uap:VisualElements DisplayName="Q PDF Pages" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" Description="A lightweight pdf viewer" BackgroundColor="transparent">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" ShortName="Q Viewer">
           <uap:ShowNameOnTiles>
             <uap:ShowOn Tile="square150x150Logo" />

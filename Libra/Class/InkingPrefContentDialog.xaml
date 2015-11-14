@@ -20,33 +20,38 @@
                 <StackPanel Orientation="Horizontal" />
             </ItemsPanelTemplate>
         </Grid.Resources>
-        <StackPanel>
-            <TextBlock x:Name="penSizeLabel" Text="Pencil Tip Size: " Margin="0,15,0,0"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Grid MinWidth="50" VerticalAlignment="Center">
-                    <Ellipse x:Name="penSizeEllipse" MinHeight="2" MinWidth="2" Fill="Red" Width="5" Height="5"/>
-                </Grid>
-                <Slider x:Name="penSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="15" Minimum="1" TickFrequency="1" ValueChanged="penSizeSlider_ValueChanged"/>
+        <StackPanel Margin="0,15,0,0">
+            <StackPanel Padding="10" BorderBrush="LightSteelBlue" BorderThickness="2">
+                <TextBlock x:Name="penSizeLabel" Text="Pencil Tip Size: " Margin="0,15,0,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Grid MinWidth="50" VerticalAlignment="Center">
+                        <Ellipse x:Name="penSizeEllipse" MinHeight="2" MinWidth="2" Fill="Red" Width="5" Height="5"/>
+                    </Grid>
+                    <Slider x:Name="penSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="15" Minimum="1" TickFrequency="1" ValueChanged="penSizeSlider_ValueChanged"/>
+                </StackPanel>
+                <TextBlock x:Name="penColorLabel" Text="Pen Color: "/>
+                <ListBox x:Name="penColorListBox" 
+                         ItemsSource="{Binding}" 
+                         ItemTemplate="{StaticResource colorPicker}" 
+                         ItemsPanel="{StaticResource colorPanel}" 
+                         SelectionChanged="penColorListBox_SelectionChanged" />
             </StackPanel>
-            <TextBlock x:Name="penColorLabel" Text="Pen Color: "/>
-            <ListBox x:Name="penColorListBox" 
-                     ItemsSource="{Binding}" 
-                     ItemTemplate="{StaticResource colorPicker}" 
-                     ItemsPanel="{StaticResource colorPanel}" 
-                     SelectionChanged="penColorListBox_SelectionChanged" />
-            <TextBlock x:Name="highlighterSizeLabel" Text="Highlighter Size: " Margin="0,15,0,0"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Grid MinWidth="50" VerticalAlignment="Center">
-                    <Rectangle x:Name="highlighterSizeRectangle" MinHeight="5" MinWidth="5" Fill="Yellow" Width="15" Height="15"/>
-                </Grid>
-                <Slider x:Name="highlighterSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="35" Minimum="5" TickFrequency="1" ValueChanged="highlighterSizeSlider_ValueChanged"/>
+                <Rectangle Height="50" />
+            <StackPanel Padding="10" BorderBrush="LightSteelBlue" BorderThickness="2">
+                <TextBlock x:Name="highlighterSizeLabel" Text="Highlighter Size: " Margin="0,15,0,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Grid MinWidth="50" VerticalAlignment="Center">
+                        <Rectangle x:Name="highlighterSizeRectangle" MinHeight="5" MinWidth="5" Fill="Yellow" Width="15" Height="15"/>
+                    </Grid>
+                    <Slider x:Name="highlighterSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="35" Minimum="5" TickFrequency="1" ValueChanged="highlighterSizeSlider_ValueChanged"/>
+                </StackPanel>
+                <TextBlock x:Name="highlighterColorLabel" Text="Pen Color: "/>
+                <ListBox x:Name="highlighterColorListBox" 
+                         ItemsSource="{Binding}" 
+                         ItemTemplate="{StaticResource colorPicker}" 
+                         ItemsPanel="{StaticResource colorPanel}" 
+                         SelectionChanged="highlighterColorListBox_SelectionChanged"/>
             </StackPanel>
-            <TextBlock x:Name="highlighterColorLabel" Text="Pen Color: "/>
-            <ListBox x:Name="highlighterColorListBox" 
-                     ItemsSource="{Binding}" 
-                     ItemTemplate="{StaticResource colorPicker}" 
-                     ItemsPanel="{StaticResource colorPanel}" 
-                     SelectionChanged="highlighterColorListBox_SelectionChanged"/>
             <!--<CheckBox Margin="0,15,0,0" Content="Enable mouse drawing"/>-->
         </StackPanel>
     </Grid>

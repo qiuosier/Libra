@@ -103,6 +103,9 @@
     <Compile Include="BlankPage.xaml.cs">
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Class\AboutContentDialog.xaml.cs">
+      <DependentUpon>AboutContentDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Class\ExportPagesDialog.cs" />
     <Compile Include="Class\InkingPrefContentDialog.xaml.cs">
       <DependentUpon>InkingPrefContentDialog.xaml</DependentUpon>
@@ -131,6 +134,9 @@
     <Compile Include="SettingsPage.xaml.cs">
       <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="TutorialPage.xaml.cs">
+      <DependentUpon>TutorialPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ViewerPage.xaml.cs">
       <DependentUpon>ViewerPage.xaml</DependentUpon>
     </Compile>
@@ -144,6 +150,11 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\Square150x150Logo.scale-100.png" />
+    <Content Include="Assets\Tutorial\Tutorial1.png" />
+    <Content Include="Assets\Tutorial\Tutorial2.png" />
+    <Content Include="Assets\Tutorial\Tutorial3.png" />
+    <Content Include="Assets\Tutorial\Tutorial4.png" />
+    <Content Include="Assets\Tutorial\Tutorial5.png" />
     <Content Include="Assets\Wide310x150Logo.scale-100.png" />
     <Content Include="Properties\Default.rd.xml" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
@@ -162,6 +173,10 @@
     <Page Include="BlankPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Class\AboutContentDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Class\InkingPrefContentDialog.xaml">
       <SubType>Designer</SubType>
@@ -186,6 +201,10 @@
     <Page Include="Styles\Styles.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
+    </Page>
+    <Page Include="TutorialPage.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="ViewerPage.xaml">
       <SubType>Designer</SubType>

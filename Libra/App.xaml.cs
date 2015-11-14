@@ -18,6 +18,17 @@ namespace Libra
     /// </summary>
     sealed partial class App : Application
     {
+        // App settings keys
+        public const string REOPEN_FILE = "reopenFile";
+        public const string RESTORE_VIEW = "restoreView";
+        public const string SHOW_RECENT_FILES = "showRecentFiles";
+        public const string DEBUG_LOGGING = "debugLogging";
+        public const string INKING_WARNING = "inkingWarning";
+        public const string ERASER_WARNING = "eraserWarning";
+        public const string TUTORIAL = "tutorial";
+
+        private const string LOG_FILE_NAME = "LibraAppLog";
+
         private StorageFileEventListener libraListener;
         public static LicenseInformation licenseInformation;
 
@@ -45,11 +56,14 @@ namespace Libra
 
             // Initialize App settings
             AppSettings = new Dictionary<string, object>();
-            AppSettings.Add("reopenFile", true);
-            AppSettings.Add("restoreView", true);
-            AppSettings.Add("showRecentFiles", true);
-            AppSettings.Add("debugLogging", false);
-            AppSettings.Add("inkingWarning", true);
+            AppSettings.Add(REOPEN_FILE, true);
+            AppSettings.Add(RESTORE_VIEW, true);
+            AppSettings.Add(SHOW_RECENT_FILES, true);
+            AppSettings.Add(DEBUG_LOGGING, false);
+            AppSettings.Add(INKING_WARNING, true);
+            AppSettings.Add(ERASER_WARNING, true);
+            AppSettings.Add(TUTORIAL, true);
+            
 
             // Load App settings
             List<string> keys = new List<string>(AppSettings.Keys);
@@ -64,10 +78,10 @@ namespace Libra
 
             // Enable Logging
             EventLevel eLevel;
-            if ((bool)AppSettings["debugLogging"])
+            if ((bool)AppSettings[App.DEBUG_LOGGING])
                 eLevel = EventLevel.Verbose;
             else eLevel = EventLevel.Informational;
-            libraListener = new StorageFileEventListener("LibraAppLog");
+            libraListener = new StorageFileEventListener(LOG_FILE_NAME);
             libraListener.EnableEvents(AppEventSource.Log, eLevel);
             AppEventSource.Log.Info("********** App is starting **********");
         }
@@ -97,7 +111,7 @@ namespace Libra
                 shell = CreateNewNavigationPage();
 
                 if (e.PreviousExecutionState == ApplicationExecutionState.Terminated || 
-                    (e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser && (bool)App.AppSettings["reopenFile"]))
+                    (e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser && (bool)App.AppSettings[REOPEN_FILE]))
                 {
                     // Load state from previously suspended application
                     //AppEventSource.Log.Debug("App: Checking previously suspended state...");
@@ -114,10 +128,19 @@ namespace Libra
 
             if (shell.AppFrame.Content == null)
             {
-                // When the navigation stack isn't restored, navigate to the first page
-                // suppressing the initial entrance animation.
-                AppEventSource.Log.Info("App: Suspended state not found or not restored. Navigating to MainPage.");
-                shell.AppFrame.Navigate(typeof(MainPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                if ((bool)AppSettings[App.TUTORIAL])
+                {
+                    // Show tutorial if it is starting for the first time.
+                    AppEventSource.Log.Info("Starting App for the first time.");
+                    shell.AppFrame.Navigate(typeof(TutorialPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                }
+                else
+                {
+                    // When the navigation stack isn't restored, navigate to the first page
+                    // suppressing the initial entrance animation.
+                    AppEventSource.Log.Info("App: Suspended state not found or not restored. Navigating to MainPage.");
+                    shell.AppFrame.Navigate(typeof(MainPage), e.Arguments, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                }
             }
 
             // Ensure the current window is active

@@ -35,7 +35,9 @@
                 <ToggleSwitch x:Name="toggleSwitchLogging" Header="Enable verbose diagnostic logging" Toggled="toggleSwitchLogging_Toggled" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                 <HyperlinkButton Content="Open App local data folder" Click="OpenLocalFolder_Click"/>
                 <HyperlinkButton Content="Send feedback" Click="SendFeedback_Click"/>
+                <HyperlinkButton Content="About this App" Click="About_Click"/>
                 <HyperlinkButton Content="Rate this App" Visibility="Collapsed"/>
+                <HyperlinkButton Content="Reset Notifications" Click="ResetNotification_Click"/>
             </StackPanel>
             <Grid x:Name="optionalPanelGrid">
                 <StackPanel x:Name="optionalPanel" Visibility="Visible" HorizontalAlignment="Left" VerticalAlignment="Bottom">

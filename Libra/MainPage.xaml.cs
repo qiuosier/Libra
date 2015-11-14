@@ -41,7 +41,7 @@ namespace Libra
             // Show most recent files
             mruFiles = new ObservableCollection<RecentFile>();
             AccessListEntryView mruEntries = null;
-            if ((bool)App.AppSettings["showRecentFiles"])
+            if ((bool)App.AppSettings[App.SHOW_RECENT_FILES])
                 mruEntries = StorageApplicationPermissions.MostRecentlyUsedList.Entries;
             // If no recent file
             if (mruEntries == null || mruEntries.Count == 0)
