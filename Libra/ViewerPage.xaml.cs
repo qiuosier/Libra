@@ -146,6 +146,8 @@ namespace Libra
             this.filenameTextBlock.Text = "";
             this.imagePanel.Orientation = Orientation.Vertical;
             this.semanticZoom.IsZoomedInViewActive = true;
+            ClearViewModeToggleBtn();
+            this.VerticalViewBtn.IsChecked = true;
             this.pageThumbnails = null;
             if (NavigationPage.Current != null) NavigationPage.Current.InitializeViewBtn();
             AppEventSource.Log.Debug("ViewerPage: Viewer panel and settings initialized.");
@@ -227,8 +229,11 @@ namespace Libra
                 // Check which one is the latest view
                 foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
                 {
-                    //ViewerState entry = SuspensionManager.viewerStateList[i];
-                    if (key == Guid.Empty || entry.Value.lastViewed > SuspensionManager.viewerStateDictionary[key].lastViewed)
+                    if (key == Guid.Empty)
+                        key = entry.Key;
+                    // Skip comparison if state is null
+                    if (entry.Value == null) continue;
+                    if (entry.Value.lastViewed > SuspensionManager.viewerStateDictionary[key].lastViewed)
                         key = entry.Key;
                 }
             }
@@ -236,7 +241,10 @@ namespace Libra
 
             NavigationPage.Current.UpdateViewBtn(this.ViewerKey);
 
-            ViewerState viewerState = SuspensionManager.viewerStateDictionary[this.ViewerKey];
+            ViewerState viewerState;
+            // Assign null state if key is not found.
+            if (!SuspensionManager.viewerStateDictionary.TryGetValue(this.ViewerKey, out viewerState))
+                viewerState = null;
             if (viewerState != null)
             {
                 // Check if the viewer state is for this file
@@ -286,9 +294,23 @@ namespace Libra
             // Zoom the first page to fit the viewer window width
             float zoomFactor = (float)(this.scrollViewer.ActualWidth
                 / (this.pdfDocument.GetPage(0).Size.Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
+            zoomFactor = CheckZoomFactor(zoomFactor);
             double hOffset = this.imagePanel.ActualWidth * zoomFactor - this.scrollViewer.ActualWidth;
             hOffset = hOffset > 0 ? hOffset / 2 : 0;
+            AppEventSource.Log.Debug("ViewerPage: Zoom Factor Reset to " + zoomFactor.ToString());
             return this.scrollViewer.ChangeView(hOffset, 0, zoomFactor);
+        }
+
+        /// <summary>
+        /// Make sure the zoom factor of scroll viewer is in range.
+        /// </summary>
+        /// <param name="zoomFactor"></param>
+        /// <returns></returns>
+        private float CheckZoomFactor(float zoomFactor)
+        {
+            zoomFactor = zoomFactor > this.scrollViewer.MaxZoomFactor ? this.scrollViewer.MaxZoomFactor : zoomFactor;
+            zoomFactor = zoomFactor < this.scrollViewer.MinZoomFactor ? this.scrollViewer.MinZoomFactor : zoomFactor;
+            return zoomFactor;
         }
 
         /// <summary>
@@ -303,10 +325,7 @@ namespace Libra
             if (SuspensionManager.viewerStateDictionary == null || SuspensionManager.viewerStateDictionary.Count == 0)
             {
                 SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
-                ViewerState viewerState = SaveViewerState();
-                viewerState.hOffset = this.scrollViewer.ScrollableWidth / 2;
-                viewerState.vOffset = 0;
-                SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), viewerState);
+                SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), null);
             }
             // Create navigation buttons for the views
             NavigationPage.Current.InitializeViewBtn();
@@ -421,7 +440,7 @@ namespace Libra
                 {
                     string errorMsg = "Error when loading inking for page " + pageNumber.ToString() + "\n Exception: " + e.Message;
                     AppEventSource.Log.Error("ViewerPage: " + errorMsg);
-                    int userResponse = await ShowMessageDialog(errorMsg, new string[] { "Remove Inking", "Ignore" });
+                    int userResponse = await NotifyUserWithOptions(errorMsg, new string[] { "Remove Inking", "Ignore" });
                     switch (userResponse)
                     {
                         case 0: // Delete inking file
@@ -444,9 +463,17 @@ namespace Libra
         private async Task SaveDrawingPreference()
         {
             AppEventSource.Log.Debug("ViewerPage: Saving drawing preference...");
-            StorageFile file = await
-                ApplicationData.Current.LocalFolder.CreateFileAsync(INKING_PREFERENCE_FILENAME, CreationCollisionOption.ReplaceExisting);
-            await SuspensionManager.SerializeToFileAsync(this.inkingPreference, typeof(InkingPreference), file);
+            try
+            {
+                StorageFile file = await
+                    ApplicationData.Current.LocalFolder.CreateFileAsync(INKING_PREFERENCE_FILENAME, CreationCollisionOption.ReplaceExisting);
+                await SuspensionManager.SerializeToFileAsync(this.inkingPreference, typeof(InkingPreference), file);
+            }
+            catch (Exception ex)
+            {
+                App.NotifyUser("An Error occurred when saving inking preference.\n" + ex.Message);
+            }
+            
         }
 
         /// <summary>
@@ -546,6 +573,7 @@ namespace Libra
         private async void FinishInitialization()
         {
             this.fullScreenCover.Visibility = Visibility.Collapsed;
+            this.imagePanel.UpdateLayout();
             // Load viewer state
             await LoadViewerState();
             RestoreViewerState();
@@ -583,7 +611,17 @@ namespace Libra
                 {
                     AccessListEntry entry = futureAccessEntries[i];
                     if (entry.Token == this.futureAccessToken) continue;
-                    StorageFile pdfFileInList = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(entry.Token);
+                    StorageFile pdfFileInList = null;
+                    try
+                    {
+                        pdfFileInList = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(entry.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        // remove the entry if there is an exception
+                        StorageApplicationPermissions.FutureAccessList.Remove(entry.Token);
+                    }
+                    if (pdfFileInList == null) continue;
                     if (this.pdfFile.IsEqual(pdfFileInList))
                     {
                         oldToken = entry.Token;
@@ -870,9 +908,10 @@ namespace Libra
             // Notify user about the risk when using inking for the first time.
             if ((bool)App.AppSettings[App.INKING_WARNING])
             {
-                int userResponse = await ShowMessageDialog("Ink strokes collection is an experimental feature. \n" +
+                int userResponse = await NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
                     "Currently ink strokes are NOT SAVED to the PDF file. They are saved ONLY IN THIS APP. \n" +
-                    "You can export the ink strokes along with pdf pages as image file.",
+                    "Ink strokes will be lost if you reinstall windows. \n" +
+                    "You can export the ink strokes along with pdf pages as image files.",
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
@@ -1245,20 +1284,20 @@ namespace Libra
             this.inkProcessMode = InkInputProcessingMode.Erasing;
             UpdateInkPresenter();
             // Notify user about the risk when using eraser for the first time.
-            if ((bool)App.AppSettings[App.INKING_WARNING])
+            if ((bool)App.AppSettings[App.ERASER_WARNING])
             {
-                int userResponse = await ShowMessageDialog("Eraser deletes the entire stroke. \n" +
+                int userResponse = await NotifyUserWithOptions("Eraser deletes the entire stroke. \n" +
                     "Eraser operation cannot be undo. \n" +
                     "Please use with care. ",
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
                     case 0: // Do not show again
-                        ApplicationData.Current.RoamingSettings.Values[App.INKING_WARNING] = false;
-                        App.AppSettings[App.INKING_WARNING] = false;
+                        ApplicationData.Current.RoamingSettings.Values[App.ERASER_WARNING] = false;
+                        App.AppSettings[App.ERASER_WARNING] = false;
                         break;
                     default:
-                        App.AppSettings[App.INKING_WARNING] = false;
+                        App.AppSettings[App.ERASER_WARNING] = false;
                         break;
                 }
             }
@@ -1315,6 +1354,7 @@ namespace Libra
                 this.imagePanel.UpdateLayout();
                 // Recalculate offset
                 float zoomFactor = (float)(this.scrollViewer.ActualWidth / MaxVisiblePageSize().Width);
+                zoomFactor = CheckZoomFactor(zoomFactor);
                 double vOffset = 0;
                 double panelHeight = this.imagePanel.ActualHeight * zoomFactor;
                 vOffset = panelHeight * vOffsetPercent - this.scrollViewer.ActualHeight / 2;
@@ -1342,6 +1382,7 @@ namespace Libra
                 this.imagePanel.UpdateLayout();
                 // Recalculate offset
                 float zoomFactor = (float)(this.scrollViewer.ActualHeight / MaxVisiblePageSize().Height);
+                zoomFactor = CheckZoomFactor(zoomFactor);
                 double hOffset = 0;
                 double panelWidth = this.imagePanel.ActualWidth * zoomFactor;
                 hOffset = panelWidth * hOffsetPercent - this.scrollViewer.ActualWidth / 2;
@@ -1377,9 +1418,10 @@ namespace Libra
                     AppEventSource.Log.Debug("ViewerPage: Exporting Pages: " + dialog.PagesToExportString);
                     // Export images
                     int exportingPageNumber = 0;
-                    try
+                    int exportedCount = 0;
+                    foreach (int pageNumber in dialog.PagesToExport)
                     {
-                        foreach (int pageNumber in dialog.PagesToExport)
+                        try
                         {
                             exportingPageNumber = pageNumber;
                             string filename = dialog.ImageFilename;
@@ -1387,12 +1429,21 @@ namespace Libra
                             StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
                                 CreationCollisionOption.GenerateUniqueName);
                             await Export_Page(pageNumber, file);
+                            exportedCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            NotifyUser("An error occurred when exporting page " + exportingPageNumber.ToString() + ".\n" + ex.Message, true);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        NotifyUser("An error occurred when exporting page " + exportingPageNumber.ToString() + ".\n" + ex.Message, true);
-                    }
+                    // Notify user
+                    string message;
+                    if (exportedCount == 0)
+                        message = "Nothing Exported.";
+                    else if (exportedCount == 1)
+                        message = "1 Page Exported.";
+                    else message = exportedCount.ToString() + " Pages Exported.";
+                    NotifyUser(message);
                 }
             }
         }
@@ -1508,6 +1559,7 @@ namespace Libra
             {
                 // Calculate the zoom factor.
                 float zoomFactor = (float)(this.scrollViewer.ActualWidth / pageWidth);
+                zoomFactor = CheckZoomFactor(zoomFactor);
                 // Calculate new offsets.
                 Size offset = FitOffset(zoomFactor);
                 // Scroll to a suitable page
@@ -1522,6 +1574,7 @@ namespace Libra
             if (pageHeight > 0)
             {
                 float zoomFactor = (float)(this.scrollViewer.ActualHeight / pageHeight);
+                zoomFactor = CheckZoomFactor(zoomFactor);
                 // Calculate new offsets.
                 Size offset = FitOffset(zoomFactor);
                 // Scroll to a suitable page 
@@ -1614,7 +1667,13 @@ namespace Libra
             if (logMessage) AppEventSource.Log.Error("ViewerPage: " + message);
         }
 
-        private async Task<int> ShowMessageDialog(string errorMsg, string[] optionsLabel)
+        /// <summary>
+        /// Show a dialog with notification message and options.
+        /// </summary>
+        /// <param name="errorMsg"></param>
+        /// <param name="optionsLabel"></param>
+        /// <returns></returns>
+        private async Task<int> NotifyUserWithOptions(string errorMsg, string[] optionsLabel)
         {
             MessageDialog messageDialog = new MessageDialog(errorMsg);
             foreach (string label in optionsLabel)
@@ -1627,7 +1686,7 @@ namespace Libra
 
         private void GoToPage_Click(object sender, RoutedEventArgs e)
         {
-
+            // TODO
         }
 
         // The following are for grid view
@@ -1679,15 +1738,23 @@ namespace Libra
         }
 
         private PageCollection pageThumbnails;
+        private int pressedThumbnailIndex;
 
         /// <summary>
         /// Record the clicked item
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void ThumbnailGrid_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
+        private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            this.pageThumbnails.SelectedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
+            int releasedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
+                    - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
+            if (releasedIndex == this.pressedThumbnailIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
+        }
+
+        private void ThumbnailGrid_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
         }
     }

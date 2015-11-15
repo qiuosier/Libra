@@ -10,6 +10,7 @@ using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.ApplicationModel.Store;
 using System.Collections.Generic;
+using Windows.UI.Popups;
 
 namespace Libra
 {
@@ -25,7 +26,7 @@ namespace Libra
         public const string DEBUG_LOGGING = "debugLogging";
         public const string INKING_WARNING = "inkingWarning";
         public const string ERASER_WARNING = "eraserWarning";
-        public const string TUTORIAL = "tutorial";
+        public const string TUTORIAL = "showTutorial";
 
         private const string LOG_FILE_NAME = "LibraAppLog";
 
@@ -52,7 +53,7 @@ namespace Libra
             // licenseInformation = CurrentApp.LicenseInformation;
 
             // The next line is commented out for production/release.       
-            licenseInformation = CurrentAppSimulator.LicenseInformation;
+            licenseInformation = CurrentApp.LicenseInformation;
 
             // Initialize App settings
             AppSettings = new Dictionary<string, object>();
@@ -254,15 +255,15 @@ namespace Libra
 
         public static async System.Threading.Tasks.Task<bool> RemoveAdsClick(object sender, RoutedEventArgs e)
         {
-            if (!CurrentAppSimulator.LicenseInformation.ProductLicenses["removedAds"].IsActive)
+            if (!CurrentApp.LicenseInformation.ProductLicenses["removedAds"].IsActive)
             {
                 try
                 {
-                    PurchaseResults result = await CurrentAppSimulator.RequestProductPurchaseAsync("removedAds");
+                    PurchaseResults result = await CurrentApp.RequestProductPurchaseAsync("removedAds");
                     if (result.Status == ProductPurchaseStatus.Succeeded)
                     {
                         // Update license information
-                        licenseInformation = CurrentAppSimulator.LicenseInformation;
+                        licenseInformation = CurrentApp.LicenseInformation;
                         return true;
                     }
                     else return false;
@@ -279,6 +280,18 @@ namespace Libra
                 // The customer already owns this feature.
                 return true;
             }
+        }
+
+        /// <summary>
+        /// Show a dialog with notification message.
+        /// </summary>
+        /// <param name="message">The message to be displayed to the user.</param>
+        public static async void NotifyUser(string message, bool logMessage = false)
+        {
+            MessageDialog messageDialog = new MessageDialog(message);
+            messageDialog.Commands.Add(new UICommand("OK", null, 0));
+            await messageDialog.ShowAsync();
+            if (logMessage) AppEventSource.Log.Error("App: " + message);
         }
     }
 }

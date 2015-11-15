@@ -36,7 +36,7 @@
                          ItemsPanel="{StaticResource colorPanel}" 
                          SelectionChanged="penColorListBox_SelectionChanged" />
             </StackPanel>
-                <Rectangle Height="50" />
+            <Rectangle Height="30" />
             <StackPanel Padding="10" BorderBrush="LightSteelBlue" BorderThickness="2">
                 <TextBlock x:Name="highlighterSizeLabel" Text="Highlighter Size: " Margin="0,15,0,0"/>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -53,6 +53,9 @@
                          SelectionChanged="highlighterColorListBox_SelectionChanged"/>
             </StackPanel>
             <!--<CheckBox Margin="0,15,0,0" Content="Enable mouse drawing"/>-->
+            <Rectangle Height="30" />
+            <TextBlock Text="Pen and Highlighter are pressure sensitive." />
+            <TextBlock Text="Size also depends on the pressure and zoom factor." />
         </StackPanel>
     </Grid>
 </ContentDialog>

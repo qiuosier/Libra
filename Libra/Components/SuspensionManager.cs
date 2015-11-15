@@ -80,9 +80,16 @@ namespace Libra
                 appFrame.GoBack();
                 await SaveViewerAsync();
                 AppEventSource.Log.Debug("Suspension: Saving session state to file...");
-                StorageFile file = await 
-                    ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
-                await SerializeToFileAsync(sessionState, typeof(SessionState), file);
+                try
+                {
+                    StorageFile file = await
+                        ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
+                    await SerializeToFileAsync(sessionState, typeof(SessionState), file);
+                }
+                catch (Exception ex)
+                {
+                    App.NotifyUser("An Error occurred when saving session state.\n" + ex.Message);
+                }
             }
             IsSuspending = false;
         }
@@ -107,10 +114,17 @@ namespace Libra
             {
                 if (sessionState.ViewerMode == 1)
                 {
-                    StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(sessionState.FileToken);
-                    AppEventSource.Log.Info("Suspension: Reopening " + pdfFile.Name);
-                    SuspensionManager.pdfFile = pdfFile;
-                    appFrame.Navigate(typeof(ViewerPage));
+                    try
+                    {
+                        StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(sessionState.FileToken);
+                        AppEventSource.Log.Info("Suspension: Reopening " + pdfFile.Name);
+                        SuspensionManager.pdfFile = pdfFile;
+                        appFrame.Navigate(typeof(ViewerPage));
+                    }
+                    catch (Exception ex)
+                    {
+                        App.NotifyUser("Failed to reopen file: " + pdfFile.Name + "\n" + ex.Message);
+                    }
                 }
                 else
                 {
@@ -125,22 +139,36 @@ namespace Libra
         {
             if (viewerStateDictionary != null && viewerStateDictionary.Count > 0)
             {
-                // Get the pdfToken and open the data folder
-                StorageFolder dataFolder = await 
-                    ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
-                StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
-                AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
-                await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
+                try
+                {
+                    // Get the pdfToken and open the data folder
+                    StorageFolder dataFolder = await
+                        ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                    StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
+                    AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
+                    await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
+                }
+                catch (Exception ex)
+                {
+                    App.NotifyUser("An Error occurred when saving view settings.\n" + ex.Message);
+                }
             }
             else
             {
                 // Delete view state file if no viewer state (views are closed)
                 if (sessionState != null && sessionState.FileToken != null)
                 {
-                    StorageFolder dataFolder = await
-                        ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
-                    StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
-                    await file.DeleteAsync();
+                    try
+                    {
+                        StorageFolder dataFolder = await
+                            ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                        StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
+                        await file.DeleteAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        App.NotifyUser("Error occurred when saving view settings.\n" + ex.Message);
+                    }
                 }
             }
         }
@@ -203,7 +231,6 @@ namespace Libra
                 MessageDialog messageDialog = new MessageDialog("Error when saving" + objectType.ToString() + " to file: " + file.Name + "\n" + e.Message);
                 messageDialog.Commands.Add(new UICommand("OK", null, 0));
                 await messageDialog.ShowAsync();
-                //throw new SuspensionManagerException(e);
             }
         }
 
@@ -250,7 +277,6 @@ namespace Libra
                         break;
                 }
                 return null;
-                //throw new SuspensionManagerException(e);
             }
             finally
             {
@@ -277,7 +303,7 @@ namespace Libra
                 {
                     AppEventSource.Log.Debug("Suspension: Previously saved file not found. ");
                 }
-                else throw new SuspensionManagerException(e);
+                else App.NotifyUser("Failed the access file.\n" + e.Message);
             }
             return file;
         }

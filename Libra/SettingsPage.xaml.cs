@@ -121,20 +121,21 @@ namespace Libra
             await Launcher.LaunchUriAsync(new Uri("mailto:cetrs@msn.com?subject=Feedback on Q PDF Pages App"));
         }
 
-        private void ResetNotification_Click(object sender, RoutedEventArgs e)
+        private void ResetRoamingSettings_Click(object sender, RoutedEventArgs e)
         {
-            App.AppSettings[App.INKING_WARNING] = true;
-            ApplicationData.Current.RoamingSettings.Values[App.INKING_WARNING] = true;
-            App.AppSettings[App.ERASER_WARNING] = true;
-            ApplicationData.Current.RoamingSettings.Values[App.ERASER_WARNING] = true;
-            App.AppSettings[App.TUTORIAL] = true;
-            ApplicationData.Current.RoamingSettings.Values[App.TUTORIAL] = true;
+            ApplicationData.Current.RoamingSettings.Values.Clear();
+            this.ResetRoamingSettingsBtn.IsEnabled = false;
         }
 
         private async void About_Click(object sender, RoutedEventArgs e)
         {
             AboutContentDialog dialog = new AboutContentDialog();
             await dialog.ShowAsync();
+        }
+
+        private void ShowTutorial_Click(object sender, RoutedEventArgs e)
+        {
+            this.Frame.Navigate(typeof(TutorialPage));
         }
     }
 }

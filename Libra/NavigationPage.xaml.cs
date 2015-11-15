@@ -58,19 +58,31 @@ namespace NavigationMenu
             if (SuspensionManager.viewerStateDictionary == null) return;
             foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
             {
-                // Check if the viewer state is null
-                if (entry.Value == null) continue;
-                // Viewer state is not null
-                string btnLabel = "View";
-                if (entry.Value.visibleRange != null)
-                    btnLabel = entry.Value.visibleRange.ToString();
-                this.navlist.Add(new NavMenuItem()
+                if (entry.Value == null)
                 {
-                    Symbol = entry.Value.isHorizontalView ? Symbol.TwoPage : Symbol.Page2,
-                    Label = btnLabel,
-                    DestPage = typeof(ViewerPage),
-                    Arguments = entry.Key
-                });
+                    // Viewer state is null
+                    this.navlist.Add(new NavMenuItem()
+                    {
+                        Symbol = Symbol.Page2,
+                        Label = "Page 1",
+                        DestPage = typeof(ViewerPage),
+                        Arguments = entry.Key
+                    });
+                }
+                else
+                {
+                    // Viewer state is not null
+                    string btnLabel = "View";
+                    if (entry.Value.visibleRange != null)
+                        btnLabel = entry.Value.visibleRange.ToString();
+                    this.navlist.Add(new NavMenuItem()
+                    {
+                        Symbol = entry.Value.isHorizontalView ? Symbol.TwoPage : Symbol.Page2,
+                        Label = btnLabel,
+                        DestPage = typeof(ViewerPage),
+                        Arguments = entry.Key
+                    });
+                }
             }
             
             // Add an ADD VIEW button if a file is opened
@@ -128,6 +140,7 @@ namespace NavigationMenu
             {
                 // Find the button corresponding to the key
                 int i = FindNavListIndexByKey(viewKey);
+                // Do nothing if key not found.
                 if (i > 0)
                 {
                     // Use the same symbol is a new symbol is not specified

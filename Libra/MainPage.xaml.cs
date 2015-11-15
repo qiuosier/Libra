@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -78,11 +79,20 @@ namespace Libra
         {
             AppEventSource.Log.Debug("MainPage: Recent file clicked.");
             RecentFile file = (RecentFile)((HyperlinkButton)e.OriginalSource).DataContext;
-            StorageFile pdfFile = await StorageApplicationPermissions.MostRecentlyUsedList.GetFileAsync(file.mruToken);
-            // Update recent file list
-            StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
-            SuspensionManager.pdfFile = pdfFile;
-            this.Frame.Navigate(typeof(ViewerPage));
+            try
+            {
+                StorageFile pdfFile = await StorageApplicationPermissions.MostRecentlyUsedList.GetFileAsync(file.mruToken);
+                // Update recent file list
+                StorageApplicationPermissions.MostRecentlyUsedList.Add(pdfFile, pdfFile.Name + MRU_DELIMITER + DateTime.Now.ToString());
+                SuspensionManager.pdfFile = pdfFile;
+                this.Frame.Navigate(typeof(ViewerPage));
+            }
+            catch (Exception ex)
+            {
+                NotifyUser("Failed to access the file.\n" + ex.Message);
+                // Remove the file entry
+                StorageApplicationPermissions.MostRecentlyUsedList.Remove(file.mruToken);
+            }
         }
 
         /// <summary>
@@ -131,6 +141,18 @@ namespace Libra
         {
             if (Window.Current.Bounds.Width > MIN_WINDOW_WIDTH_FOR_ADS)
                 this.optionalPanelGrid.Width = Window.Current.Bounds.Width - 500;
+        }
+
+        /// <summary>
+        /// Show a dialog with notification message.
+        /// </summary>
+        /// <param name="message">The message to be displayed to the user.</param>
+        private async void NotifyUser(string message, bool logMessage = false)
+        {
+            MessageDialog messageDialog = new MessageDialog(message);
+            messageDialog.Commands.Add(new UICommand("OK", null, 0));
+            await messageDialog.ShowAsync();
+            if (logMessage) AppEventSource.Log.Error("MainPage: " + message);
         }
     }
 }
