@@ -19,7 +19,6 @@ using Microsoft.Graphics.Canvas;
 using Windows.UI;
 using Libra.Class;
 using Windows.UI.Xaml.Data;
-using System.Collections.ObjectModel;
 using Windows.UI.Xaml.Media;
 
 namespace Libra
@@ -76,7 +75,8 @@ namespace Libra
         private Queue<int> renderPagesQueue;
         private Queue<int> inkingChangedPagesQueue;
         private Dictionary<int, InkStrokeContainer> inkingDictionary;
-        private List<int> inkCanvasList;
+        private List<int> inkCanvasList;                // Active inkcanvas
+        private Stack<InkCanvas> inkCanvasStack;        // Inactive inkcanvas
         private InkDrawingAttributes drawingAttributes;
         private InkingPreference inkingPreference;
         private InkInputProcessingMode inkProcessMode;
@@ -96,6 +96,9 @@ namespace Libra
         public ViewerPage()
         {
             this.InitializeComponent();
+
+            this.inkCanvasStack = new Stack<InkCanvas>();
+
             this.pageMargin = new Thickness(PAGE_IMAGE_MARGIN);
             this.fileLoaded = false;
 
@@ -224,6 +227,8 @@ namespace Libra
         /// the latest view will be restored if key is not specified. </param>
         private void RestoreViewerState(Guid key = new Guid())
         {
+            // Switch to zoomed in view
+            this.semanticZoom.IsZoomedInViewActive = true;
             if (key == Guid.Empty)
             {
                 // Check which one is the latest view
@@ -616,7 +621,7 @@ namespace Libra
                     {
                         pdfFileInList = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(entry.Token);
                     }
-                    catch (Exception ex)
+                    catch 
                     {
                         // remove the entry if there is an exception
                         StorageApplicationPermissions.FutureAccessList.Remove(entry.Token);
@@ -783,6 +788,9 @@ namespace Libra
                     image.Source = null;
                     image.Height = x;
                     AppEventSource.Log.Debug("ViewerPage: Image in page " + pageNumber.ToString() + " removed.");
+#if DEBUG
+                    App.imageRemoved++;
+#endif
                 }
                 else AppEventSource.Log.Warn("ViewerPage: Image in page " + pageNumber.ToString() + " is empty.");
             }
@@ -811,8 +819,13 @@ namespace Libra
                 // Remove ink canvas
                 if (removeAfterSave)
                 {
+                    inkCanvasStack.Push(inkCanvas);
                     grid.Children.RemoveAt(1);
                     this.inkCanvasList.Remove(pageNumber);
+#if DEBUG
+                    App.inkcanvasRemoved++;
+                    App.inkcanvasActive = this.inkCanvasList.Count;
+#endif
                 }
             }
         }
@@ -847,6 +860,9 @@ namespace Libra
             await page.RenderToStreamAsync(stream, options);
             BitmapImage bitmapImage = new BitmapImage();
             bitmapImage.SetSource(stream);
+#if DEBUG
+            App.imageCount++;
+#endif
             return bitmapImage;
         }
 
@@ -876,7 +892,9 @@ namespace Libra
                 bindingWidth.Path = new PropertyPath("ActualWidth");
                 bindingWidth.Source = image;
                 // Add ink canvas
-                inkCanvas = new InkCanvas();
+                if (inkCanvasStack.Count > 0)
+                    inkCanvas = inkCanvasStack.Pop();
+                else inkCanvas = new InkCanvas();
                 inkCanvas.Name = PREFIX_CANVAS + pageNumber.ToString();
                 inkCanvas.InkPresenter.InputDeviceTypes = inkingPreference.drawingDevice;
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
@@ -892,9 +910,15 @@ namespace Libra
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
                 }
+                else inkCanvas.InkPresenter.StrokeContainer = new InkStrokeContainer();
                 // Add ink canvas page
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
+#if DEBUG
+                App.inkcanvasCount++;
+                if(App.inkcanvasCount == 150) AppEventSource.Log.Info("ViewerPage: 150 ink canvas counted.");
+                App.inkcanvasActive = this.inkCanvasList.Count;
+#endif
             }
         }
 
@@ -1146,12 +1170,20 @@ namespace Libra
         private void RecycleTimer_Tick(object sender, object e)
         {
             this.recycleTimer.Stop();
+            RecyclePages();
+            this.recycleTimer.Start();
+        }
+
+        private void RecyclePages()
+        {
             // Avoid recycling when saving inking
             while (!this.isSavingInking && this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
+#if DEBUG
+                App.pageQueueCount = this.recyclePagesQueue.Count;
+#endif
             }
-            this.recycleTimer.Start();
         }
 
         private void pageNumberTextTimer_Tick(object sender, object e)

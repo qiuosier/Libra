@@ -60,7 +60,7 @@ namespace Libra
             AppSettings.Add(REOPEN_FILE, true);
             AppSettings.Add(RESTORE_VIEW, true);
             AppSettings.Add(SHOW_RECENT_FILES, true);
-            AppSettings.Add(DEBUG_LOGGING, false);
+            AppSettings.Add(DEBUG_LOGGING, true);
             AppSettings.Add(INKING_WARNING, true);
             AppSettings.Add(ERASER_WARNING, true);
             AppSettings.Add(TUTORIAL, true);
@@ -250,6 +250,16 @@ namespace Libra
                 }
             }
             AppEventSource.Log.Error("App: Unhandled Exception. " + sender.ToString() + e.Message);
+#if DEBUG
+            AppEventSource.Log.Error(
+                "Total inkCanvas created: " + inkcanvasCount.ToString() +
+                "\n Total inkCanvas removed: " + inkcanvasRemoved.ToString() +
+                "\n Active inkCanvas: " + inkcanvasActive.ToString() +
+                "\n Total image created: " + imageCount.ToString() +
+                "\n Total image removed: " + imageRemoved.ToString() +
+                "\n Pages Queue: " + pageQueueCount.ToString()
+                );
+#endif
             libraListener.Flush();
         }
 
@@ -293,5 +303,16 @@ namespace Libra
             await messageDialog.ShowAsync();
             if (logMessage) AppEventSource.Log.Error("App: " + message);
         }
+
+#if DEBUG
+        // DEBUG ONLY VARIABLES
+        public static int inkcanvasCount = 0;
+        public static int imageCount = 0;
+        public static int inkcanvasActive = 0;
+        public static int imageActive = 0;
+        public static int inkcanvasRemoved = 0;
+        public static int imageRemoved = 0;
+        public static int pageQueueCount = 0;
+#endif
     }
 }
