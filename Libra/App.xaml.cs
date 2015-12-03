@@ -28,6 +28,7 @@ namespace Libra
         public const string ERASER_WARNING = "eraserWarning";
         public const string TUTORIAL = "showTutorial";
 
+        private const string NOTIFICATION_OK = "OK";
         private const string LOG_FILE_NAME = "LibraAppLog";
 
         private StorageFileEventListener libraListener;
@@ -296,12 +297,12 @@ namespace Libra
         /// Show a dialog with notification message.
         /// </summary>
         /// <param name="message">The message to be displayed to the user.</param>
-        public static async void NotifyUser(string message, bool logMessage = false)
+        public static async void NotifyUser(Type sender, string message, bool logMessage = false)
         {
             MessageDialog messageDialog = new MessageDialog(message);
-            messageDialog.Commands.Add(new UICommand("OK", null, 0));
+            messageDialog.Commands.Add(new UICommand(NOTIFICATION_OK, null, 0));
             await messageDialog.ShowAsync();
-            if (logMessage) AppEventSource.Log.Error("App: " + message);
+            if (logMessage) AppEventSource.Log.Error(sender.ToString() + ": " + message);
         }
 
 #if DEBUG

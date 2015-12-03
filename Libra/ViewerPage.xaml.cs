@@ -377,7 +377,7 @@ namespace Libra
             }
             catch (Exception ex)
             {
-                NotifyUser("An error occurred when saving inking. \n" + ex.Message, true);
+                App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
             }
 
             AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
@@ -409,7 +409,7 @@ namespace Libra
                 }
                 catch (Exception ex)
                 {
-                    NotifyUser("An error occurred when saving inking. \n" + ex.Message, true);
+                    App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
                 }
             }
             this.isSavingInking = false;
@@ -477,7 +477,7 @@ namespace Libra
             }
             catch (Exception ex)
             {
-                App.NotifyUser("An Error occurred when saving inking preference.\n" + ex.Message);
+                App.NotifyUser(typeof(ViewerPage), "An Error occurred when saving inking preference.\n" + ex.Message);
             }
             
         }
@@ -561,8 +561,8 @@ namespace Libra
                 // Notify the user and return to main page if failed to load the file.
                 if (failedToLoad)
                 {
-                    NotifyUser("Failed to open the file.", true);
-                    this.Frame.Navigate(typeof(MainPage));
+                    App.NotifyUser(typeof(ViewerPage), "Failed to open the file.", true);
+                    CloseAll_Click(null, null);
                     return;
                 }
             }
@@ -1497,7 +1497,7 @@ namespace Libra
                         }
                         catch (Exception ex)
                         {
-                            NotifyUser("An error occurred when exporting page " + exportingPageNumber.ToString() + ".\n" + ex.Message, true);
+                            App.NotifyUser(typeof(ViewerPage), "An error occurred when exporting page " + exportingPageNumber.ToString() + ".\n" + ex.Message, true);
                         }
                     }
                     // Notify user
@@ -1507,7 +1507,7 @@ namespace Libra
                     else if (exportedCount == 1)
                         message = "1 Page Exported.";
                     else message = exportedCount.ToString() + " Pages Exported.";
-                    NotifyUser(message);
+                    App.NotifyUser(typeof(ViewerPage), message);
                 }
             }
         }
@@ -1717,18 +1717,6 @@ namespace Libra
             float newZoomFactor = (float)(this.scrollViewer.ZoomFactor * (1 - ZOOM_STEP_SIZE));
             newZoomFactor = newZoomFactor < this.scrollViewer.MinZoomFactor ? this.scrollViewer.MinZoomFactor : newZoomFactor;
             ZoomView(newZoomFactor);
-        }
-
-        /// <summary>
-        /// Show a dialog with notification message.
-        /// </summary>
-        /// <param name="message">The message to be displayed to the user.</param>
-        private async void NotifyUser(string message, bool logMessage = false)
-        {
-            MessageDialog messageDialog = new MessageDialog(message);
-            messageDialog.Commands.Add(new UICommand("OK", null, 0));
-            await messageDialog.ShowAsync();
-            if (logMessage) AppEventSource.Log.Error("ViewerPage: " + message);
         }
 
         /// <summary>

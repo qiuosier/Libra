@@ -88,7 +88,7 @@ namespace Libra
                 }
                 catch (Exception ex)
                 {
-                    App.NotifyUser("An Error occurred when saving session state.\n" + ex.Message);
+                    App.NotifyUser(typeof(SuspensionManager), "An Error occurred when saving session state.\n" + ex.Message);
                 }
             }
             IsSuspending = false;
@@ -123,7 +123,7 @@ namespace Libra
                     }
                     catch (Exception ex)
                     {
-                        App.NotifyUser("Failed to reopen file: " + pdfFile.Name + "\n" + ex.Message);
+                        App.NotifyUser(typeof(SuspensionManager), "Failed to reopen file: " + pdfFile.Name + "\n" + ex.Message);
                     }
                 }
                 else
@@ -150,7 +150,7 @@ namespace Libra
                 }
                 catch (Exception ex)
                 {
-                    App.NotifyUser("An Error occurred when saving view settings.\n" + ex.Message);
+                    App.NotifyUser(typeof(SuspensionManager), "An Error occurred when saving view settings.\n" + ex.Message);
                 }
             }
             else
@@ -167,7 +167,7 @@ namespace Libra
                     }
                     catch (Exception ex)
                     {
-                        App.NotifyUser("Error occurred when saving view settings.\n" + ex.Message);
+                        App.NotifyUser(typeof(SuspensionManager), "Error occurred when saving view settings.\n" + ex.Message);
                     }
                 }
             }
@@ -303,7 +303,7 @@ namespace Libra
                 {
                     AppEventSource.Log.Debug("Suspension: Previously saved file not found. ");
                 }
-                else App.NotifyUser("Failed the access file.\n" + e.Message);
+                else App.NotifyUser(typeof(SuspensionManager), "Failed the access file.\n" + e.Message);
             }
             return file;
         }
