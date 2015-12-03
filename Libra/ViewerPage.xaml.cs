@@ -1,25 +1,26 @@
-﻿using System;
+﻿using Libra.Class;
+using Libra.Dialog;
+using Microsoft.Graphics.Canvas;
+using NavigationMenu;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Storage;
+using Windows.Storage.AccessCache;
+using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
+using Windows.UI;
 using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
-using Windows.Storage.AccessCache;
-using System.IO;
-using NavigationMenu;
-using Windows.Storage.Pickers;
-using Microsoft.Graphics.Canvas;
-using Windows.UI;
-using Libra.Class;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Xaml.Navigation;
 
 namespace Libra
 {
@@ -531,15 +532,46 @@ namespace Libra
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
-            IAsyncOperation<PdfDocument> getPdfTask = PdfDocument.LoadFromFileAsync(pdfFile);
+            try
+            {
+                // Try to load the file without a password
+                this.pdfDocument = await PdfDocument.LoadFromFileAsync(pdfFile);
+            }
+            catch
+            {
+                // Ask the user to enter password
+                PasswordContentDialog passwordDialog = new PasswordContentDialog();
+                bool failedToLoad = false;
+                if (await passwordDialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    // Try to load the file with a password
+                    try
+                    {
+                        this.pdfDocument = await PdfDocument.LoadFromFileAsync(pdfFile, passwordDialog.Password);
+                    }
+                    catch
+                    {
+                        failedToLoad = true;
+                    }
+                }
+                else
+                {
+                    failedToLoad = true;
+                }
+                // Notify the user and return to main page if failed to load the file.
+                if (failedToLoad)
+                {
+                    NotifyUser("Failed to open the file.", true);
+                    this.Frame.Navigate(typeof(MainPage));
+                    return;
+                }
+            }
             // Check future access list
             await CheckFutureAccessList();
             // Create local data folder, if not exist
             this.dataFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
             // Create inking folder
             this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
-            // Wait until the file is loaded
-            this.pdfDocument = await getPdfTask;
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
             this.pageCount = (int)pdfDocument.PageCount;

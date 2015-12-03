@@ -1,4 +1,4 @@
-﻿using Libra.Class;
+﻿using Libra.Dialog;
 using Microsoft.AdMediator.Core.Models;
 using System;
 using Windows.Storage;

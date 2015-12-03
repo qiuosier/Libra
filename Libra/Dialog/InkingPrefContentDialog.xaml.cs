@@ -14,10 +14,11 @@ using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using Libra.Class;
 
 // The Content Dialog item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
-namespace Libra.Class
+namespace Libra.Dialog
 {
     public sealed partial class InkingPrefContentDialog : ContentDialog
     {

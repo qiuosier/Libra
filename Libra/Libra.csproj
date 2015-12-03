@@ -108,11 +108,11 @@
     <Compile Include="BlankPage.xaml.cs">
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Class\AboutContentDialog.xaml.cs">
+    <Compile Include="Dialog\AboutContentDialog.xaml.cs">
       <DependentUpon>AboutContentDialog.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Class\ExportPagesDialog.cs" />
-    <Compile Include="Class\InkingPrefContentDialog.xaml.cs">
+    <Compile Include="Dialog\ExportPagesDialog.cs" />
+    <Compile Include="Dialog\InkingPrefContentDialog.xaml.cs">
       <DependentUpon>InkingPrefContentDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="Class\InkingPreference.cs" />
@@ -128,6 +128,9 @@
     <Compile Include="Components\NavMenuItem.cs" />
     <Compile Include="Components\NavMenuListView.cs" />
     <Compile Include="Components\SuspensionManager.cs" />
+    <Compile Include="Dialog\PasswordContentDialog.xaml.cs">
+      <DependentUpon>PasswordContentDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
@@ -190,15 +193,19 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Class\AboutContentDialog.xaml">
+    <Page Include="Dialog\AboutContentDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="Class\InkingPrefContentDialog.xaml">
+    <Page Include="Dialog\InkingPrefContentDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Class\ZoomInGrid.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Dialog\PasswordContentDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
