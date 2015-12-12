@@ -133,7 +133,7 @@ namespace Libra
         /// </summary>
         private void RemoveAds()
         {
-            this.AdMediator_BCA178.Visibility = Visibility.Collapsed;
+            //this.AdMediator_BCA178.Visibility = Visibility.Collapsed;
             this.RemoveAdBtn.Visibility = Visibility.Collapsed;
         }
 

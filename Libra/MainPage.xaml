@@ -46,8 +46,8 @@
                                 Visibility="Collapsed">
                         <TextBlock Text="Tips"/>
                     </StackPanel>
-                    <HyperlinkButton x:Name="RemoveAdBtn" Content="Support the developer and Remove Ads..." HorizontalAlignment="Right" Click="RemoveAdBtn_Click"/>
-                    <Universal:AdMediatorControl x:Name="AdMediator_BCA178" Height="250" Id="AdMediator-Id-339D0401-E8E3-4E89-B93D-7D332E261D2E" Width="300"/>
+                    <HyperlinkButton x:Name="RemoveAdBtn" Content="Support the developer..." HorizontalAlignment="Right" Click="RemoveAdBtn_Click"/>
+                    <!--<Universal:AdMediatorControl x:Name="AdMediator_BCA178" Height="250" Id="AdMediator-Id-339D0401-E8E3-4E89-B93D-7D332E261D2E" Width="300"/>-->
                 </StackPanel>
             </Grid>
         </StackPanel>

@@ -581,7 +581,7 @@ namespace Libra
             // Load drawing preference
             await LoadDrawingPreference();
             // Initialize thumbnails collection
-            this.pageThumbnails = new PageCollection(this.pdfDocument);
+            this.pageThumbnails = new PageThumbnailCollection(this.pdfDocument);
             // Render the first page
             AddBlankImage(1);
             await AddPageImage(1, (uint)(this.scrollViewer.ActualWidth));
@@ -1789,7 +1789,7 @@ namespace Libra
             }
         }
 
-        private PageCollection pageThumbnails;
+        private PageThumbnailCollection pageThumbnails;
         private int pressedThumbnailIndex;
 
         /// <summary>

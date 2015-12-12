@@ -42,8 +42,8 @@
             </StackPanel>
             <Grid x:Name="optionalPanelGrid">
                 <StackPanel x:Name="optionalPanel" Visibility="Visible" HorizontalAlignment="Left" VerticalAlignment="Bottom">
-                    <HyperlinkButton x:Name="RemoveAdBtn" Content="Support the developer and Remove Ads..." HorizontalAlignment="Left" Click="RemoveAdBtn_Click"/>
-                    <Universal:AdMediatorControl x:Name="AdMediator_F5AAF9" Height="90" Id="AdMediator-Id-6DE65DE2-19F7-4BD9-A207-B6BF348BA210" Width="728"/>
+                    <HyperlinkButton x:Name="RemoveAdBtn" Content="Support the developer..." HorizontalAlignment="Left" Click="RemoveAdBtn_Click"/>
+                    <!--<Universal:AdMediatorControl x:Name="AdMediator_F5AAF9" Height="90" Id="AdMediator-Id-6DE65DE2-19F7-4BD9-A207-B6BF348BA210" Width="728"/>-->
                 </StackPanel>
             </Grid>
         </StackPanel>

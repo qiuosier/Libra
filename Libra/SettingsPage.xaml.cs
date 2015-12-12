@@ -1,5 +1,5 @@
 ﻿using Libra.Dialog;
-using Microsoft.AdMediator.Core.Models;
+//using Microsoft.AdMediator.Core.Models;
 using System;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
@@ -24,8 +24,8 @@ namespace Libra
         public SettingsPage()
         {
             this.InitializeComponent();
-            this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Width"] = 728;
-            this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Height"] = 90;
+            //this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Width"] = 728;
+            //this.AdMediator_F5AAF9.AdSdkOptionalParameters[AdSdkNames.Smaato]["Height"] = 90;
             // Remove ads if purchased
             if (App.licenseInformation.ProductLicenses["removedAds"].IsActive)
                 RemoveAds();
@@ -61,7 +61,7 @@ namespace Libra
         /// </summary>
         private void RemoveAds()
         {
-            this.AdMediator_F5AAF9.Visibility = Visibility.Collapsed;
+            //this.AdMediator_F5AAF9.Visibility = Visibility.Collapsed;
             this.RemoveAdBtn.Visibility = Visibility.Collapsed;
         }
 
