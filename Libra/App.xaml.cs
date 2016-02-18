@@ -11,6 +11,7 @@ using Windows.Storage.AccessCache;
 using Windows.ApplicationModel.Store;
 using System.Collections.Generic;
 using Windows.UI.Popups;
+using System.Threading.Tasks;
 
 namespace Libra
 {
@@ -303,6 +304,23 @@ namespace Libra
             messageDialog.Commands.Add(new UICommand(NOTIFICATION_OK, null, 0));
             await messageDialog.ShowAsync();
             if (logMessage) AppEventSource.Log.Error(sender.ToString() + ": " + message);
+        }
+
+        /// <summary>
+        /// Show a dialog with notification message and options.
+        /// </summary>
+        /// <param name="errorMsg"></param>
+        /// <param name="optionsLabel"></param>
+        /// <returns></returns>
+        public static async Task<int> NotifyUserWithOptions(string errorMsg, string[] optionsLabel)
+        {
+            MessageDialog messageDialog = new MessageDialog(errorMsg);
+            foreach (string label in optionsLabel)
+            {
+                messageDialog.Commands.Add(new UICommand(label, null, messageDialog.Commands.Count));
+            }
+            IUICommand command = await messageDialog.ShowAsync();
+            return (int)command.Id;
         }
 
 #if DEBUG

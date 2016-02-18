@@ -108,6 +108,7 @@
     <Compile Include="BlankPage.xaml.cs">
       <DependentUpon>BlankPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Class\InkingCollection.cs" />
     <Compile Include="Class\PageCollection.cs" />
     <Compile Include="Dialog\AboutContentDialog.xaml.cs">
       <DependentUpon>AboutContentDialog.xaml</DependentUpon>

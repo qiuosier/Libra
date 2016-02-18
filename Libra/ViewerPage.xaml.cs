@@ -52,9 +52,7 @@ namespace Libra
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
         private const string PREFIX_VIEWBOX = "viewbox";
-        private const string EXT_INKING = ".gif";
         private const string EXT_VIEW = ".xml";
-        private const string INKING_FOLDER = "Inking";
         private const string INKING_PREFERENCE_FILENAME = "_inkingPreference.xml";
         private const string INKING_PROFILE_FILENAME = "_inkingProfile.xml";
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
@@ -62,7 +60,6 @@ namespace Libra
 
         private StorageFile pdfFile;
         private StorageFolder dataFolder;
-        private StorageFolder inkingFolder;
         private PdfDocument pdfDocument;
         private Thickness pageMargin;
         private PageRange inkingPageRange;
@@ -75,7 +72,7 @@ namespace Libra
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private Queue<int> inkingChangedPagesQueue;
-        private Dictionary<int, InkStrokeContainer> inkingDictionary;
+        private InkingCollection inkingCollection;
         private List<int> inkCanvasList;                // Active inkcanvas
         private Stack<InkCanvas> inkCanvasStack;        // Inactive inkcanvas
         private InkDrawingAttributes drawingAttributes;
@@ -136,7 +133,6 @@ namespace Libra
             this._visiblePageRange = new PageRange();
             this._viewerKey = new Guid();
             this.pageCount = 0;
-            this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.renderPagesQueue = new Queue<int>();
@@ -337,52 +333,6 @@ namespace Libra
             NavigationPage.Current.InitializeViewBtn();
         }
 
-        /// <summary>
-        /// Save the inkstrokes from in each ink canvas to inking dictionary, and
-        /// save the inking dictionary to files in local app data folder.
-        /// Inking for each page will be saved in a individual file.
-        /// However, this method will save the inking for all pages,
-        /// whether the inking has been modified or not.
-        /// </summary>
-        /// <returns></returns>
-        private async Task SaveInkingDictionary()
-        {
-            // Save ink canvas
-            this.isSavingInking = true;
-            foreach (int pageNumber in this.inkCanvasList)
-            {
-                SaveInkCanvas(pageNumber);
-            }
-            AppEventSource.Log.Debug("ViewerPage: Saving inking of " + this.pdfFile.Name);
-            // Save ink strokes
-            if (this.inkingDictionary.Count == 0)
-            {
-                AppEventSource.Log.Debug("ViewerPage: No inking recorded.");
-                return;
-            }
-
-            // Save inking to file
-            try
-            {
-                foreach (KeyValuePair<int, InkStrokeContainer> entry in inkingDictionary)
-                {
-                    StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
-                        entry.Key.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
-                    using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
-                    {
-                        await entry.Value.SaveAsync(inkStream);
-                    }
-                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + entry.Key.ToString() + " saved.");
-                }
-            }
-            catch (Exception ex)
-            {
-                App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
-            }
-
-            AppEventSource.Log.Info("ViewerPage: Inking for " + this.pdfFile.Name + " saved to " + this.dataFolder.Name);
-            this.isSavingInking = false;
-        }
 
         private async Task SaveInkingQueue()
         {
@@ -392,74 +342,9 @@ namespace Libra
                 int pageNumber = this.inkingChangedPagesQueue.Dequeue();
                 // Save ink strokes to dictionary
                 SaveInkCanvas(pageNumber);
-                // Save inking to file
-                try
-                {
-                    StorageFile inkFile = await this.inkingFolder.CreateFileAsync(
-                        pageNumber.ToString() + EXT_INKING, CreationCollisionOption.ReplaceExisting);
-                    using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
-                    {
-                        InkStrokeContainer inkStrokeContainer;
-                        if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
-                        {
-                            await inkStrokeContainer.SaveAsync(inkStream);
-                        }
-                    }
-                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber + " saved.");
-                }
-                catch (Exception ex)
-                {
-                    App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
-                }
+                await inkingCollection.SaveInking(pageNumber);
             }
             this.isSavingInking = false;
-        }
-
-        /// <summary>
-        /// Load inking from files to inking dictionary.
-        /// </summary>
-        /// <returns></returns>
-        private async Task LoadInking()
-        {
-            System.Diagnostics.Stopwatch inkingLoadingWatch = new System.Diagnostics.Stopwatch();
-            inkingLoadingWatch.Start();
-            AppEventSource.Log.Debug("ViewerPage: Checking inking for " + this.pdfFile.Name);
-            // TODO: Need to check if the inking is suitable for the file/page.
-            //
-            //
-            this.inkingDictionary = new Dictionary<int, InkStrokeContainer>();
-            foreach (StorageFile inkFile in await inkingFolder.GetFilesAsync())
-            {
-                int pageNumber = 0;
-                try
-                {
-                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
-                    InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                    using (var inkStream = await inkFile.OpenSequentialReadAsync())
-                    {
-                        await inkStrokeContainer.LoadAsync(inkStream);
-                    }
-                    this.inkingDictionary.Add(pageNumber, inkStrokeContainer);
-                    AppEventSource.Log.Debug("ViewerPage: Inking for page " + pageNumber.ToString() + " loaded.");
-                }
-                catch (Exception e)
-                {
-                    string errorMsg = "Error when loading inking for page " + pageNumber.ToString() + "\n Exception: " + e.Message;
-                    AppEventSource.Log.Error("ViewerPage: " + errorMsg);
-                    int userResponse = await NotifyUserWithOptions(errorMsg, new string[] { "Remove Inking", "Ignore" });
-                    switch (userResponse)
-                    {
-                        case 0: // Delete inking file
-                            await inkFile.DeleteAsync();
-                            AppEventSource.Log.Error("ViewerPage: File deleted.");
-                            break;
-                        default: break;
-                    }
-                    return;
-                }
-            }
-            inkingLoadingWatch.Stop();
-            AppEventSource.Log.Info("ViewerPage: Inking loaded in " + inkingLoadingWatch.Elapsed.TotalSeconds.ToString() + " seconds.");
         }
 
         /// <summary>
@@ -570,8 +455,7 @@ namespace Libra
             await CheckFutureAccessList();
             // Create local data folder, if not exist
             this.dataFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
-            // Create inking folder
-            this.inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
+
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
             this.pageCount = (int)pdfDocument.PageCount;
@@ -615,7 +499,7 @@ namespace Libra
             await LoadViewerState();
             RestoreViewerState();
             // Retore inking
-            await LoadInking();
+            inkingCollection = await InkingCollection.LoadInkingCollection(dataFolder);
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
@@ -680,8 +564,7 @@ namespace Libra
                     if (this.fileLoaded)
                     {
                         this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
-                        this.inkingFolder = await dataFolder.GetFolderAsync(INKING_FOLDER);
-                        await LoadInking();
+                        this.inkingCollection = await InkingCollection.LoadInkingCollection(dataFolder);
                         RefreshViewer();
                     }
                 }
@@ -820,9 +703,6 @@ namespace Libra
                     image.Source = null;
                     image.Height = x;
                     AppEventSource.Log.Debug("ViewerPage: Image in page " + pageNumber.ToString() + " removed.");
-#if DEBUG
-                    App.imageRemoved++;
-#endif
                 }
                 else AppEventSource.Log.Warn("ViewerPage: Image in page " + pageNumber.ToString() + " is empty.");
             }
@@ -843,9 +723,9 @@ namespace Libra
                 if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
                 {
                     // Remove item in dictionary, it will return false if item not found
-                    this.inkingDictionary.Remove(pageNumber);
+                    this.inkingCollection.Remove(pageNumber);
                     // Add to dictionary
-                    this.inkingDictionary.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
+                    this.inkingCollection.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " saved to dictionary.");
                 }
                 // Remove ink canvas
@@ -854,10 +734,6 @@ namespace Libra
                     inkCanvasStack.Push(inkCanvas);
                     grid.Children.RemoveAt(1);
                     this.inkCanvasList.Remove(pageNumber);
-#if DEBUG
-                    App.inkcanvasRemoved++;
-                    App.inkcanvasActive = this.inkCanvasList.Count;
-#endif
                 }
             }
         }
@@ -892,9 +768,6 @@ namespace Libra
             await page.RenderToStreamAsync(stream, options);
             BitmapImage bitmapImage = new BitmapImage();
             bitmapImage.SetSource(stream);
-#if DEBUG
-            App.imageCount++;
-#endif
             return bitmapImage;
         }
 
@@ -937,7 +810,7 @@ namespace Libra
                 inkCanvas.SetBinding(WidthProperty, bindingWidth);
                 // Load inking if exist
                 InkStrokeContainer inkStrokeContainer;
-                if (inkingDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+                if (inkingCollection.TryGetValue(pageNumber, out inkStrokeContainer))
                 {
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
                     AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
@@ -946,11 +819,6 @@ namespace Libra
                 // Add ink canvas page
                 grid.Children.Add(inkCanvas);
                 this.inkCanvasList.Add(pageNumber);
-#if DEBUG
-                App.inkcanvasCount++;
-                if(App.inkcanvasCount == 150) AppEventSource.Log.Info("ViewerPage: 150 ink canvas counted.");
-                App.inkcanvasActive = this.inkCanvasList.Count;
-#endif
             }
         }
 
@@ -964,7 +832,7 @@ namespace Libra
             // Notify user about the risk when using inking for the first time.
             if ((bool)App.AppSettings[App.INKING_WARNING])
             {
-                int userResponse = await NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
+                int userResponse = await App.NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
                     "Currently ink strokes are NOT SAVED to the PDF file. They are saved ONLY IN THIS APP. \n" +
                     "Ink strokes will be lost if you reinstall windows. \n" +
                     "You can export the ink strokes along with pdf pages as image files.",
@@ -1212,9 +1080,6 @@ namespace Libra
             while (!this.isSavingInking && this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
-#if DEBUG
-                App.pageQueueCount = this.recyclePagesQueue.Count;
-#endif
             }
         }
 
@@ -1350,7 +1215,7 @@ namespace Libra
             // Notify user about the risk when using eraser for the first time.
             if ((bool)App.AppSettings[App.ERASER_WARNING])
             {
-                int userResponse = await NotifyUserWithOptions("Eraser deletes the entire stroke. \n" +
+                int userResponse = await App.NotifyUserWithOptions("Eraser deletes the entire stroke. \n" +
                     "Eraser operation cannot be undo. \n" +
                     "Please use with care. ",
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
@@ -1719,22 +1584,7 @@ namespace Libra
             ZoomView(newZoomFactor);
         }
 
-        /// <summary>
-        /// Show a dialog with notification message and options.
-        /// </summary>
-        /// <param name="errorMsg"></param>
-        /// <param name="optionsLabel"></param>
-        /// <returns></returns>
-        private async Task<int> NotifyUserWithOptions(string errorMsg, string[] optionsLabel)
-        {
-            MessageDialog messageDialog = new MessageDialog(errorMsg);
-            foreach (string label in optionsLabel)
-            {
-                messageDialog.Commands.Add(new UICommand(label, null, messageDialog.Commands.Count));
-            }
-            IUICommand command = await messageDialog.ShowAsync();
-            return (int)command.Id;
-        }
+        
 
         private void GoToPage_Click(object sender, RoutedEventArgs e)
         {
@@ -1789,7 +1639,12 @@ namespace Libra
             }
         }
 
+
         private PageThumbnailCollection pageThumbnails;
+
+        /// <summary>
+        /// Stores the page index when the user pressed the mouse
+        /// </summary>
         private int pressedThumbnailIndex;
 
         /// <summary>
