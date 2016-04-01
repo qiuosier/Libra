@@ -55,6 +55,7 @@
                 <AppBarSeparator x:Name="ViewSecBtnSeparator"/>
                 <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
+                <AppBarButton Icon="Save" Label="Save Inking" Click="SaveInking_Click" />
                 <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
                 <AppBarButton x:Name="closeThisViewSec" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
                 <AppBarButton x:Name="closeAllViews"  Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
@@ -106,7 +107,7 @@
                                 </StackPanel>
                             </Grid>
                         </ScrollViewer>
-                        <Grid x:Name="infoGrid" Margin="30,0,30,0" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                        <Grid x:Name="infoGrid" Margin="0,0,30,0" Width="300" HorizontalAlignment="Left" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
                             <Grid.Resources>
                                 <Storyboard x:Name="infoGridFadeOut">
                                     <DoubleAnimation Storyboard.TargetName="infoGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
@@ -117,7 +118,7 @@
                                 <TextBlock x:Name="zoomFactorTextBlock" Margin="20,0,20,0" Text="100%" Foreground="White" FontWeight="Bold"/>
                             </StackPanel>
                         </Grid>
-                        <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="0.5">
+                        <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="1">
                             <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
                         </Grid>
                     </Grid>

@@ -293,6 +293,7 @@ namespace Libra
         {
             this.imagePanel.Orientation = Orientation.Vertical;
             this.imagePanel.UpdateLayout();
+            double a = this.pdfDocument.GetPage(0).Size.Width;
             // Zoom the first page to fit the viewer window width
             float zoomFactor = (float)(this.scrollViewer.ActualWidth
                 / (this.pdfDocument.GetPage(0).Size.Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
@@ -391,7 +392,6 @@ namespace Libra
             }
             // Drawing preference
             this.drawingAttributes = new InkDrawingAttributes();
-            this.drawingAttributes.IgnorePressure = false;
             this.drawingAttributes.FitToCurve = true;
 
             Pencil_Click(null, null);
@@ -1183,6 +1183,8 @@ namespace Libra
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            this.drawingAttributes.IgnorePressure = false;
+            this.drawingAttributes.FitToCurve = true;
             this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateInkPresenter();
         }
@@ -1197,6 +1199,8 @@ namespace Libra
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
+            this.drawingAttributes.IgnorePressure = true;
+            this.drawingAttributes.FitToCurve = false;
             this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateInkPresenter();
         }
@@ -1663,6 +1667,12 @@ namespace Libra
         {
             this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
+        }
+
+        private async void SaveInking_Click(object sender, RoutedEventArgs e)
+        {
+            PdfFile pdf = await PdfFile.OpenPdfFile(pdfFile, pdfDocument.GetPage(0).Size.Width);
+            await pdf.SaveInking(this.inkingCollection);
         }
     }
 }

@@ -252,16 +252,6 @@ namespace Libra
                 }
             }
             AppEventSource.Log.Error("App: Unhandled Exception. " + sender.ToString() + e.Message);
-#if DEBUG
-            AppEventSource.Log.Error(
-                "Total inkCanvas created: " + inkcanvasCount.ToString() +
-                "\n Total inkCanvas removed: " + inkcanvasRemoved.ToString() +
-                "\n Active inkCanvas: " + inkcanvasActive.ToString() +
-                "\n Total image created: " + imageCount.ToString() +
-                "\n Total image removed: " + imageRemoved.ToString() +
-                "\n Pages Queue: " + pageQueueCount.ToString()
-                );
-#endif
             libraListener.Flush();
         }
 
@@ -322,16 +312,5 @@ namespace Libra
             IUICommand command = await messageDialog.ShowAsync();
             return (int)command.Id;
         }
-
-#if DEBUG
-        // DEBUG ONLY VARIABLES
-        public static int inkcanvasCount = 0;
-        public static int imageCount = 0;
-        public static int inkcanvasActive = 0;
-        public static int imageActive = 0;
-        public static int inkcanvasRemoved = 0;
-        public static int imageRemoved = 0;
-        public static int pageQueueCount = 0;
-#endif
     }
 }

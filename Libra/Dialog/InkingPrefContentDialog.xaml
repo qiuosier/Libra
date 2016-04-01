@@ -54,8 +54,8 @@
             </StackPanel>
             <!--<CheckBox Margin="0,15,0,0" Content="Enable mouse drawing"/>-->
             <Rectangle Height="30" />
-            <TextBlock Text="Pen and Highlighter are pressure sensitive." />
-            <TextBlock Text="Size also depends on the pressure and zoom factor." />
+            <TextBlock Text="The pen is pressure sensitive." />
+            <TextBlock Text="Pen size also depends on the pressure and zoom factor." />
         </StackPanel>
     </Grid>
 </ContentDialog>

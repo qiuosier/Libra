@@ -82,7 +82,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
     <OutputPath>bin\x86\Release\</OutputPath>
-    <DefineConstants>TRACE;NETFX_CORE;WINDOWS_UWP</DefineConstants>
+    <DefineConstants>TRACE;NETFX_CORE;WINDOWS_UWP;CODE_ANALYSIS;</DefineConstants>
     <Optimize>true</Optimize>
     <NoWarn>;2008</NoWarn>
     <DebugType>pdbonly</DebugType>
@@ -110,6 +110,7 @@
     </Compile>
     <Compile Include="Class\InkingCollection.cs" />
     <Compile Include="Class\PageCollection.cs" />
+    <Compile Include="Class\PdfFile.cs" />
     <Compile Include="Dialog\AboutContentDialog.xaml.cs">
       <DependentUpon>AboutContentDialog.xaml</DependentUpon>
     </Compile>
@@ -243,7 +244,11 @@
     <SDKReference Include="Microsoft.VCLibs.120, Version=14.0">
       <Name>Microsoft.VCLibs.120</Name>
     </SDKReference>
+    <SDKReference Include="Syncfusion Controls for UWP XAML, Version=13.4.0.53">
+      <Name>Syncfusion Controls for UWP XAML</Name>
+    </SDKReference>
   </ItemGroup>
+  <ItemGroup />
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
   </PropertyGroup>
