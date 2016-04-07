@@ -1,17 +1,12 @@
-﻿using Microsoft.Graphics.Canvas;
-using Syncfusion.Pdf;
+﻿using Syncfusion.Pdf;
 using Syncfusion.Pdf.Graphics;
 using Syncfusion.Pdf.Interactive;
 using Syncfusion.Pdf.Parsing;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
-using Windows.Storage.Streams;
 using Windows.UI.Input.Inking;
 
 namespace Libra.Class
@@ -48,7 +43,6 @@ namespace Libra.Class
             {
                 int pageIndex = entry.Key - 1;
                 PdfLoadedPage page = pdf.Pages[pageIndex] as PdfLoadedPage;
-
                 // Save ink strokes as image
                 // File cannot be loaded in this app again???
                 //PdfPageLayer layer = page.Layers.Add();
@@ -69,7 +63,6 @@ namespace Libra.Class
                 // The following information will be lost:
                 // Pressure
                 // Pen shape
-                // Pen tip size
                 RectangleF rectangle = new RectangleF(0, 0, page.Size.Width, page.Size.Height);
                 foreach (InkStroke stroke in entry.Value.GetStrokes())
                 {
@@ -81,8 +74,13 @@ namespace Libra.Class
                     }
                     PdfInkAnnotation inkAnnotation = new PdfInkAnnotation(rectangle, strokePoints);
                     inkAnnotation.Color = new PdfColor(Color.FromArgb(Windows.UI.Colors.Red.A, Windows.UI.Colors.Red.R, Windows.UI.Colors.Red.G, Windows.UI.Colors.Red.B));
+                    inkAnnotation.BorderWidth = (int) (stroke.DrawingAttributes.Size.Width * sizeRatio);
                     page.Annotations.Add(inkAnnotation);
                 }
+
+                // Remove inking from the app
+
+
                 //IRandomAccessStream inkStream = new InMemoryRandomAccessStream();
                 //await entry.Value.SaveAsync(inkStream);
                 //PdfAttachment attach = new PdfAttachment("inking.png", inkStream.AsStreamForRead());

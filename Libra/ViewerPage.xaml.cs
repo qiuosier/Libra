@@ -14,7 +14,6 @@ using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
 using Windows.UI;
 using Windows.UI.Input.Inking;
-using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Data;
@@ -71,12 +70,11 @@ namespace Libra
         private DispatcherTimer pageNumberTextTimer;
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
-        private Queue<int> inkingChangedPagesQueue;
-        private InkingCollection inkingCollection;
         private List<int> inkCanvasList;                // Active inkcanvas
         private Stack<InkCanvas> inkCanvasStack;        // Inactive inkcanvas
         private InkDrawingAttributes drawingAttributes;
         private InkingPreference inkingPreference;
+        private InAppInking inAppInk;
         private InkInputProcessingMode inkProcessMode;
         private System.Diagnostics.Stopwatch fileLoadingWatch;
 
@@ -85,7 +83,6 @@ namespace Libra
 
         private int pageCount;
         private bool fileLoaded;
-        private bool isSavingInking;
         private bool isRenderingPage;
         private string futureAccessToken;
 
@@ -136,7 +133,6 @@ namespace Libra
             this.inkCanvasList = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.renderPagesQueue = new Queue<int>();
-            this.inkingChangedPagesQueue = new Queue<int>();
             this.isRenderingPage = false;
             this.inkProcessMode = InkInputProcessingMode.Inking;
             this.recycleTimer.Stop();
@@ -334,20 +330,6 @@ namespace Libra
             NavigationPage.Current.InitializeViewBtn();
         }
 
-
-        private async Task SaveInkingQueue()
-        {
-            this.isSavingInking = true;
-            while (this.inkingChangedPagesQueue.Count > 0)
-            {
-                int pageNumber = this.inkingChangedPagesQueue.Dequeue();
-                // Save ink strokes to dictionary
-                SaveInkCanvas(pageNumber);
-                await inkingCollection.SaveInking(pageNumber);
-            }
-            this.isSavingInking = false;
-        }
-
         /// <summary>
         /// Save inking preference to file.
         /// </summary>
@@ -498,8 +480,8 @@ namespace Libra
             // Load viewer state
             await LoadViewerState();
             RestoreViewerState();
-            // Retore inking
-            inkingCollection = await InkingCollection.LoadInkingCollection(dataFolder);
+            // Load inking
+            inAppInk = await InAppInking.OpenInAppInking(dataFolder);
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
@@ -564,7 +546,7 @@ namespace Libra
                     if (this.fileLoaded)
                     {
                         this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
-                        this.inkingCollection = await InkingCollection.LoadInkingCollection(dataFolder);
+                        this.inAppInk = await InAppInking.OpenInAppInking(dataFolder);
                         RefreshViewer();
                     }
                 }
@@ -713,21 +695,14 @@ namespace Libra
         /// </summary>
         /// <param name="pageNumber"></param>
         /// <param name="removeAfterSave"></param>
-        private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
+        private async void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
             if (grid.Children.Count > 1)    // No inkcanvas if count < 1
             {
                 // Save ink strokes, if there is any
                 InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                if (inkCanvas.InkPresenter.StrokeContainer.GetStrokes().Count > 0)
-                {
-                    // Remove item in dictionary, it will return false if item not found
-                    this.inkingCollection.Remove(pageNumber);
-                    // Add to dictionary
-                    this.inkingCollection.Add(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
-                    AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " saved to dictionary.");
-                }
+                await inAppInk.saveInking(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
                 // Remove ink canvas
                 if (removeAfterSave)
                 {
@@ -771,7 +746,7 @@ namespace Libra
             return bitmapImage;
         }
 
-        private void LoadInkCanvas(int pageNumber)
+        private async void LoadInkCanvas(int pageNumber)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
             if (grid == null)
@@ -808,17 +783,13 @@ namespace Libra
                 inkCanvas.InkPresenter.InputProcessingConfiguration.Mode = this.inkProcessMode;
                 inkCanvas.SetBinding(HeightProperty, bindingHeight);
                 inkCanvas.SetBinding(WidthProperty, bindingWidth);
+
+                this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                InkStrokeContainer inkStrokeContainer;
-                if (inkingCollection.TryGetValue(pageNumber, out inkStrokeContainer))
-                {
-                    inkCanvas.InkPresenter.StrokeContainer = inkStrokeContainer;
-                    AppEventSource.Log.Debug("ViewerPage: Ink strokes for page " + pageNumber.ToString() + " loaded from dictionary");
-                }
-                else inkCanvas.InkPresenter.StrokeContainer = new InkStrokeContainer();
+                inkCanvas.InkPresenter.StrokeContainer = await inAppInk.loadInking(pageNumber);
                 // Add ink canvas page
                 grid.Children.Add(inkCanvas);
-                this.inkCanvasList.Add(pageNumber);
+                
             }
         }
 
@@ -855,7 +826,7 @@ namespace Libra
         /// Save inking if strokes are changed.
         /// </summary>
         /// <param name="sender"></param>
-        private async void InkPresenter_StrokesChanged(InkPresenter sender)
+        private void InkPresenter_StrokesChanged(InkPresenter sender)
         {
             // Find the page number
             int pageNumber = 0;
@@ -866,16 +837,11 @@ namespace Libra
             }
             if (pageNumber == 0)
             {
-                AppEventSource.Log.Error("ViewerPage: Strokes Changed but Ink canvas found.");
+                AppEventSource.Log.Error("ViewerPage: Strokes Changed but Ink canvas not found.");
                 return;
             }
-            // Enqueue the page if it is not already in the queue
-            if (!this.inkingChangedPagesQueue.Contains(pageNumber))
-                this.inkingChangedPagesQueue.Enqueue(pageNumber);
-            // Invoke save inking only if SaveInking is not running.
-            // This will prevent running multiple saving instance at the same time.
-            if (!this.isSavingInking)
-                await SaveInkingQueue();
+            // Save ink strokes
+            SaveInkCanvas(pageNumber);
         }
 
         /// <summary>
@@ -1076,8 +1042,8 @@ namespace Libra
 
         private void RecyclePages()
         {
-            // Avoid recycling when saving inking
-            while (!this.isSavingInking && this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
+            // Avoid recycling when saving inking?
+            while (this.recyclePagesQueue.Count > SIZE_RECYCLE_QUEUE)
             {
                 RemovePage(this.recyclePagesQueue.Dequeue());
             }
@@ -1588,8 +1554,6 @@ namespace Libra
             ZoomView(newZoomFactor);
         }
 
-        
-
         private void GoToPage_Click(object sender, RoutedEventArgs e)
         {
             // TODO
@@ -1672,7 +1636,7 @@ namespace Libra
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
             PdfFile pdf = await PdfFile.OpenPdfFile(pdfFile, pdfDocument.GetPage(0).Size.Width);
-            await pdf.SaveInking(this.inkingCollection);
+            //await pdf.SaveInking(this.inkingCollection);
         }
     }
 }
