@@ -110,6 +110,8 @@
     </Compile>
     <Compile Include="Class\InAppInking.cs" />
     <Compile Include="Class\IInkingManager.cs" />
+    <Compile Include="Class\InFileInking.cs" />
+    <Compile Include="Class\InkManager.cs" />
     <Compile Include="Class\PageCollection.cs" />
     <Compile Include="Class\PdfFile.cs" />
     <Compile Include="Dialog\AboutContentDialog.xaml.cs">

@@ -50,10 +50,8 @@ namespace Libra
         private const string PREFIX_PAGE = "page";
         private const string PREFIX_GRID = "grid";
         private const string PREFIX_CANVAS = "canvas";
-        private const string PREFIX_VIEWBOX = "viewbox";
         private const string EXT_VIEW = ".xml";
         private const string INKING_PREFERENCE_FILENAME = "_inkingPreference.xml";
-        private const string INKING_PROFILE_FILENAME = "_inkingProfile.xml";
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
@@ -74,10 +72,9 @@ namespace Libra
         private Stack<InkCanvas> inkCanvasStack;        // Inactive inkcanvas
         private InkDrawingAttributes drawingAttributes;
         private InkingPreference inkingPreference;
-        private InAppInking inAppInk;
+        private IInkingManager inkManager;
         private InkInputProcessingMode inkProcessMode;
-        private System.Diagnostics.Stopwatch fileLoadingWatch;
-
+        
         private Guid _viewerKey;
         public Guid ViewerKey { get { return this._viewerKey; } }
 
@@ -87,6 +84,9 @@ namespace Libra
         private string futureAccessToken;
 
         public static ViewerPage Current = null;
+
+        // For diagnosis only
+        private System.Diagnostics.Stopwatch fileLoadingWatch;
 
         public ViewerPage()
         {
@@ -481,7 +481,7 @@ namespace Libra
             await LoadViewerState();
             RestoreViewerState();
             // Load inking
-            inAppInk = await InAppInking.OpenInAppInking(dataFolder);
+            inkManager = await Class.InkManager.InitializeInkManager(dataFolder);
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
@@ -546,7 +546,7 @@ namespace Libra
                     if (this.fileLoaded)
                     {
                         this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
-                        this.inAppInk = await InAppInking.OpenInAppInking(dataFolder);
+                        this.inkManager = await Class.InkManager.InitializeInkManager(dataFolder);
                         RefreshViewer();
                     }
                 }
@@ -695,14 +695,13 @@ namespace Libra
         /// </summary>
         /// <param name="pageNumber"></param>
         /// <param name="removeAfterSave"></param>
-        private async void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
+        private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
             if (grid.Children.Count > 1)    // No inkcanvas if count < 1
             {
                 // Save ink strokes, if there is any
                 InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                await inAppInk.saveInking(pageNumber, inkCanvas.InkPresenter.StrokeContainer);
                 // Remove ink canvas
                 if (removeAfterSave)
                 {
@@ -786,16 +785,17 @@ namespace Libra
 
                 this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                inkCanvas.InkPresenter.StrokeContainer = await inAppInk.loadInking(pageNumber);
+                inkCanvas.InkPresenter.StrokeContainer = await inkManager.loadInking(pageNumber);
                 // Add ink canvas page
                 grid.Children.Add(inkCanvas);
                 
             }
         }
 
-        private void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
+        private async void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
         {
-            InkPresenter_StrokesChanged(sender);
+            int p = findPageNumberByInkPresenter(sender);
+            await inkManager.eraseStrokes(p, args.Strokes);
         }
 
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
@@ -819,29 +819,28 @@ namespace Libra
                         break;
                 }
             }
-            InkPresenter_StrokesChanged(sender);
+            int p = findPageNumberByInkPresenter(sender);
+            await inkManager.addStrokes(p, args.Strokes);
         }
 
-        /// <summary>
-        /// Save inking if strokes are changed.
-        /// </summary>
-        /// <param name="sender"></param>
-        private void InkPresenter_StrokesChanged(InkPresenter sender)
+        private int findPageNumberByInkPresenter(InkPresenter sender)
         {
             // Find the page number
             int pageNumber = 0;
             foreach (int i in inkCanvasList)
             {
                 InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + i.ToString());
-                if (inkCanvas.InkPresenter == sender) pageNumber = i;
+                if (inkCanvas.InkPresenter == sender)
+                {
+                    pageNumber = i;
+                    break;
+                }
             }
             if (pageNumber == 0)
             {
                 AppEventSource.Log.Error("ViewerPage: Strokes Changed but Ink canvas not found.");
-                return;
             }
-            // Save ink strokes
-            SaveInkCanvas(pageNumber);
+            return pageNumber;
         }
 
         /// <summary>
@@ -1607,7 +1606,6 @@ namespace Libra
             }
         }
 
-
         private PageThumbnailCollection pageThumbnails;
 
         /// <summary>
@@ -1632,6 +1630,7 @@ namespace Libra
             this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
         }
+
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {

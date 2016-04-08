@@ -10,6 +10,8 @@ namespace Libra.Class
     public interface IInkingManager
     {
         Task<InkStrokeContainer> loadInking(int pageNumber);
-        Task saveInking(int pageNumber, InkStrokeContainer inkStrokes);
+        Task saveInking(int pageNumber, InkStrokeContainer inkStrokeContainer);
+        Task addStrokes(int pageNumber, IReadOnlyList<InkStroke> inkStrokes);
+        Task eraseStrokes(int pageNumber, IReadOnlyList<InkStroke> inkStrokes);
     }
 }
