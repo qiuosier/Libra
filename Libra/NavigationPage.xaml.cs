@@ -131,7 +131,7 @@ namespace NavigationMenu
             if (SuspensionManager.viewerStateDictionary.Count > 0)
                 this.AppFrame.Navigate(typeof(ViewerPage));
             // Otherwise navigate to main page
-            else ViewerPage.Current.AllViewClosed();
+            else ViewerPage.Current.CloseAllViews();
         }
 
         public void UpdateViewBtn(Guid viewKey, string newLabel = null, Symbol newSymbol = 0)

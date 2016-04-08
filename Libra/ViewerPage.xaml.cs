@@ -55,9 +55,9 @@ namespace Libra
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
-        private StorageFile pdfFile;
+        private MSPdfModel msPdf;
+        private StorageFile pdfStorageFile;
         private StorageFolder dataFolder;
-        private PdfDocument pdfDocument;
         private Thickness pageMargin;
         private PageRange inkingPageRange;
         private PageRange _visiblePageRange;
@@ -156,18 +156,18 @@ namespace Libra
             if (SuspensionManager.sessionState != null)
                 SuspensionManager.sessionState.ViewerMode = 1;
             // Check if a new file is opened
-            if (this.fileLoaded && !this.pdfFile.IsEqual(SuspensionManager.pdfFile))
+            if (this.fileLoaded && !this.pdfStorageFile.IsEqual(SuspensionManager.pdfFile))
             {
                 // Another file already opened
-                AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfFile.Name);
+                AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfStorageFile.Name);
                 this.fileLoaded = false;
             }
             if (!this.fileLoaded)
             {
                 // Load a new file
                 InitializeZoomInView();
-                this.pdfFile = SuspensionManager.pdfFile;
-                LoadFile(this.pdfFile);
+                this.pdfStorageFile = SuspensionManager.pdfFile;
+                LoadFile(this.pdfStorageFile);
             }
             else
             {
@@ -272,7 +272,7 @@ namespace Libra
                     this.imagePanel.UpdateLayout();
                     // Restore the previous view
                     this.scrollViewer.ChangeView(viewerState.hOffset, viewerState.vOffset, viewerState.zFactor);
-                    AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfFile.Name);
+                    AppEventSource.Log.Info("ViewerPage: Viewer state restored. " + this.pdfStorageFile.Name);
                     return;
                 }
             }
@@ -289,10 +289,9 @@ namespace Libra
         {
             this.imagePanel.Orientation = Orientation.Vertical;
             this.imagePanel.UpdateLayout();
-            double a = this.pdfDocument.GetPage(0).Size.Width;
             // Zoom the first page to fit the viewer window width
             float zoomFactor = (float)(this.scrollViewer.ActualWidth
-                / (this.pdfDocument.GetPage(0).Size.Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
+                / (this.msPdf.PageSize(1).Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
             zoomFactor = CheckZoomFactor(zoomFactor);
             double hOffset = this.imagePanel.ActualWidth * zoomFactor - this.scrollViewer.ActualWidth;
             hOffset = hOffset > 0 ? hOffset / 2 : 0;
@@ -389,50 +388,17 @@ namespace Libra
                 AppEventSource.Log.Warn("ViewerPage: Viewer not initialized correctly.");
                 return;
             }
-            AppEventSource.Log.Info("ViewerPage: Loading file: " + this.pdfFile.Name);
+            AppEventSource.Log.Info("ViewerPage: Loading file: " + this.pdfStorageFile.Name);
             // Update UI and Display loading
             this.fullScreenCover.Visibility = Visibility.Visible;
             this.fullScreenMessage.Text = "Loading...";
-            this.filenameTextBlock.Text = this.pdfFile.Name;
+            this.filenameTextBlock.Text = this.pdfStorageFile.Name;
             // Add file the future access list
             this.futureAccessToken = StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
-            try
-            {
-                // Try to load the file without a password
-                this.pdfDocument = await PdfDocument.LoadFromFileAsync(pdfFile);
-            }
-            catch
-            {
-                // Ask the user to enter password
-                PasswordContentDialog passwordDialog = new PasswordContentDialog();
-                bool failedToLoad = false;
-                if (await passwordDialog.ShowAsync() == ContentDialogResult.Primary)
-                {
-                    // Try to load the file with a password
-                    try
-                    {
-                        this.pdfDocument = await PdfDocument.LoadFromFileAsync(pdfFile, passwordDialog.Password);
-                    }
-                    catch
-                    {
-                        failedToLoad = true;
-                    }
-                }
-                else
-                {
-                    failedToLoad = true;
-                }
-                // Notify the user and return to main page if failed to load the file.
-                if (failedToLoad)
-                {
-                    App.NotifyUser(typeof(ViewerPage), "Failed to open the file.", true);
-                    CloseAll_Click(null, null);
-                    return;
-                }
-            }
+            this.msPdf = await MSPdfModel.LoadFromFile(pdfFile);
             // Check future access list
             await CheckFutureAccessList();
             // Create local data folder, if not exist
@@ -440,14 +406,14 @@ namespace Libra
 
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
-            this.pageCount = (int)pdfDocument.PageCount;
+            this.pageCount = msPdf.PageCount();
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             // Zoom the first page to fit the viewer window width
             ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
             // Initialize thumbnails collection
-            this.pageThumbnails = new PageThumbnailCollection(this.pdfDocument);
+            this.pageThumbnails = new PageThumbnailCollection(this.msPdf.PdfDoc);
             // Render the first page
             AddBlankImage(1);
             await AddPageImage(1, (uint)(this.scrollViewer.ActualWidth));
@@ -465,8 +431,8 @@ namespace Libra
             grid.Background = new SolidColorBrush(Colors.White);
             Image image = new Image();
             image.Name = PREFIX_PAGE + pageNumber.ToString();
-            image.Width = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Width;
-            image.Height = this.pdfDocument.GetPage((uint)(pageNumber - 1)).Size.Height;
+            image.Width = this.msPdf.PageSize(pageNumber).Width;
+            image.Height = this.msPdf.PageSize(pageNumber).Height;
             grid.Children.Add(image);
             this.imagePanel.Children.Add(grid);
             // Add blank thumbnail
@@ -525,7 +491,7 @@ namespace Libra
                         StorageApplicationPermissions.FutureAccessList.Remove(entry.Token);
                     }
                     if (pdfFileInList == null) continue;
-                    if (this.pdfFile.IsEqual(pdfFileInList))
+                    if (this.pdfStorageFile.IsEqual(pdfFileInList))
                     {
                         oldToken = entry.Token;
                         StorageApplicationPermissions.FutureAccessList.Remove(entry.Token);
@@ -603,10 +569,10 @@ namespace Libra
             this.isRenderingPage = true;
             while (renderPagesQueue.Count > 0)
             {
-                int i = renderPagesQueue.Dequeue();
-                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + i.ToString());
+                int pageNumber = renderPagesQueue.Dequeue();
+                Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
                 // The actual page width that is diaplaying to the user
-                double displayWidth = this.pdfDocument.GetPage((uint)(i-1)).Size.Width * this.scrollViewer.ZoomFactor;
+                double displayWidth = this.msPdf.PageSize(pageNumber).Width * this.scrollViewer.ZoomFactor;
                 // Render width depends on the display width. (higher if a page is zoomed in)
                 double standardWidth = this.scrollViewer.ActualWidth;
                 uint renderWidth;
@@ -626,12 +592,12 @@ namespace Libra
                     renderWidth = (uint)(5.0 * standardWidth);
                 else renderWidth = (uint)(6.0 * standardWidth);
                 // Load the visible pages with a higher resolution.
-                if (i >= VisiblePageRange.first && i <= VisiblePageRange.last)
-                    await AddPageImage(i, renderWidth);
+                if (pageNumber >= VisiblePageRange.first && pageNumber <= VisiblePageRange.last)
+                    await AddPageImage(pageNumber, renderWidth);
                 else
-                    await AddPageImage(i, Math.Min(renderWidth, (uint)(standardWidth)));
+                    await AddPageImage(pageNumber, Math.Min(renderWidth, (uint)(standardWidth)));
                 // Add ink canvas
-                LoadInkCanvas(i);
+                LoadInkCanvas(pageNumber);
             }
             this.isRenderingPage = false;
         }
@@ -727,23 +693,12 @@ namespace Libra
                 renderWidth > ((BitmapImage)(image.Source)).PixelWidth ||
                 renderWidth < ((BitmapImage)(image.Source)).PixelWidth / 2)
             {
-                image.Source = await RenderPageImage(pageNumber, renderWidth);
+                image.Source = await this.msPdf.RenderPageImage(pageNumber, renderWidth);
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
         }
 
-        private async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
-        {
-            // Render pdf image
-            InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
-            PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
-            PdfPageRenderOptions options = new PdfPageRenderOptions();
-            options.DestinationWidth = renderWidth;
-            await page.RenderToStreamAsync(stream, options);
-            BitmapImage bitmapImage = new BitmapImage();
-            bitmapImage.SetSource(stream);
-            return bitmapImage;
-        }
+        
 
         private async void LoadInkCanvas(int pageNumber)
         {
@@ -1206,7 +1161,7 @@ namespace Libra
             NavigationPage.Current.RemoveView(this.ViewerKey);
         }
 
-        public void AllViewClosed()
+        public void CloseAllViews()
         {
             CloseAll_Click(null, null);
         }
@@ -1326,7 +1281,8 @@ namespace Libra
                             string fileExtension = ".PNG";
                             StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
                                 CreationCollisionOption.GenerateUniqueName);
-                            await Export_Page(pageNumber, file);
+                            InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
+                            await msPdf.Export_Page(pageNumber, inkCanvas, file);
                             exportedCount++;
                         }
                         catch (Exception ex)
@@ -1344,39 +1300,6 @@ namespace Libra
                     App.NotifyUser(typeof(ViewerPage), message);
                 }
             }
-        }
-
-        /// <summary>
-        /// Save a rendered pdf page with inking to png file.
-        /// </summary>
-        /// <param name="pageNumber"></param>
-        /// <param name="saveFile"></param>
-        /// <returns></returns>
-        private async Task Export_Page(int pageNumber, StorageFile saveFile)
-        {
-            Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
-            InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
-            CanvasDevice device = CanvasDevice.GetSharedDevice();
-            CanvasRenderTarget renderTarget = new CanvasRenderTarget(device, (int)inkCanvas.ActualWidth, (int)inkCanvas.ActualHeight, 96 * 2);
-
-            // Render pdf page
-            InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
-            PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
-            PdfPageRenderOptions options = new PdfPageRenderOptions();
-            options.DestinationWidth = (uint)inkCanvas.ActualWidth * 2;
-            await page.RenderToStreamAsync(stream, options);
-            CanvasBitmap bitmap = await CanvasBitmap.LoadAsync(device, stream, 96 * 2);
-            // Draw image with ink
-            using (var ds = renderTarget.CreateDrawingSession())
-            {
-                ds.Clear(Colors.White);
-                ds.DrawImage(bitmap);
-                ds.DrawInk(inkCanvas.InkPresenter.StrokeContainer.GetStrokes());
-            }
-
-            // Encode the image to the selected file on disk
-            using (var fileStream = await saveFile.OpenAsync(FileAccessMode.ReadWrite))
-                await renderTarget.SaveAsync(fileStream, CanvasBitmapFileFormat.Png, 1f);
         }
 
         /// <summary>
@@ -1504,8 +1427,8 @@ namespace Libra
             for (uint i = 0; i < pageIndex; i++)
             {
                 pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
-                    this.pdfDocument.GetPage(i).Size.Height :
-                    this.pdfDocument.GetPage(i).Size.Width;
+                    this.msPdf.PdfDoc.GetPage(i).Size.Height :
+                    this.msPdf.PdfDoc.GetPage(i).Size.Width;
                 pageOffset += 2 * PAGE_IMAGE_MARGIN;
             }
             pageOffset *= (float)zoomFactor;
@@ -1621,20 +1544,20 @@ namespace Libra
         private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             int releasedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
+                    - (this.msPdf.PageCount() - this.pageThumbnails.Count));
             if (releasedIndex == this.pressedThumbnailIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
         }
 
         private void ThumbnailGrid_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.pdfDocument.PageCount - this.pageThumbnails.Count));
+                    - (this.msPdf.PageCount() - this.pageThumbnails.Count));
         }
 
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
-            PdfFile pdf = await PdfFile.OpenPdfFile(pdfFile, pdfDocument.GetPage(0).Size.Width);
+            PdfFile pdf = await PdfFile.OpenPdfFile(pdfStorageFile, msPdf.PdfDoc.GetPage(0).Size.Width);
             //await pdf.SaveInking(this.inkingCollection);
         }
     }

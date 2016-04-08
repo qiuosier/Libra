@@ -7,7 +7,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Windows.Storage.Streams;
 using Windows.UI.Input.Inking;
+using Windows.UI.Xaml.Media.Imaging;
 
 namespace Libra.Class
 {
@@ -16,6 +18,7 @@ namespace Libra.Class
         private PdfLoadedDocument pdf;
         private StorageFile pdfStorage;
         private double sizeRatio;
+        
 
         private PdfFile(StorageFile pdfStorageFile)
         {
@@ -36,6 +39,9 @@ namespace Libra.Class
             file.sizeRatio = file.pdf.Pages[0].Size.Width / firstPageWidth;
             return file;
         }
+
+        
+
 
         //public async Task<bool> SaveInking(InkingCollection inking)
         //{
