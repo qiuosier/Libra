@@ -1,17 +1,14 @@
 ﻿using Libra.Class;
 using Libra.Dialog;
-using Microsoft.Graphics.Canvas;
 using NavigationMenu;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
-using Windows.Storage.Streams;
 using Windows.UI;
 using Windows.UI.Input.Inking;
 using Windows.UI.Xaml;
@@ -55,7 +52,7 @@ namespace Libra
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
-        private MSPdfModel msPdf;
+        private IPdfReader msPdf;
         private StorageFile pdfStorageFile;
         private StorageFolder dataFolder;
         private Thickness pageMargin;
@@ -398,7 +395,7 @@ namespace Libra
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
-            this.msPdf = await MSPdfModel.LoadFromFile(pdfFile);
+            this.msPdf = await PdfModel.LoadFromFile(pdfFile);
             // Check future access list
             await CheckFutureAccessList();
             // Create local data folder, if not exist
@@ -1282,7 +1279,7 @@ namespace Libra
                             StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
                                 CreationCollisionOption.GenerateUniqueName);
                             InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                            await msPdf.Export_Page(pageNumber, inkCanvas, file);
+                            await msPdf.ExportPageImage(pageNumber, inkCanvas, file);
                             exportedCount++;
                         }
                         catch (Exception ex)
@@ -1557,7 +1554,7 @@ namespace Libra
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
-            PdfFile pdf = await PdfFile.OpenPdfFile(pdfStorageFile, msPdf.PdfDoc.GetPage(0).Size.Width);
+            SFPdfModel pdf = await SFPdfModel.OpenPdfFile(pdfStorageFile, msPdf.PdfDoc.GetPage(0).Size.Width);
             //await pdf.SaveInking(this.inkingCollection);
         }
     }

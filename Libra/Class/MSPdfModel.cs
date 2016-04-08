@@ -14,7 +14,7 @@ using Windows.UI.Xaml.Media.Imaging;
 
 namespace Libra.Class
 {
-    class MSPdfModel
+    class MSPdfModel : IPdfReader
     {
         public PdfDocument PdfDoc { get; private set; }
 
@@ -92,7 +92,7 @@ namespace Libra.Class
         /// <param name="pageNumber"></param>
         /// <param name="saveFile"></param>
         /// <returns></returns>
-        public async Task Export_Page(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
+        public async Task ExportPageImage(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
         {
             CanvasDevice device = CanvasDevice.GetSharedDevice();
             CanvasRenderTarget renderTarget = new CanvasRenderTarget(device, (int)inkCanvas.ActualWidth, (int)inkCanvas.ActualHeight, 96 * 2);

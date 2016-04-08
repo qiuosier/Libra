@@ -13,14 +13,14 @@ using Windows.UI.Xaml.Media.Imaging;
 
 namespace Libra.Class
 {
-    public class PdfFile
+    public class SFPdfModel
     {
         private PdfLoadedDocument pdf;
         private StorageFile pdfStorage;
         private double sizeRatio;
         
 
-        private PdfFile(StorageFile pdfStorageFile)
+        private SFPdfModel(StorageFile pdfStorageFile)
         {
             pdfStorage = pdfStorageFile;
         }
@@ -30,10 +30,10 @@ namespace Libra.Class
         /// </summary>
         /// <param name="pdfStorageFile"></param>
         /// <returns></returns>
-        public static async Task<PdfFile> OpenPdfFile(StorageFile pdfStorageFile, double firstPageWidth)
+        public static async Task<SFPdfModel> OpenPdfFile(StorageFile pdfStorageFile, double firstPageWidth)
         {
             // TODO: Password protected file.
-            PdfFile file = new PdfFile(pdfStorageFile);
+            SFPdfModel file = new SFPdfModel(pdfStorageFile);
             file.pdf = new PdfLoadedDocument();
             await file.pdf.OpenAsync(pdfStorageFile);
             file.sizeRatio = file.pdf.Pages[0].Size.Width / firstPageWidth;

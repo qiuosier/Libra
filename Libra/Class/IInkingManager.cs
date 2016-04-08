@@ -7,7 +7,7 @@ using Windows.UI.Input.Inking;
 
 namespace Libra.Class
 {
-    public interface IInkingManager
+    interface IInkingManager
     {
         Task<InkStrokeContainer> loadInking(int pageNumber);
         Task saveInking(int pageNumber, InkStrokeContainer inkStrokeContainer);

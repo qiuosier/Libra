@@ -112,9 +112,11 @@
     <Compile Include="Class\IInkingManager.cs" />
     <Compile Include="Class\InFileInking.cs" />
     <Compile Include="Class\InkManager.cs" />
+    <Compile Include="Class\IPdfReader.cs" />
     <Compile Include="Class\MSPdfModel.cs" />
     <Compile Include="Class\PageCollection.cs" />
-    <Compile Include="Class\PdfFile.cs" />
+    <Compile Include="Class\SFPdfModel.cs" />
+    <Compile Include="Class\PdfModel.cs" />
     <Compile Include="Dialog\AboutContentDialog.xaml.cs">
       <DependentUpon>AboutContentDialog.xaml</DependentUpon>
     </Compile>
