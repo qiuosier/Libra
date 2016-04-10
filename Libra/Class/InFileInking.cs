@@ -9,17 +9,17 @@ namespace Libra.Class
 {
     public class InFileInking : IInkingManager
     {
-        public Task addStrokes(int pageNumber, IReadOnlyList<InkStroke> inkStrokes)
+        public Task addStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
             throw new NotImplementedException();
         }
 
-        public Task eraseStrokes(int pageNumber, IReadOnlyList<InkStroke> inkStrokes)
+        public Task eraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
             throw new NotImplementedException();
         }
 
-        public Task<InkStrokeContainer> loadInking(int pageNumber)
+        public InkStrokeContainer loadInking(int pageNumber)
         {
             throw new NotImplementedException();
         }

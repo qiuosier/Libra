@@ -53,7 +53,13 @@ namespace Libra.Class
         {
             PdfModel pdfModel = new PdfModel();
             pdfModel.msPdf = await MSPdfModel.LoadFromFile(pdfStorageFile);
+            pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile, pdfModel.PageSize(1));
             return pdfModel;
+        }
+
+        public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
+        {
+            return await sfPdf.SaveInkingToPdf(inkManager);
         }
     }
 }

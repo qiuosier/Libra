@@ -52,7 +52,7 @@ namespace Libra
         private const string PAGE_SIZE_FILENAME = "_pageSize.xml";
         private const string DEFAULT_FULL_SCREEN_MSG = "No File is Opened.";
 
-        private IPdfReader msPdf;
+        private PdfModel pdfModel;
         private StorageFile pdfStorageFile;
         private StorageFolder dataFolder;
         private Thickness pageMargin;
@@ -69,7 +69,7 @@ namespace Libra
         private Stack<InkCanvas> inkCanvasStack;        // Inactive inkcanvas
         private InkDrawingAttributes drawingAttributes;
         private InkingPreference inkingPreference;
-        private IInkingManager inkManager;
+        private InkingManager inkManager;
         private InkInputProcessingMode inkProcessMode;
         
         private Guid _viewerKey;
@@ -288,7 +288,7 @@ namespace Libra
             this.imagePanel.UpdateLayout();
             // Zoom the first page to fit the viewer window width
             float zoomFactor = (float)(this.scrollViewer.ActualWidth
-                / (this.msPdf.PageSize(1).Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
+                / (this.pdfModel.PageSize(1).Width + 2 * PAGE_IMAGE_MARGIN + SCROLLBAR_WIDTH));
             zoomFactor = CheckZoomFactor(zoomFactor);
             double hOffset = this.imagePanel.ActualWidth * zoomFactor - this.scrollViewer.ActualWidth;
             hOffset = hOffset > 0 ? hOffset / 2 : 0;
@@ -395,7 +395,7 @@ namespace Libra
             // Save session state in suspension manager
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
-            this.msPdf = await PdfModel.LoadFromFile(pdfFile);
+            this.pdfModel = await PdfModel.LoadFromFile(pdfFile);
             // Check future access list
             await CheckFutureAccessList();
             // Create local data folder, if not exist
@@ -403,14 +403,14 @@ namespace Libra
 
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
-            this.pageCount = msPdf.PageCount();
+            this.pageCount = pdfModel.PageCount();
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             // Zoom the first page to fit the viewer window width
             ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
             // Initialize thumbnails collection
-            this.pageThumbnails = new PageThumbnailCollection(this.msPdf.PdfDoc);
+            this.pageThumbnails = new PageThumbnailCollection(this.pdfModel.PdfDoc);
             // Render the first page
             AddBlankImage(1);
             await AddPageImage(1, (uint)(this.scrollViewer.ActualWidth));
@@ -428,8 +428,8 @@ namespace Libra
             grid.Background = new SolidColorBrush(Colors.White);
             Image image = new Image();
             image.Name = PREFIX_PAGE + pageNumber.ToString();
-            image.Width = this.msPdf.PageSize(pageNumber).Width;
-            image.Height = this.msPdf.PageSize(pageNumber).Height;
+            image.Width = this.pdfModel.PageSize(pageNumber).Width;
+            image.Height = this.pdfModel.PageSize(pageNumber).Height;
             grid.Children.Add(image);
             this.imagePanel.Children.Add(grid);
             // Add blank thumbnail
@@ -444,7 +444,7 @@ namespace Libra
             await LoadViewerState();
             RestoreViewerState();
             // Load inking
-            inkManager = await Class.InkManager.InitializeInkManager(dataFolder);
+            inkManager = await InkingManager.InitializeInking(dataFolder);
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
@@ -509,7 +509,7 @@ namespace Libra
                     if (this.fileLoaded)
                     {
                         this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
-                        this.inkManager = await Class.InkManager.InitializeInkManager(dataFolder);
+                        this.inkManager = await InkingManager.InitializeInking(dataFolder);
                         RefreshViewer();
                     }
                 }
@@ -569,7 +569,7 @@ namespace Libra
                 int pageNumber = renderPagesQueue.Dequeue();
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
                 // The actual page width that is diaplaying to the user
-                double displayWidth = this.msPdf.PageSize(pageNumber).Width * this.scrollViewer.ZoomFactor;
+                double displayWidth = this.pdfModel.PageSize(pageNumber).Width * this.scrollViewer.ZoomFactor;
                 // Render width depends on the display width. (higher if a page is zoomed in)
                 double standardWidth = this.scrollViewer.ActualWidth;
                 uint renderWidth;
@@ -690,14 +690,14 @@ namespace Libra
                 renderWidth > ((BitmapImage)(image.Source)).PixelWidth ||
                 renderWidth < ((BitmapImage)(image.Source)).PixelWidth / 2)
             {
-                image.Source = await this.msPdf.RenderPageImage(pageNumber, renderWidth);
+                image.Source = await this.pdfModel.RenderPageImage(pageNumber, renderWidth);
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
         }
 
         
 
-        private async void LoadInkCanvas(int pageNumber)
+        private void LoadInkCanvas(int pageNumber)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
             if (grid == null)
@@ -737,7 +737,9 @@ namespace Libra
 
                 this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                inkCanvas.InkPresenter.StrokeContainer = await inkManager.loadInking(pageNumber);
+                InkStrokeContainer inkStrokesContainer = inkManager.loadInking(pageNumber);
+                if (inkStrokesContainer != null)
+                    inkCanvas.InkPresenter.StrokeContainer = inkStrokesContainer;
                 // Add ink canvas page
                 grid.Children.Add(inkCanvas);
                 
@@ -747,7 +749,7 @@ namespace Libra
         private async void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
         {
             int p = findPageNumberByInkPresenter(sender);
-            await inkManager.eraseStrokes(p, args.Strokes);
+            await inkManager.eraseStrokes(p, sender.StrokeContainer, args.Strokes);
         }
 
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
@@ -772,7 +774,7 @@ namespace Libra
                 }
             }
             int p = findPageNumberByInkPresenter(sender);
-            await inkManager.addStrokes(p, args.Strokes);
+            await inkManager.addStrokes(p, sender.StrokeContainer, args.Strokes);
         }
 
         private int findPageNumberByInkPresenter(InkPresenter sender)
@@ -1279,7 +1281,7 @@ namespace Libra
                             StorageFile file = await folder.CreateFileAsync(filename + pageNumber.ToString() + fileExtension,
                                 CreationCollisionOption.GenerateUniqueName);
                             InkCanvas inkCanvas = (InkCanvas)this.imagePanel.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                            await msPdf.ExportPageImage(pageNumber, inkCanvas, file);
+                            await pdfModel.ExportPageImage(pageNumber, inkCanvas, file);
                             exportedCount++;
                         }
                         catch (Exception ex)
@@ -1424,8 +1426,8 @@ namespace Libra
             for (uint i = 0; i < pageIndex; i++)
             {
                 pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
-                    this.msPdf.PdfDoc.GetPage(i).Size.Height :
-                    this.msPdf.PdfDoc.GetPage(i).Size.Width;
+                    this.pdfModel.PdfDoc.GetPage(i).Size.Height :
+                    this.pdfModel.PdfDoc.GetPage(i).Size.Width;
                 pageOffset += 2 * PAGE_IMAGE_MARGIN;
             }
             pageOffset *= (float)zoomFactor;
@@ -1541,21 +1543,20 @@ namespace Libra
         private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             int releasedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.msPdf.PageCount() - this.pageThumbnails.Count));
+                    - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
             if (releasedIndex == this.pressedThumbnailIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
         }
 
         private void ThumbnailGrid_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.msPdf.PageCount() - this.pageThumbnails.Count));
+                    - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
         }
 
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
-            SFPdfModel pdf = await SFPdfModel.OpenPdfFile(pdfStorageFile, msPdf.PdfDoc.GetPage(0).Size.Width);
-            //await pdf.SaveInking(this.inkingCollection);
+            await pdfModel.SaveInkingToPdf(inkManager);
         }
     }
 }
