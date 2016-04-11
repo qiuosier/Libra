@@ -17,9 +17,6 @@ namespace Libra.Class
     {
         private PdfLoadedDocument pdf;
         private StorageFile pdfStorage;
-        private double sizeRatio;
-        private bool rotated;
-        
 
         private SFPdfModel(StorageFile pdfStorageFile)
         {
@@ -31,32 +28,46 @@ namespace Libra.Class
         /// </summary>
         /// <param name="pdfStorageFile"></param>
         /// <returns></returns>
-        public static async Task<SFPdfModel> LoadFromFile(StorageFile pdfStorageFile, Windows.Foundation.Size msSize)
+        public static async Task<SFPdfModel> LoadFromFile(StorageFile pdfStorageFile)
         {
             // TODO: Password protected file.
             SFPdfModel file = new SFPdfModel(pdfStorageFile);
             file.pdf = new PdfLoadedDocument();
             await file.pdf.OpenAsync(pdfStorageFile);
-            SizeF sfSize = file.pdf.Pages[0].Size;
-            if ((sfSize.Width > sfSize.Height && msSize.Height > msSize.Width) ||
-                (sfSize.Width < sfSize.Height && msSize.Height < msSize.Width))
-            {
-                file.rotated = true;
-                file.sizeRatio = sfSize.Width / msSize.Height;
-            }
-            else
-            {
-                file.sizeRatio = sfSize.Width / msSize.Width;
-            }
+            //SizeF sfSize = file.pdf.Pages[0].Size;
+            //if ((sfSize.Width > sfSize.Height && msSize.Height > msSize.Width) ||
+            //    (sfSize.Width < sfSize.Height && msSize.Height < msSize.Width))
+            //{
+            //    file.rotated = true;
+            //    file.sizeRatio = sfSize.Width / msSize.Height;
+            //}
+            //else
+            //{
+            //    file.sizeRatio = sfSize.Width / msSize.Width;
+            //}
             return file;
         }
 
-        public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
+        /// <summary>
+        /// Save the ink annotations into the pdf file.
+        /// </summary>
+        /// <param name="inkManager"></param>
+        /// <returns></returns>
+        /// <remarks>
+        /// The page size returned from Syncfusion pdf is the media box size.
+        /// Syncfusion uses the bottom left corner as the origin, while ink canvas uses the top left corner.
+        /// </remarks>
+        public async Task<bool> SaveInkingToPdf(InkingManager inkManager, Windows.Data.Pdf.PdfDocument pdfDoc)
         {
             foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
             {
                 int pageIndex = entry.Key - 1;
-                PdfLoadedPage page = pdf.Pages[pageIndex] as PdfLoadedPage;
+                PdfLoadedPage sfPage = pdf.Pages[pageIndex] as PdfLoadedPage;
+                Windows.Data.Pdf.PdfPage msPage = pdfDoc.GetPage((uint)pageIndex);
+                int rotation = (int)msPage.Rotation;
+                double scaleRatio = sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
+                double xOffset = msPage.Dimensions.TrimBox.Left * scaleRatio;
+                double yOffset = msPage.Dimensions.TrimBox.Top * scaleRatio;
                 // Save ink strokes as image
                 // File cannot be loaded in this app again???
                 //PdfPageLayer layer = page.Layers.Add();
@@ -77,32 +88,47 @@ namespace Libra.Class
                 // The following information will be lost:
                 // Pressure
                 // Pen shape
-                RectangleF rectangle = new RectangleF(0, 0, page.Size.Width, page.Size.Height);
+                RectangleF rectangle = new RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
                 foreach (InkStroke stroke in entry.Value.GetStrokes())
                 {
                     List<float> strokePoints = new List<float>();
                     foreach (InkPoint p in stroke.GetInkPoints())
                     {
-                        
-                        if (rotated)
+                        float X = (float)(p.Position.X * scaleRatio + xOffset);
+                        float Y = (float)(p.Position.Y * scaleRatio + yOffset);
+                        switch (rotation)
                         {
-                            float X = (float)(p.Position.X * sizeRatio);
-                            float Y = (float)(p.Position.Y * sizeRatio);
-                            strokePoints.Add(Y);
-                            strokePoints.Add(X);
-                        }
-                        else
-                        {
-                            float X = (float)(p.Position.X * sizeRatio);
-                            float Y = page.Size.Height - (float)(p.Position.Y * sizeRatio);
-                            strokePoints.Add(X);
-                            strokePoints.Add(Y);
+                            
+                            case 0:
+                                {
+                                    strokePoints.Add(X);
+                                    strokePoints.Add(sfPage.Size.Height - Y);
+                                    break;
+                                }
+                            case 1:
+                                {
+                                    strokePoints.Add(Y);
+                                    strokePoints.Add(X);
+                                    break;
+                                }
+                            case 2:
+                                {
+                                    strokePoints.Add(sfPage.Size.Width - X);
+                                    strokePoints.Add(Y);
+                                    break;
+                                }
+                            case 3:
+                                {
+                                    strokePoints.Add(sfPage.Size.Height - Y);
+                                    strokePoints.Add(sfPage.Size.Width - X);
+                                    break;
+                                }
                         }
                     }
                     PdfInkAnnotation inkAnnotation = new PdfInkAnnotation(rectangle, strokePoints);
                     inkAnnotation.Color = new PdfColor(Color.FromArgb(Windows.UI.Colors.Red.A, Windows.UI.Colors.Red.R, Windows.UI.Colors.Red.G, Windows.UI.Colors.Red.B));
-                    inkAnnotation.BorderWidth = (int)(stroke.DrawingAttributes.Size.Width * sizeRatio);
-                    page.Annotations.Add(inkAnnotation);
+                    inkAnnotation.BorderWidth = (int)(stroke.DrawingAttributes.Size.Width * scaleRatio);
+                    sfPage.Annotations.Add(inkAnnotation);
                 }
             }
             bool a = await pdf.Save();

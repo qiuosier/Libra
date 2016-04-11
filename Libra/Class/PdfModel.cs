@@ -53,13 +53,22 @@ namespace Libra.Class
         {
             PdfModel pdfModel = new PdfModel();
             pdfModel.msPdf = await MSPdfModel.LoadFromFile(pdfStorageFile);
-            pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile, pdfModel.PageSize(1));
+            double z = pdfModel.msPdf.PdfDoc.GetPage(0).PreferredZoom;
+            int r = (int)pdfModel.msPdf.PdfDoc.GetPage(0).Rotation;
+            double tH = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Height;
+            double tW = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Width;
+            double mH = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.MediaBox.Height;
+            double mW = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.MediaBox.Width;
+            double tT = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Top;
+            double tL = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Left;
+            pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile);
+            
             return pdfModel;
         }
 
         public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
         {
-            return await sfPdf.SaveInkingToPdf(inkManager);
+            return await sfPdf.SaveInkingToPdf(inkManager, msPdf.PdfDoc);
         }
     }
 }
