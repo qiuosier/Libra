@@ -46,6 +46,8 @@
                     </MenuFlyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
+            <AppBarSeparator />
+            <AppBarButton Icon="Save" Label="Save Inking" Click="SaveInking_Click" />
             <AppBarButton x:Name="closeThisView" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
@@ -55,7 +57,7 @@
                 <AppBarSeparator x:Name="ViewSecBtnSeparator"/>
                 <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
                 <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
-                <AppBarButton Icon="Save" Label="Save Inking" Click="SaveInking_Click" />
+                
                 <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
                 <AppBarButton x:Name="closeThisViewSec" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
                 <AppBarButton x:Name="closeAllViews"  Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>

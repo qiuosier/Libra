@@ -63,6 +63,7 @@ namespace Libra
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
         private DispatcherTimer pageNumberTextTimer;
+        private List<int> renderedPages;
         private Queue<int> recyclePagesQueue;
         private Queue<int> renderPagesQueue;
         private List<int> inkCanvasList;                // Active inkcanvas
@@ -128,6 +129,7 @@ namespace Libra
             this._viewerKey = new Guid();
             this.pageCount = 0;
             this.inkCanvasList = new List<int>();
+            this.renderedPages = new List<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.renderPagesQueue = new Queue<int>();
             this.isRenderingPage = false;
@@ -634,12 +636,22 @@ namespace Libra
         /// Ink strokes will also be saved to inking dictionary before the ink canvas is removed.
         /// </summary>
         /// <param name="pageNumber"></param>
-        private void RemovePage(int pageNumber)
+        private void RemovePage(int pageNumber, bool forceRemove = false)
         {
-            if (pageNumber < inkingPageRange.first - SIZE_PAGE_BUFFER || pageNumber > inkingPageRange.last + SIZE_PAGE_BUFFER)
+            if (forceRemove ||
+                pageNumber < inkingPageRange.first - SIZE_PAGE_BUFFER || 
+                pageNumber > inkingPageRange.last + SIZE_PAGE_BUFFER)
             {
                 // Remove Ink Canvas
-                SaveInkCanvas(pageNumber, true);
+                Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
+                if (grid.Children.Count > 1)    // No inkcanvas if count < 1
+                {
+                    InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
+                    // Recycle ink canvas
+                    inkCanvasStack.Push(inkCanvas);
+                    grid.Children.RemoveAt(1);
+                    this.inkCanvasList.Remove(pageNumber);
+                }
                 // Remove Image
                 Image image = (Image)this.imagePanel.FindName(PREFIX_PAGE + pageNumber.ToString());
                 if (image != null)
@@ -647,35 +659,14 @@ namespace Libra
                     double x = image.ActualHeight;
                     image.Source = null;
                     image.Height = x;
+                    renderedPages.Remove(pageNumber);
                     AppEventSource.Log.Debug("ViewerPage: Image in page " + pageNumber.ToString() + " removed.");
                 }
                 else AppEventSource.Log.Warn("ViewerPage: Image in page " + pageNumber.ToString() + " is empty.");
             }
         }
 
-        /// <summary>
-        /// Save ink canvas to inking dictionary.
-        /// </summary>
-        /// <param name="pageNumber"></param>
-        /// <param name="removeAfterSave"></param>
-        private void SaveInkCanvas(int pageNumber, bool removeAfterSave = false)
-        {
-            Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
-            if (grid.Children.Count > 1)    // No inkcanvas if count < 1
-            {
-                // Save ink strokes, if there is any
-                InkCanvas inkCanvas = (InkCanvas)grid.FindName(PREFIX_CANVAS + pageNumber.ToString());
-                // Remove ink canvas
-                if (removeAfterSave)
-                {
-                    inkCanvasStack.Push(inkCanvas);
-                    grid.Children.RemoveAt(1);
-                    this.inkCanvasList.Remove(pageNumber);
-                }
-            }
-        }
-
-        private async Task AddPageImage(int pageNumber, uint renderWidth)
+        private async Task AddPageImage(int pageNumber, uint renderWidth, bool forceRender = false)
         {
             if (pageNumber <= 0 || pageNumber > this.pageCount) return;
             // Get the XAML image element
@@ -686,17 +677,17 @@ namespace Libra
                 return;
             }
             // Render pdf page to image, if image is not rendered, or a HIGHER render width is specified,
-            if (image.Source == null || 
+            if (forceRender || image.Source == null || 
                 renderWidth > ((BitmapImage)(image.Source)).PixelWidth ||
                 renderWidth < ((BitmapImage)(image.Source)).PixelWidth / 2)
             {
+                renderedPages.Add(pageNumber);
                 image.Source = await this.pdfModel.RenderPageImage(pageNumber, renderWidth);
                 AppEventSource.Log.Debug("ViewerPage: Page " + pageNumber.ToString() + " loaded with render width " + renderWidth.ToString());
             }
         }
 
         
-
         private void LoadInkCanvas(int pageNumber)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
@@ -758,9 +749,11 @@ namespace Libra
             if ((bool)App.AppSettings[App.INKING_WARNING])
             {
                 int userResponse = await App.NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
-                    "Currently ink strokes are NOT SAVED to the PDF file. They are saved ONLY IN THIS APP. \n" +
-                    "Ink strokes will be lost if you reinstall windows. \n" +
-                    "You can export the ink strokes along with pdf pages as image files.",
+                    "Ink strokes are saved automatically IN THIS APP. \n" +
+                    "To save the ink strokes into the pdf file, click the [Save Inking] button." +
+                    "\n" + 
+                    "Ink strokes saved in this app will be lost if you reinstall windows. \n" +
+                    "You can also export the ink strokes along with pdf pages as image files.",
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
@@ -1556,7 +1549,43 @@ namespace Libra
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
-            await pdfModel.SaveInkingToPdf(inkManager);
+            // Notify user
+            if ((bool)App.AppSettings[App.CONFIRM_SAVING])
+            {
+                int userResponse = await App.NotifyUserWithOptions(
+                    "WARNING: \n" +
+                    "\n" +
+                    "Saving ink strokes to the PDF file is an experimental feature. \n" +
+                    "Please BACKUP YOUR PDF FILE before saving ink strokes. \n" +
+                    "\n" +
+                    "Pressure information in the ink strokes WILL BE LOST. \n" +
+                    "Ink strokes saved to the PDF file are no longer editable in this app. \n" +
+                    "However, you can move or remove the ink strokes with Adobe reader. \n" + 
+                    "\n" +
+                    "Save ink strokes to the file? \n",
+                    new string[] { "Yes", "Cancel" });
+                switch (userResponse)
+                {
+                    case 0:
+                        bool status = await pdfModel.SaveInkingToPdf(inkManager);
+                        // TODO: Fail to save
+                        await pdfModel.ReloadFile();
+                        reRenderPages();
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        private void reRenderPages()
+        {
+            recyclePagesQueue.Clear();
+            while(renderedPages.Count > 0)
+            {
+                RemovePage(renderedPages[0], true);
+            }
+            PreparePages(this.VisiblePageRange);
         }
     }
 }

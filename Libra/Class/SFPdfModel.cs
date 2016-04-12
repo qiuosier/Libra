@@ -16,11 +16,11 @@ namespace Libra.Class
     public class SFPdfModel
     {
         private PdfLoadedDocument pdf;
-        private StorageFile pdfStorage;
+        private StorageFile pdfFile;
 
         private SFPdfModel(StorageFile pdfStorageFile)
         {
-            pdfStorage = pdfStorageFile;
+            pdfFile = pdfStorageFile;
         }
 
         /// <summary>
@@ -34,17 +34,6 @@ namespace Libra.Class
             SFPdfModel file = new SFPdfModel(pdfStorageFile);
             file.pdf = new PdfLoadedDocument();
             await file.pdf.OpenAsync(pdfStorageFile);
-            //SizeF sfSize = file.pdf.Pages[0].Size;
-            //if ((sfSize.Width > sfSize.Height && msSize.Height > msSize.Width) ||
-            //    (sfSize.Width < sfSize.Height && msSize.Height < msSize.Width))
-            //{
-            //    file.rotated = true;
-            //    file.sizeRatio = sfSize.Width / msSize.Height;
-            //}
-            //else
-            //{
-            //    file.sizeRatio = sfSize.Width / msSize.Width;
-            //}
             return file;
         }
 
@@ -59,6 +48,7 @@ namespace Libra.Class
         /// </remarks>
         public async Task<bool> SaveInkingToPdf(InkingManager inkManager, Windows.Data.Pdf.PdfDocument pdfDoc)
         {
+            bool fileChanged = false;
             foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
             {
                 int pageIndex = entry.Key - 1;
@@ -68,6 +58,7 @@ namespace Libra.Class
                 double scaleRatio = sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
                 double xOffset = msPage.Dimensions.TrimBox.Left * scaleRatio;
                 double yOffset = msPage.Dimensions.TrimBox.Top * scaleRatio;
+
                 // Save ink strokes as image
                 // File cannot be loaded in this app again???
                 //PdfPageLayer layer = page.Layers.Add();
@@ -129,13 +120,21 @@ namespace Libra.Class
                     inkAnnotation.Color = new PdfColor(Color.FromArgb(Windows.UI.Colors.Red.A, Windows.UI.Colors.Red.R, Windows.UI.Colors.Red.G, Windows.UI.Colors.Red.B));
                     inkAnnotation.BorderWidth = (int)(stroke.DrawingAttributes.Size.Width * scaleRatio);
                     sfPage.Annotations.Add(inkAnnotation);
+                    fileChanged = true;
                 }
             }
-            bool a = await pdf.Save();
-            pdf.Close(true);
+            bool status = false;
+            // Save the file only if there are changes.
+            if (fileChanged)
+            {
+                // TODO: handle access denied exception
+                status = await pdf.SaveAsync(pdfFile);
+            }
+                
+            //pdf.Close(true);
             // Remove inking from the app
             await inkManager.RemoveInAppInking();
-            return a;
+            return status;
         }
     }
 }

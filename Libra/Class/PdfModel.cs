@@ -15,10 +15,11 @@ namespace Libra.Class
     {
         private MSPdfModel msPdf;
         private SFPdfModel sfPdf;
+        private StorageFile pdfFile;
 
-        private PdfModel()
+        private PdfModel(StorageFile pdfStorageFile)
         {
-
+            pdfFile = pdfStorageFile;
         }
 
         public PdfDocument PdfDoc
@@ -51,24 +52,21 @@ namespace Libra.Class
 
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile)
         {
-            PdfModel pdfModel = new PdfModel();
+            PdfModel pdfModel = new PdfModel(pdfStorageFile);
             pdfModel.msPdf = await MSPdfModel.LoadFromFile(pdfStorageFile);
-            double z = pdfModel.msPdf.PdfDoc.GetPage(0).PreferredZoom;
-            int r = (int)pdfModel.msPdf.PdfDoc.GetPage(0).Rotation;
-            double tH = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Height;
-            double tW = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Width;
-            double mH = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.MediaBox.Height;
-            double mW = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.MediaBox.Width;
-            double tT = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Top;
-            double tL = pdfModel.msPdf.PdfDoc.GetPage(0).Dimensions.TrimBox.Left;
             pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile);
-            
             return pdfModel;
         }
 
         public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
         {
-            return await sfPdf.SaveInkingToPdf(inkManager, msPdf.PdfDoc);
+            bool status = await sfPdf.SaveInkingToPdf(inkManager, msPdf.PdfDoc);
+            return status;
+        }
+
+        public async Task ReloadFile()
+        {
+            msPdf = await MSPdfModel.LoadFromFile(pdfFile);
         }
     }
 }

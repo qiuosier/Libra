@@ -105,10 +105,12 @@ namespace Libra.Class
             {
                 await inkFile.DeleteAsync();
             }
-            foreach (List<InkStroke> list in inAppInkStrokes.Values)
-            {
-                list.Clear();
-            }
+            inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
+            inAppInking = await InAppInking.InitializeInking(appFolder);
+            //foreach (List<InkStroke> list in inAppInkStrokes.Values)
+            //{
+            //    list.Clear();
+            //}
         }
     }
 }

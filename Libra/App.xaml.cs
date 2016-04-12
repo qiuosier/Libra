@@ -28,6 +28,7 @@ namespace Libra
         public const string INKING_WARNING = "inkingWarning";
         public const string ERASER_WARNING = "eraserWarning";
         public const string TUTORIAL = "showTutorial";
+        public const string CONFIRM_SAVING = "ConfirmSaving";
 
         private const string NOTIFICATION_OK = "OK";
         private const string LOG_FILE_NAME = "LibraAppLog";
@@ -66,6 +67,7 @@ namespace Libra
             AppSettings.Add(INKING_WARNING, true);
             AppSettings.Add(ERASER_WARNING, true);
             AppSettings.Add(TUTORIAL, true);
+            AppSettings.Add(CONFIRM_SAVING, true);
             
 
             // Load App settings
