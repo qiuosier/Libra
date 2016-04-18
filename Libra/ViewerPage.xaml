@@ -47,7 +47,7 @@
                 </AppBarButton.Flyout>
             </AppBarButton>
             <AppBarSeparator />
-            <AppBarButton Icon="Save" Label="Save Inking" Click="SaveInking_Click" />
+            <AppBarButton Icon="Save" Label="Save Ink Annotations" Click="SaveInking_Click" />
             <AppBarButton x:Name="closeThisView" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
             <CommandBar.SecondaryCommands>
                 <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  

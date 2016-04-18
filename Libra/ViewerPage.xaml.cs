@@ -31,7 +31,6 @@ namespace Libra
         private const int SIZE_PAGE_BUFFER = 3;
         private const int SIZE_RECYCLE_QUEUE = 10;
         private const int SIZE_PAGE_BATCH = 150;
-        private const int FIRST_LOAD_PAGES = 2;
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
@@ -398,6 +397,15 @@ namespace Libra
             SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
             this.pdfModel = await PdfModel.LoadFromFile(pdfFile);
+            // Notify the user and return to main page if failed to load the file.
+            if (this.pdfModel == null)
+            {
+                // Currently, exceptions and notifications are handled within the 
+                //  pdfModel /MSPdfModel/SFPdfModel class
+                //App.NotifyUser(typeof(ViewerPage), "Failed to open the file.", true);
+                this.CloseAllViews();
+                return;
+            }
             // Check future access list
             await CheckFutureAccessList();
             // Create local data folder, if not exist
@@ -563,6 +571,11 @@ namespace Libra
         }
 
         private async void RenderPages()
+        {
+            await RenderPagesAsync();
+        }
+
+        private async Task RenderPagesAsync()
         {
             // Set isRenderingPage to true to prevent this method to be called multiple times before the rendering is finished.
             this.isRenderingPage = true;
@@ -750,7 +763,7 @@ namespace Libra
             {
                 int userResponse = await App.NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
                     "Ink strokes are saved automatically IN THIS APP. \n" +
-                    "To save the ink strokes into the pdf file, click the [Save Inking] button." +
+                    "To save the ink strokes into the pdf file, click the [Save Ink Annotations] button." +
                     "\n" + 
                     "Ink strokes saved in this app will be lost if you reinstall windows. \n" +
                     "You can also export the ink strokes along with pdf pages as image files.",
@@ -1090,7 +1103,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Pencil selected");
             this.Pencil.IsChecked = true;
-            this.drawingAttributes.Size = new Size(inkingPreference.penSize, inkingPreference.penSize);
+            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio());
             this.drawingAttributes.Color = inkingPreference.penColor;
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
@@ -1106,7 +1119,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
-            this.drawingAttributes.Size = new Size(inkingPreference.highlighterSize, inkingPreference.highlighterSize);
+            this.drawingAttributes.Size = inkingPreference.GetHighlighterSize(pdfModel.ScaleRatio());
             this.drawingAttributes.Color = inkingPreference.highlighterColor;
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
@@ -1122,7 +1135,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Eraser selected");
             this.Eraser.IsChecked = true;
-            this.drawingAttributes.Size = new Size(inkingPreference.penSize, inkingPreference.penSize);
+            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio());
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
@@ -1521,15 +1534,13 @@ namespace Libra
             }
         }
 
+        /// <summary>
+        /// Store the page thumbnails
+        /// </summary>
         private PageThumbnailCollection pageThumbnails;
 
         /// <summary>
-        /// Stores the page index when the user pressed the mouse
-        /// </summary>
-        private int pressedThumbnailIndex;
-
-        /// <summary>
-        /// Record the clicked item
+        /// Select the page if the page index is the same as the one when the pointer is pressed.
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
@@ -1537,54 +1548,81 @@ namespace Libra
         {
             int releasedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
-            if (releasedIndex == this.pressedThumbnailIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
+            if (releasedIndex == this.pageThumbnails.PressedIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
         }
 
+        /// <summary>
+        /// Record the page index when pointer is pressed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ThumbnailGrid_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            this.pressedThumbnailIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
+            this.pageThumbnails.PressedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
                     - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
         }
 
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
-            // Notify user
+            // Ask user to confirm
             if ((bool)App.AppSettings[App.CONFIRM_SAVING])
             {
                 int userResponse = await App.NotifyUserWithOptions(
                     "WARNING: \n" +
                     "\n" +
-                    "Saving ink strokes to the PDF file is an experimental feature. \n" +
+                    "Saving ink annotations to the PDF file is an experimental feature. \n" +
                     "Please BACKUP YOUR PDF FILE before saving ink strokes. \n" +
                     "\n" +
                     "Pressure information in the ink strokes WILL BE LOST. \n" +
                     "Ink strokes saved to the PDF file are no longer editable in this app. \n" +
-                    "However, you can move or remove the ink strokes with Adobe reader. \n" + 
+                    "However, you can edit or remove the ink strokes with Adobe reader. \n" + 
                     "\n" +
                     "Save ink strokes to the file? \n",
                     new string[] { "Yes", "Cancel" });
                 switch (userResponse)
                 {
-                    case 0:
-                        bool status = await pdfModel.SaveInkingToPdf(inkManager);
-                        // TODO: Fail to save
-                        await pdfModel.ReloadFile();
-                        reRenderPages();
+                    case 0:     // Yes
+                        // Show full screen cover with message
+                        this.fullScreenCover.Visibility = Visibility.Visible;
+                        this.fullScreenCover.Opacity = 0.6;
+                        this.fullScreenMessage.Text = "Saving ink annotations to PDF file...";
+                        // Save inking to pdf
+                        bool inkSaved = await pdfModel.SaveInkingToPdf(inkManager);
+                        if (inkSaved)
+                        {
+                            // Ink annotations are saved successfully
+                            // Remove in app inking
+                            await inkManager.RemoveInAppInking();
+                            // Reload file
+                            await pdfModel.ReloadFile();
+                            // Re-render pages
+                            reRenderPages();
+                        }
+                        else App.NotifyUser(typeof(ViewerPage), "Failed to save the annotations.", true);
+                        this.fullScreenCover.Opacity = 1.0;
+                        this.fullScreenCover.Visibility = Visibility.Collapsed;
+                        this.fullScreenMessage.Text = "";
                         break;
-                    default:
+                    default:    // Cancel
                         break;
                 }
             }
         }
 
+        /// <summary>
+        /// Re-render the page images.
+        /// </summary>
         private void reRenderPages()
         {
+            // Clear the recycle queue
             recyclePagesQueue.Clear();
-            while(renderedPages.Count > 0)
+            // Remove the rendered pages
+            while (renderedPages.Count > 0)
             {
                 RemovePage(renderedPages[0], true);
             }
+            // Preare pages in the visible range
             PreparePages(this.VisiblePageRange);
         }
     }

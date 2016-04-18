@@ -30,6 +30,11 @@ namespace Libra.Class
             }
         }
 
+        public double ScaleRatio()
+        {
+            return sfPdf.ScaleRatio(msPdf.PdfDoc);
+        }
+
         public Task ExportPageImage(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
         {
             return msPdf.ExportPageImage(pageNumber, inkCanvas, saveFile);
@@ -53,8 +58,20 @@ namespace Libra.Class
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile)
         {
             PdfModel pdfModel = new PdfModel(pdfStorageFile);
+            // Load the file to Microsoft PDF document model
+            // The Microsoft model is used to render the PDF pages.
             pdfModel.msPdf = await MSPdfModel.LoadFromFile(pdfStorageFile);
-            pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile);
+            // Return null if failed to load the file to Microsoft model
+            if (pdfModel.msPdf == null) return null;
+            // Load the file to Syncfusion PDF document model
+            // The Syncfusion model is used to save ink annotations.
+            if (pdfModel.msPdf.isPasswordProtected) 
+            {
+                pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile, pdfModel.msPdf.Password);
+            }
+            else pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile);
+            // Return null if failed to load the file to Syncfusion model
+            if (pdfModel.sfPdf == null) return null;
             return pdfModel;
         }
 

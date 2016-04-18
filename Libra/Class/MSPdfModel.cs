@@ -1,9 +1,6 @@
 ﻿using Libra.Dialog;
 using Microsoft.Graphics.Canvas;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
@@ -14,20 +11,49 @@ using Windows.UI.Xaml.Media.Imaging;
 
 namespace Libra.Class
 {
+    /// <summary>
+    /// Represent the Microsoft PDF document model
+    /// </summary>
     class MSPdfModel : IPdfReader
     {
+        /// <summary>
+        /// The loaded PDF document
+        /// </summary>
         public PdfDocument PdfDoc { get; private set; }
 
+        /// <summary>
+        /// Indicate whether the PDF file is password protected.
+        /// </summary>
+        public bool isPasswordProtected { get; private set; }
+
+        /// <summary>
+        /// The password of the PDF file.
+        /// </summary>
+        public string Password { get; private set; }
+
+        /// <summary>
+        /// Private constructor.
+        /// </summary>
         private MSPdfModel()
         {
-
+            isPasswordProtected = false;
         }
 
+        /// <summary>
+        /// Returns the number of pages in the PDF document.
+        /// </summary>
+        /// <returns>The number of pages</returns>
         public int PageCount()
         {
             return (int)PdfDoc.PageCount;
         }
 
+        /// <summary>
+        /// Outputs an asynchronous operation. 
+        /// When the operation completes, a MSPdfModel object, representing the PDF, is returned.
+        /// </summary>
+        /// <param name="pdfStorageFile">The PDF file</param>
+        /// <returns></returns>
         public static async Task<MSPdfModel> LoadFromFile(StorageFile pdfStorageFile)
         {
             MSPdfModel msPdf = new MSPdfModel();
@@ -47,21 +73,25 @@ namespace Libra.Class
                     try
                     {
                         msPdf.PdfDoc = await PdfDocument.LoadFromFileAsync(pdfStorageFile, passwordDialog.Password);
+                        // Store the password of the file
+                        msPdf.Password = passwordDialog.Password;
+                        msPdf.isPasswordProtected = true;
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        // Failed to load the file
+                        App.NotifyUser(typeof(ViewerPage), "Failed to open the file.\n" + ex.Message, true);
                         failedToLoad = true;
                     }
                 }
                 else
                 {
+                    // User did not enter a password
                     failedToLoad = true;
                 }
-                // Notify the user and return to main page if failed to load the file.
+                // Return null if failed to load the file
                 if (failedToLoad)
                 {
-                    App.NotifyUser(typeof(ViewerPage), "Failed to open the file.", true);
-                    ViewerPage.Current.CloseAllViews();
                     return null;
                 }
             }

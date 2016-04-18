@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Core;
 
@@ -14,9 +15,9 @@ namespace Libra.Class
     public class InkingPreference
     {
         public InkingPreference()
-        { 
-            penSize = 2;
-            highlighterSize = 12;
+        {
+            penSize = 1;
+            highlighterSize = 10;
             penColor = Colors.Red;
             highlighterColor = Colors.Yellow;
             drawingDevice = CoreInputDeviceTypes.Mouse | CoreInputDeviceTypes.Pen;
@@ -30,6 +31,16 @@ namespace Libra.Class
         public CoreInputDeviceTypes drawingDevice;
         public int version;
 
-        public const int CURRENT_INKING_PREF_VERSION = 1;
+        public Size GetPenSize(double scale)
+        {
+            return new Size(penSize / scale, penSize / scale);
+        }
+
+        public Size GetHighlighterSize(double scale)
+        {
+            return new Size(highlighterSize / scale, highlighterSize / scale);
+        }
+
+        public const int CURRENT_INKING_PREF_VERSION = 2;
     }
 }

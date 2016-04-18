@@ -21,6 +21,11 @@ namespace Libra.Class
         private PdfDocument pdfDocument;
         public int SelectedIndex { get; set; }
 
+        /// <summary>
+        /// Stores the page index when the user pressed the pointer
+        /// </summary>
+        public int PressedIndex { get; set; }
+
         public PageThumbnailCollection(PdfDocument pdfDoc)
         {
             this.pdfDocument = pdfDoc;
