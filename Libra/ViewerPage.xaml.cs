@@ -761,12 +761,7 @@ namespace Libra
             // Notify user about the risk when using inking for the first time.
             if ((bool)App.AppSettings[App.INKING_WARNING])
             {
-                int userResponse = await App.NotifyUserWithOptions("Ink strokes collection is an experimental feature. \n" +
-                    "Ink strokes are saved automatically IN THIS APP. \n" +
-                    "To save the ink strokes into the pdf file, click the [Save Ink Annotations] button." +
-                    "\n" + 
-                    "Ink strokes saved in this app will be lost if you reinstall windows. \n" +
-                    "You can also export the ink strokes along with pdf pages as image files.",
+                int userResponse = await App.NotifyUserWithOptions(Messages.INK_STROKE_WARNING,
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
@@ -1144,9 +1139,7 @@ namespace Libra
             // Notify user about the risk when using eraser for the first time.
             if ((bool)App.AppSettings[App.ERASER_WARNING])
             {
-                int userResponse = await App.NotifyUserWithOptions("Eraser deletes the entire stroke. \n" +
-                    "Eraser operation cannot be undo. \n" +
-                    "Please use with care. ",
+                int userResponse = await App.NotifyUserWithOptions(Messages.ERASER_WARNING,
                     new string[] { "OK, do not show this again.", "Notify me again next time." });
                 switch (userResponse)
                 {
@@ -1562,24 +1555,12 @@ namespace Libra
                     - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
         }
 
-
         private async void SaveInking_Click(object sender, RoutedEventArgs e)
         {
             // Ask user to confirm
             if ((bool)App.AppSettings[App.CONFIRM_SAVING])
             {
-                int userResponse = await App.NotifyUserWithOptions(
-                    "WARNING: \n" +
-                    "\n" +
-                    "Saving ink annotations to the PDF file is an experimental feature. \n" +
-                    "Please BACKUP YOUR PDF FILE before saving ink strokes. \n" +
-                    "\n" +
-                    "Pressure information in the ink strokes WILL BE LOST. \n" +
-                    "Ink strokes saved to the PDF file are no longer editable in this app. \n" +
-                    "However, you can edit or remove the ink strokes with Adobe reader. \n" + 
-                    "\n" +
-                    "Save ink strokes to the file? \n",
-                    new string[] { "Yes", "Cancel" });
+                int userResponse = await App.NotifyUserWithOptions(Messages.SAVE_INKING_CLICKED, new string[] { "Yes", "Cancel" });
                 switch (userResponse)
                 {
                     case 0:     // Yes
@@ -1597,7 +1578,7 @@ namespace Libra
                             // Reload file
                             await pdfModel.ReloadFile();
                             // Re-render pages
-                            reRenderPages();
+                            await reRenderPages();
                         }
                         else App.NotifyUser(typeof(ViewerPage), "Failed to save the annotations.", true);
                         this.fullScreenCover.Opacity = 1.0;
@@ -1613,7 +1594,7 @@ namespace Libra
         /// <summary>
         /// Re-render the page images.
         /// </summary>
-        private void reRenderPages()
+        private async Task reRenderPages()
         {
             // Clear the recycle queue
             recyclePagesQueue.Clear();
@@ -1622,6 +1603,13 @@ namespace Libra
             {
                 RemovePage(renderedPages[0], true);
             }
+            // Add visible pages to rendering queue
+            for (int i = VisiblePageRange.first; i <= VisiblePageRange.last; i++)
+            {
+                renderPagesQueue.Enqueue(i);
+            }
+            // Render visible pages.
+            await RenderPagesAsync();
             // Preare pages in the visible range
             PreparePages(this.VisiblePageRange);
         }

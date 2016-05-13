@@ -27,7 +27,7 @@
                     <Grid MinWidth="50" VerticalAlignment="Center">
                         <Ellipse x:Name="penSizeEllipse" MinHeight="2" MinWidth="2" Fill="Red" Width="5" Height="5"/>
                     </Grid>
-                    <Slider x:Name="penSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="15" Minimum="1" TickFrequency="1" ValueChanged="penSizeSlider_ValueChanged"/>
+                    <Slider x:Name="penSizeSlider" Margin="0,5,0,0" MinWidth="300" Maximum="10" Minimum="0" TickFrequency="1" ValueChanged="penSizeSlider_ValueChanged"/>
                 </StackPanel>
                 <TextBlock x:Name="penColorLabel" Text="Pen Color: "/>
                 <ListBox x:Name="penColorListBox" 

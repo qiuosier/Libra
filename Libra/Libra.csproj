@@ -113,6 +113,7 @@
     <Compile Include="Class\InFileInking.cs" />
     <Compile Include="Class\InkingManager.cs" />
     <Compile Include="Class\IPdfReader.cs" />
+    <Compile Include="Class\Messages.cs" />
     <Compile Include="Class\MSPdfModel.cs" />
     <Compile Include="Class\PageCollection.cs" />
     <Compile Include="Class\SFPdfModel.cs" />

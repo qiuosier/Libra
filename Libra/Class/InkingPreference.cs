@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Windows.Foundation;
+﻿using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Core;
 
@@ -33,7 +28,8 @@ namespace Libra.Class
 
         public Size GetPenSize(double scale)
         {
-            return new Size(penSize / scale, penSize / scale);
+            if (penSize == 0) return new Size(0.4 / scale, 0.4 / scale);
+            else return new Size(penSize / scale, penSize / scale);
         }
 
         public Size GetHighlighterSize(double scale)
