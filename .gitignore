@@ -229,5 +229,4 @@ _Pvt_Extensions
 # FAKE - F# Make
 .fake/
 /Test Files
-/Libra/Assets
 /Documents
