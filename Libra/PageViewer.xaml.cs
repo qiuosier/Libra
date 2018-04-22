@@ -87,6 +87,7 @@ namespace Libra
 
         public ViewerPage()
         {
+
             this.InitializeComponent();
 
             this.inkCanvasStack = new Stack<InkCanvas>();
@@ -123,6 +124,7 @@ namespace Libra
         {
             this.imagePanel.Children.Clear();
             this.imagePanel.UpdateLayout();
+
             this.inkingPageRange = new PageRange();
             this._visiblePageRange = new PageRange();
             this._viewerKey = new Guid();
@@ -151,12 +153,12 @@ namespace Libra
         {
             base.OnNavigatedTo(e);
             // Set viewer mode
-            if (SuspensionManager.sessionState != null)
-                SuspensionManager.sessionState.ViewerMode = 1;
+            if (SuspensionManager.AppSessionState != null)
+                SuspensionManager.AppSessionState.ViewerMode = 1;
             // Check if a new file is opened
             if (this.fileLoaded && !this.pdfStorageFile.IsEqual(SuspensionManager.pdfFile))
             {
-                // Another file already opened
+                // Another file already opened.
                 AppEventSource.Log.Debug("ViewerPage: Another file is already opened: " + this.pdfStorageFile.Name);
                 this.fileLoaded = false;
             }
@@ -181,9 +183,9 @@ namespace Libra
             if (this.fileLoaded)
             {
                 // Save viewer state to suspension manager.
-                if (SuspensionManager.viewerStateDictionary.ContainsKey(this.ViewerKey))
+                if (SuspensionManager.ViewerStateDictionary.ContainsKey(this.ViewerKey))
                 {
-                    SuspensionManager.viewerStateDictionary[this.ViewerKey] = SaveViewerState();
+                    SuspensionManager.ViewerStateDictionary[this.ViewerKey] = ViewerState.SaveViewerState(futureAccessToken, scrollViewer, imagePanel, VisiblePageRange);
                     AppEventSource.Log.Debug("ViewerPage: Saved viewer state to suspension manager.");
                 }
                 // Save the viewer state to file and update navigation button label if the App is not suspending.
@@ -194,21 +196,6 @@ namespace Libra
                     await SuspensionManager.SaveViewerAsync();
                 }
             }
-        }
-
-        private ViewerState SaveViewerState()
-        {
-            ViewerState viewerState = new ViewerState(this.futureAccessToken);
-            viewerState.hOffset = this.scrollViewer.HorizontalOffset;
-            viewerState.vOffset = this.scrollViewer.VerticalOffset;
-            viewerState.panelWidth = this.imagePanel.ActualWidth;
-            viewerState.panelHeight = this.imagePanel.ActualHeight;
-            viewerState.zFactor = this.scrollViewer.ZoomFactor;
-            viewerState.lastViewed = DateTime.Now;
-            viewerState.visibleRange = this.VisiblePageRange;
-            if (this.imagePanel.Orientation == Orientation.Horizontal)
-                viewerState.isHorizontalView = true;
-            return viewerState;
         }
 
         /// <summary>
@@ -223,13 +210,13 @@ namespace Libra
             if (key == Guid.Empty)
             {
                 // Check which one is the latest view
-                foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
+                foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.ViewerStateDictionary)
                 {
                     if (key == Guid.Empty)
                         key = entry.Key;
                     // Skip comparison if state is null
                     if (entry.Value == null) continue;
-                    if (entry.Value.lastViewed > SuspensionManager.viewerStateDictionary[key].lastViewed)
+                    if (entry.Value.lastViewed > SuspensionManager.ViewerStateDictionary[key].lastViewed)
                         key = entry.Key;
                 }
             }
@@ -239,7 +226,7 @@ namespace Libra
 
             ViewerState viewerState;
             // Assign null state if key is not found.
-            if (!SuspensionManager.viewerStateDictionary.TryGetValue(this.ViewerKey, out viewerState))
+            if (!SuspensionManager.ViewerStateDictionary.TryGetValue(this.ViewerKey, out viewerState))
                 viewerState = null;
             if (viewerState != null)
             {
@@ -318,10 +305,10 @@ namespace Libra
         {
             await SuspensionManager.LoadViewerAsync();
             // Create a new viewer state dictionary if none is loaded
-            if (SuspensionManager.viewerStateDictionary == null || SuspensionManager.viewerStateDictionary.Count == 0)
+            if (SuspensionManager.ViewerStateDictionary == null || SuspensionManager.ViewerStateDictionary.Count == 0)
             {
-                SuspensionManager.viewerStateDictionary = new Dictionary<Guid, ViewerState>();
-                SuspensionManager.viewerStateDictionary.Add(Guid.NewGuid(), null);
+                SuspensionManager.ViewerStateDictionary = new Dictionary<Guid, ViewerState>();
+                SuspensionManager.ViewerStateDictionary.Add(Guid.NewGuid(), null);
             }
             // Create navigation buttons for the views
             NavigationPage.Current.InitializeViewBtn();
@@ -394,7 +381,7 @@ namespace Libra
             // Add file the future access list
             this.futureAccessToken = StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
-            SuspensionManager.sessionState = new SessionState(this.futureAccessToken);
+            SuspensionManager.AppSessionState = new SessionState(this.futureAccessToken);
             // Load Pdf file
             this.pdfModel = await PdfModel.LoadFromFile(pdfFile);
             // Notify the user and return to main page if failed to load the file.
@@ -1171,9 +1158,9 @@ namespace Libra
         /// <param name="e"></param>
         private async void CloseAll_Click(object sender, RoutedEventArgs e)
         {
-            SuspensionManager.viewerStateDictionary = null;
+            SuspensionManager.ViewerStateDictionary = null;
             await SuspensionManager.SaveViewerAsync();
-            SuspensionManager.sessionState.FileToken = null;
+            SuspensionManager.AppSessionState.FileToken = null;
             this.fileLoaded = false;
             InitializeZoomInView();
             NavigationPage.Current.InitializeViewBtn();

@@ -55,8 +55,8 @@ namespace NavigationMenu
             }
 
             // Go through the viewer states
-            if (SuspensionManager.viewerStateDictionary == null) return;
-            foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.viewerStateDictionary)
+            if (SuspensionManager.ViewerStateDictionary == null) return;
+            foreach (KeyValuePair<Guid, ViewerState> entry in SuspensionManager.ViewerStateDictionary)
             {
                 if (entry.Value == null)
                 {
@@ -111,7 +111,7 @@ namespace NavigationMenu
                 Arguments = viewKey
             });
             // Add a empty viewer state
-            SuspensionManager.viewerStateDictionary.Add(viewKey, null);
+            SuspensionManager.ViewerStateDictionary.Add(viewKey, null);
             // Navigate to the new view
             this.AppFrame.Navigate(typeof(ViewerPage), viewKey);
         }
@@ -126,9 +126,9 @@ namespace NavigationMenu
             int i = FindNavListIndexByKey(viewKey);
             if (i > 0) this.navlist.RemoveAt(i);
             // Remove the viewer state in the suspension manager
-            SuspensionManager.viewerStateDictionary.Remove(viewKey);
+            SuspensionManager.ViewerStateDictionary.Remove(viewKey);
             // Navigate to last view, if there is still any
-            if (SuspensionManager.viewerStateDictionary.Count > 0)
+            if (SuspensionManager.ViewerStateDictionary.Count > 0)
                 this.AppFrame.Navigate(typeof(ViewerPage));
             // Otherwise navigate to main page
             else ViewerPage.Current.CloseAllViews();
@@ -351,8 +351,8 @@ namespace NavigationMenu
                 else if (item.DestPage != this.AppFrame.CurrentSourcePageType)
                 {
                     // Reset viewer mode
-                    if (SuspensionManager.sessionState != null)
-                        SuspensionManager.sessionState.ViewerMode = 0;
+                    if (SuspensionManager.AppSessionState != null)
+                        SuspensionManager.AppSessionState.ViewerMode = 0;
                     this.AppFrame.Navigate(item.DestPage, item.Arguments);
                 }
             }

@@ -22,7 +22,6 @@ namespace Libra
     /// </summary>
     internal sealed class SuspensionManager
     {
-        private static List<Type> _knownTypes = new List<Type>();
         private const string FILENAME_SESSION_STATE = "_sessionState.xml";
         public const string FILENAME_VIEWER_STATE = "_viewerState.xml";
         private static Frame appFrame;
@@ -31,32 +30,25 @@ namespace Libra
         public static StorageFile pdfFile { get; set; }
 
         /// <summary>
+        /// List of custom types provided to the <see cref="DataContractSerializer"/> when
+        /// reading and writing session state.  Initially empty, additional types may be
+        /// added to customize the serialization process.
+        /// </summary>
+        public static List<Type> KnownTypes { get; } = new List<Type>();
+
+        /// <summary>
         /// Provides access to global session state for the current session.  This state is
         /// serialized by <see cref="SaveSessionAsync"/> and restored by
         /// <see cref="RestoreSessionAsync"/>, so values must be serializable by
         /// <see cref="DataContractSerializer"/> and should be as compact as possible.  Strings
         /// and other self-contained data types are strongly recommended.
         /// </summary>
-        public static SessionState sessionState
-        {
-            get;
-            set;
-        }
+        public static SessionState AppSessionState { get; set; }
 
-        public static Dictionary<Guid, ViewerState> viewerStateDictionary
-        {
-            get;
-            set;
-        }
         /// <summary>
-        /// List of custom types provided to the <see cref="DataContractSerializer"/> when
-        /// reading and writing session state.  Initially empty, additional types may be
-        /// added to customize the serialization process.
+        /// Stores the state of each viewer
         /// </summary>
-        public static List<Type> KnownTypes
-        {
-            get { return _knownTypes; }
-        }
+        public static Dictionary<Guid, ViewerState> ViewerStateDictionary { get; set; }
 
         public static void RegisterFrame(Frame frame)
         {
@@ -64,7 +56,7 @@ namespace Libra
         }
 
         /// <summary>
-        /// Save the current <see cref="sessionState"/>.  Any <see cref="Frame"/> instances
+        /// Save the current <see cref="AppSessionState"/>.  Any <see cref="Frame"/> instances
         /// registered with <see cref="RegisterFrame"/> will also preserve their current
         /// navigation stack, which in turn gives their active <see cref="Page"/> an opportunity
         /// to save its state.
@@ -73,7 +65,7 @@ namespace Libra
         public static async Task SaveSessionAsync()
         {
             IsSuspending = true;
-            if (sessionState != null)
+            if (AppSessionState != null)
             {
                 // Move away from the current page (to a blank page), and then go back, so that the OnNavigatedFrom will be called.
                 appFrame.Navigate(typeof(BlankPage), null, new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
@@ -84,7 +76,7 @@ namespace Libra
                 {
                     StorageFile file = await
                         ApplicationData.Current.LocalFolder.CreateFileAsync(FILENAME_SESSION_STATE, CreationCollisionOption.ReplaceExisting);
-                    await SerializeToFileAsync(sessionState, typeof(SessionState), file);
+                    await SerializeToFileAsync(AppSessionState, typeof(SessionState), file);
                 }
                 catch (Exception ex)
                 {
@@ -95,7 +87,7 @@ namespace Libra
         }
 
         /// <summary>
-        /// Restores previously saved <see cref="sessionState"/>.  Any <see cref="Frame"/> instances
+        /// Restores previously saved <see cref="AppSessionState"/>.  Any <see cref="Frame"/> instances
         /// registered with <see cref="RegisterFrame"/> will also restore their prior navigation
         /// state, which in turn gives their active <see cref="Page"/> an opportunity restore its
         /// state.
@@ -103,20 +95,20 @@ namespace Libra
         /// <param name="sessionBaseKey">An optional key that identifies the type of session.
         /// This can be used to distinguish between multiple application launch scenarios.</param>
         /// <returns>An asynchronous task that reflects when session state has been read.  The
-        /// content of <see cref="sessionState"/> should not be relied upon until this task
+        /// content of <see cref="AppSessionState"/> should not be relied upon until this task
         /// completes.</returns>
         public static async Task RestoreSessionAsync(String sessionBaseKey = null)
         {
             AppEventSource.Log.Debug("Suspension: Checking previously saved session state...");
-            sessionState = await DeserializeFromFileAsync(typeof(SessionState), await GetSavedFileAsync(FILENAME_SESSION_STATE), true) as SessionState;
+            AppSessionState = await DeserializeFromFileAsync(typeof(SessionState), await GetSavedFileAsync(FILENAME_SESSION_STATE), true) as SessionState;
 
-            if (sessionState != null && sessionState.version == SessionState.CURRENT_SESSION_VERSION && sessionState.FileToken != null)
+            if (AppSessionState != null && AppSessionState.Version == SessionState.CURRENT_SESSION_VERSION && AppSessionState.FileToken != null)
             {
-                if (sessionState.ViewerMode == 1)
+                if (AppSessionState.ViewerMode == 1)
                 {
                     try
                     {
-                        StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(sessionState.FileToken);
+                        StorageFile pdfFile = await StorageApplicationPermissions.FutureAccessList.GetFileAsync(AppSessionState.FileToken);
                         AppEventSource.Log.Info("Suspension: Reopening " + pdfFile.Name);
                         SuspensionManager.pdfFile = pdfFile;
                         appFrame.Navigate(typeof(ViewerPage));
@@ -128,7 +120,7 @@ namespace Libra
                 }
                 else
                 {
-                    sessionState = null;
+                    AppSessionState = null;
                     AppEventSource.Log.Info("Suspension: Viewer was not active when the App was suspended.");
                 }
             }
@@ -137,16 +129,16 @@ namespace Libra
 
         public static async Task SaveViewerAsync()
         {
-            if (viewerStateDictionary != null && viewerStateDictionary.Count > 0)
+            if (ViewerStateDictionary != null && ViewerStateDictionary.Count > 0)
             {
                 try
                 {
                     // Get the pdfToken and open the data folder
                     StorageFolder dataFolder = await
-                        ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                        ApplicationData.Current.LocalFolder.CreateFolderAsync(AppSessionState.FileToken, CreationCollisionOption.OpenIfExists);
                     StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
                     AppEventSource.Log.Debug("Suspension: Saving viewer state to " + dataFolder.Name);
-                    await SerializeToFileAsync(viewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
+                    await SerializeToFileAsync(ViewerStateDictionary, typeof(Dictionary<Guid, ViewerState>), file);
                 }
                 catch (Exception ex)
                 {
@@ -156,12 +148,12 @@ namespace Libra
             else
             {
                 // Delete view state file if no viewer state (views are closed)
-                if (sessionState != null && sessionState.FileToken != null)
+                if (AppSessionState != null && AppSessionState.FileToken != null)
                 {
                     try
                     {
                         StorageFolder dataFolder = await
-                            ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                            ApplicationData.Current.LocalFolder.CreateFolderAsync(AppSessionState.FileToken, CreationCollisionOption.OpenIfExists);
                         StorageFile file = await dataFolder.CreateFileAsync(FILENAME_VIEWER_STATE, CreationCollisionOption.ReplaceExisting);
                         await file.DeleteAsync();
                     }
@@ -178,21 +170,21 @@ namespace Libra
             if (!(bool)App.AppSettings[App.RESTORE_VIEW]) return;
             // Get the pdfToken and open the data folder
             StorageFolder dataFolder = await
-                ApplicationData.Current.LocalFolder.CreateFolderAsync(sessionState.FileToken, CreationCollisionOption.OpenIfExists);
+                ApplicationData.Current.LocalFolder.CreateFolderAsync(AppSessionState.FileToken, CreationCollisionOption.OpenIfExists);
             // Check viewer state file
             AppEventSource.Log.Debug("ViewerPage: Checking previously saved viewer state...");
             StorageFile file = await GetSavedFileAsync(FILENAME_VIEWER_STATE, dataFolder);
-            viewerStateDictionary = await
+            ViewerStateDictionary = await
                 DeserializeFromFileAsync(typeof(Dictionary<Guid, ViewerState>), file) as Dictionary<Guid, ViewerState>;
             // Make sure there no null viewer state in the dictionary
-            if (viewerStateDictionary != null)
+            if (ViewerStateDictionary != null)
             {
                 // Use a list to keep the null viewer state
                 List<Guid> entryToRemove = new List<Guid>();
                 // Go through the dictionary
-                foreach (Guid key in viewerStateDictionary.Keys)
+                foreach (Guid key in ViewerStateDictionary.Keys)
                 {
-                    if (viewerStateDictionary[key] == null)
+                    if (ViewerStateDictionary[key] == null)
                     {
                         // Add null entry to removal list
                         entryToRemove.Add(key);
@@ -201,7 +193,7 @@ namespace Libra
                 // Remove the null entry
                 foreach (Guid key in entryToRemove)
                 {
-                    viewerStateDictionary.Remove(key);
+                    ViewerStateDictionary.Remove(key);
                     AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, GUID = " + key.ToString());
                 }
             }
