@@ -7,10 +7,10 @@ using Windows.UI.Xaml.Media.Imaging;
 
 namespace Libra.Class
 {
-    public class PdfModel : IPdfReader
+    public class PdfModel
     {
-        private MSPdfModel msPdf;
-        private SFPdfModel sfPdf;
+        private PdfModelMS msPdf;
+        private PdfModelSF sfPdf;
         private StorageFile pdfFile;
 
         private PdfModel(StorageFile pdfStorageFile)
@@ -56,16 +56,16 @@ namespace Libra.Class
             PdfModel pdfModel = new PdfModel(pdfStorageFile);
             // Load the file to Microsoft PDF document model
             // The Microsoft model is used to render the PDF pages.
-            pdfModel.msPdf = await MSPdfModel.LoadFromFile(pdfStorageFile);
+            pdfModel.msPdf = await PdfModelMS.LoadFromFile(pdfStorageFile);
             // Return null if failed to load the file to Microsoft model
             if (pdfModel.msPdf == null) return null;
             // Load the file to Syncfusion PDF document model
             // The Syncfusion model is used to save ink annotations.
             if (pdfModel.msPdf.isPasswordProtected) 
             {
-                pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile, pdfModel.msPdf.Password);
+                pdfModel.sfPdf = await PdfModelSF.LoadFromFile(pdfStorageFile, pdfModel.msPdf.Password);
             }
-            else pdfModel.sfPdf = await SFPdfModel.LoadFromFile(pdfStorageFile);
+            else pdfModel.sfPdf = await PdfModelSF.LoadFromFile(pdfStorageFile);
             // Return null if failed to load the file to Syncfusion model
             if (pdfModel.sfPdf == null) return null;
             return pdfModel;
@@ -79,7 +79,7 @@ namespace Libra.Class
 
         public async Task ReloadFile()
         {
-            msPdf = await MSPdfModel.LoadFromFile(pdfFile);
+            msPdf = await PdfModelMS.LoadFromFile(pdfFile);
         }
     }
 }

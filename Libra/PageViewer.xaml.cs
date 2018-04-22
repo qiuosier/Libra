@@ -388,7 +388,7 @@ namespace Libra
             if (this.pdfModel == null)
             {
                 // Currently, exceptions and notifications are handled within the 
-                //  pdfModel /MSPdfModel/SFPdfModel class
+                //  pdfModel /PdfModelMS/PdfModelSF class
                 //App.NotifyUser(typeof(ViewerPage), "Failed to open the file.", true);
                 this.CloseAllViews();
                 return;
