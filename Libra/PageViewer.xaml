@@ -1,0 +1,131 @@
+﻿<Page
+    x:Class="Libra.ViewerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Libra"
+    xmlns:LibraClass="using:Libra.Class"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    NavigationCacheMode="Required" SizeChanged="Page_SizeChanged">
+    <Grid Background="Black">
+        <CommandBar x:Name="commandBar" Background="LightSteelBlue">
+            <CommandBar.Resources>
+                <Style TargetType="FontIcon">
+                    <Setter Property="FontSize" Value="20"/>
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="HorizontalAlignment" Value="Center" />
+                </Style>
+            </CommandBar.Resources>
+            <CommandBar.Content>
+                <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12" Visibility="Collapsed"/>
+            </CommandBar.Content>
+            <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
+            <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
+            <AppBarToggleButton x:Name="Eraser" Label="Eraser" Click="Eraser_Click">
+                <AppBarToggleButton.Icon>
+                    <FontIcon Glyph="&#xE75C;"/>
+                </AppBarToggleButton.Icon>
+            </AppBarToggleButton>
+            <AppBarSeparator />
+            <AppBarToggleButton x:Name="VerticalViewBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"/>
+            <AppBarToggleButton x:Name="HorizontalViewBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"/>
+            <AppBarToggleButton x:Name="GridViewBtn" Icon="ViewAll" Label="Grid View" Click="GridView_Click"/>
+            <AppBarButton x:Name="ZoomBtn" Label="Zoom">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE759;"/>
+                </AppBarButton.Icon>
+                <AppBarButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Name="zoomInBtn" Text="Zoom In" Click="ZoomInBtn_Click"/>
+                        <MenuFlyoutItem x:Name="zoomOutBtn"  Text="Zoom Out" Click="ZoomOutBtn_Click"/>
+                        <MenuFlyoutItem x:Name="zoomActual"  Text="Actual Size" Click="ActualSizeBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitWidthBtn"  Text="Fit Width" Click="FitWidthBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitHeightBtn"  Text="Fit Height" Click="FitHeightBtn_Click"/>
+                        <MenuFlyoutItem x:Name="fitPageBtn"  Text="Fit Page" Click="FitPageBtn_Click"/>
+                    </MenuFlyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
+            <AppBarSeparator />
+            <AppBarButton Icon="Save" Label="Save Ink Annotations" Click="SaveInking_Click" />
+            <AppBarButton x:Name="closeThisView" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
+            <CommandBar.SecondaryCommands>
+                <AppBarToggleButton x:Name="VerticalViewSecBtn" Icon="Page2" Label="Vertical View" Click="VerticalView_Click"  
+                                    IsChecked="{Binding ElementName=VerticalViewBtn, Path=IsChecked}"/>
+                <AppBarToggleButton x:Name="HorizontalViewSecBtn" Icon="TwoPage" Label="Horizontal View" Click="HorizontalView_Click"  
+                                    IsChecked="{Binding ElementName=HorizontalViewBtn, Path=IsChecked}"/>
+                <AppBarSeparator x:Name="ViewSecBtnSeparator"/>
+                <AppBarButton Icon="Preview" Label="Go to Page..." Click="GoToPage_Click" Visibility="Collapsed"/>
+                <AppBarButton Icon="Setting" Label="Inking Settings..." Click="InkingSetting_Click" />
+                
+                <AppBarButton Icon="SaveLocal" Label="Export Pages..." Click="SaveImage_Click"/>
+                <AppBarButton x:Name="closeThisViewSec" Icon="Cancel" Label="Close This View" Click="Close_Click"/>
+                <AppBarButton x:Name="closeAllViews"  Icon="Cancel" Label="Close All Views" Click="CloseAll_Click"/>
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+        <Rectangle Fill="LightSteelBlue" Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                   Visibility="{Binding ElementName=fullScreenCover, Path=Visibility}"/>
+        <SemanticZoom x:Name="semanticZoom" Margin="0,48,0,0" ViewChangeStarted="semanticZoom_ViewChangeStarted" IsZoomOutButtonEnabled="False">
+            <SemanticZoom.ZoomedOutView>
+                <GridView x:Name="zoomOutGrid" Padding="10"  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          SelectionMode="Single"
+                          ScrollViewer.IsHorizontalScrollChainingEnabled="False"
+                          IsItemClickEnabled="False"
+                          Foreground="White">
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="250" Width="200" PointerReleased="ThumbnailGrid_PointerReleased" PointerPressed="ThumbnailGrid_PointerPressed">
+                                <Viewbox>
+                                    <Grid Background="White" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}">
+                                        <Image Margin="5" Source="{Binding Path=PageImage}" Height="{Binding Path=PixelHeight}" Width="{Binding Path=PixelWidth}"/>
+                                    </Grid>
+                                </Viewbox>
+                            </Grid>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+            </SemanticZoom.ZoomedOutView>
+            <SemanticZoom.ZoomedInView>
+                <LibraClass:ZoomInGrid x:Name="zoomInGrid">
+                    <Grid>
+                        <ScrollViewer x:Name="scrollViewer" 
+                                  TabNavigation='Local'
+                                  ZoomMode="Enabled" 
+                                  HorizontalScrollMode="Enabled" 
+                                  VerticalScrollMode="Enabled"
+                                  VerticalSnapPointsType='None'
+                                  HorizontalScrollBarVisibility="Auto"
+                                  HorizontalSnapPointsType='None'
+                                  IsHorizontalScrollChainingEnabled ="False"
+                                  IsVerticalScrollChainingEnabled ="False"
+                                  IsHorizontalRailEnabled='true'
+                                  IsVerticalRailEnabled='true'
+                                  Margin="0,0,0,0"
+                                  MinZoomFactor="0.5" 
+                                  MaxZoomFactor="5" 
+                                  ViewChanged="scrollViewer_ViewChanged">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MinHeight="320">
+                                <StackPanel x:Name="imagePanel" Orientation="Vertical" HorizontalAlignment="Center">
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                        <Grid x:Name="infoGrid" Margin="0,0,30,0" Width="300" HorizontalAlignment="Left" VerticalAlignment="Top" Height="24" Background="Black" Opacity="0.75">
+                            <Grid.Resources>
+                                <Storyboard x:Name="infoGridFadeOut">
+                                    <DoubleAnimation Storyboard.TargetName="infoGrid" Storyboard.TargetProperty="Opacity" From="0.75" To="0.0" Duration="0:0:2" />
+                                </Storyboard>
+                            </Grid.Resources>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock x:Name="pageNumberTextBlock" Margin="20,0,20,0" Text="1/10" Foreground="White" FontWeight="Bold"/>
+                                <TextBlock x:Name="zoomFactorTextBlock" Margin="20,0,20,0" Text="100%" Foreground="White" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                        <Grid x:Name="fullScreenCover" Canvas.ZIndex="200" Background="White" Opacity="1">
+                            <TextBlock x:Name="fullScreenMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Text="No File is Opened." FontSize="24" FontWeight="Bold"/>
+                        </Grid>
+                    </Grid>
+                </LibraClass:ZoomInGrid>
+            </SemanticZoom.ZoomedInView>
+        </SemanticZoom>
+    </Grid>
+</Page>
