@@ -382,8 +382,10 @@ namespace Libra
             this.futureAccessToken = StorageApplicationPermissions.FutureAccessList.Add(pdfFile);
             // Save session state in suspension manager
             SuspensionManager.AppSessionState = new SessionState(this.futureAccessToken);
+            // Create local data folder, if not exist
+            this.dataFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
             // Load Pdf file
-            this.pdfModel = await PdfModel.LoadFromFile(pdfFile);
+            this.pdfModel = await PdfModel.LoadFromFile(pdfFile, dataFolder);
             // Notify the user and return to main page if failed to load the file.
             if (this.pdfModel == null)
             {
@@ -395,8 +397,6 @@ namespace Libra
             }
             // Check future access list
             await CheckFutureAccessList();
-            // Create local data folder, if not exist
-            this.dataFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(this.futureAccessToken, CreationCollisionOption.OpenIfExists);
 
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages

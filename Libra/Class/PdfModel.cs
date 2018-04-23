@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Storage;
@@ -12,6 +13,11 @@ namespace Libra.Class
         private PdfModelMS msPdf;
         private PdfModelSF sfPdf;
         private StorageFile pdfFile;
+        private StorageFolder cacheFolder;
+        private StorageFolder backupFolder;
+
+        private const string CACHE_FOLDER = "Cache";
+        private const string BACKUP_FOLDER = "Backup";
 
         private PdfModel(StorageFile pdfStorageFile)
         {
@@ -46,12 +52,20 @@ namespace Libra.Class
             return msPdf.PageSize(pageNumeber);
         }
 
-        public Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
+        public async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
         {
-            return msPdf.RenderPageImage(pageNumber, renderWidth);
+            // Load exiting annotations
+            if (sfPdf.AnnotationCount(pageNumber) == 0)
+                return await msPdf.RenderPageImage(pageNumber, renderWidth);
+            else
+            {
+                StorageFile storageFile = await sfPdf.ExtractPageWithoutInking(pageNumber, cacheFolder);
+                PdfModelMS pageDoc = await PdfModelMS.LoadFromFile(storageFile);
+                return await pageDoc.RenderPageImage(1, renderWidth);
+            }
         }
 
-        public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile)
+        public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile, StorageFolder dataFolder)
         {
             PdfModel pdfModel = new PdfModel(pdfStorageFile);
             // Load the file to Microsoft PDF document model
@@ -68,6 +82,10 @@ namespace Libra.Class
             else pdfModel.sfPdf = await PdfModelSF.LoadFromFile(pdfStorageFile);
             // Return null if failed to load the file to Syncfusion model
             if (pdfModel.sfPdf == null) return null;
+            
+            // Create cache and backup folder
+            pdfModel.cacheFolder = await dataFolder.CreateFolderAsync(CACHE_FOLDER, CreationCollisionOption.OpenIfExists);
+            pdfModel.backupFolder = await dataFolder.CreateFolderAsync(BACKUP_FOLDER, CreationCollisionOption.OpenIfExists);
             return pdfModel;
         }
 

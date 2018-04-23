@@ -176,5 +176,29 @@ namespace Libra.Class
         {
             return Color.FromArgb(color.A, color.R, color.G, color.B);
         }
+
+        public int AnnotationCount(int pageNumber)
+        {
+            PdfLoadedPage loadedPage = pdf.Pages[pageNumber - 1] as PdfLoadedPage;
+            return loadedPage.Annotations.Count;
+        }
+
+        public async Task<StorageFile> ExtractPageWithoutInking(int pageNumber, StorageFolder storageFolder)
+        {
+            PdfDocument pageDoc = new PdfDocument();
+            StorageFile storageFile = await storageFolder.CreateFileAsync("page_" + pageNumber.ToString() + ".pdf", CreationCollisionOption.ReplaceExisting);
+            pageDoc.ImportPageRange(pdf, pageNumber - 1, pageNumber - 1);
+            pageDoc.Pages[0].Annotations.Clear();
+            PdfLoadedPage page = pdf.Pages[pageNumber - 1] as PdfLoadedPage;
+            foreach (PdfAnnotation annotation in page.Annotations)
+            {
+                Type c = annotation.GetType();
+                if (!(annotation is PdfLoadedInkAnnotation))
+                    pageDoc.Pages[0].Annotations.Add(annotation);
+            }
+            await pageDoc.SaveAsync(storageFile);
+            pageDoc.Close();
+            return storageFile;
+        }
     }
 }
