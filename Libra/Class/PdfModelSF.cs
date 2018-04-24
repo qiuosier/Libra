@@ -19,7 +19,7 @@ namespace Libra.Class
         /// <summary>
         /// The loaded PDF document.
         /// </summary>
-        public PdfLoadedDocument PdfDoc;
+        public PdfLoadedDocument PdfDoc { get; private set; }
 
         /// <summary>
         /// The PDF file.
@@ -33,18 +33,6 @@ namespace Libra.Class
         private PdfModelSF(StorageFile pdfStorageFile)
         {
             pdfFile = pdfStorageFile;
-        }
-
-        /// <summary>
-        /// Return the page size ratio of SF Model / MS model
-        /// </summary>
-        /// <param name="pdfDoc"></param>
-        /// <returns></returns>
-        public double ScaleRatio(Windows.Data.Pdf.PdfDocument pdfDoc)
-        {
-            PdfLoadedPage sfPage = PdfDoc.Pages[0] as PdfLoadedPage;
-            Windows.Data.Pdf.PdfPage msPage = pdfDoc.GetPage(0);
-            return sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
         }
 
         /// <summary>
