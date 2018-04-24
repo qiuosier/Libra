@@ -18,14 +18,6 @@ namespace Libra.Class
 
         private StorageFolder appFolder;
 
-        public StorageFolder InkingFolder
-        {
-            get
-            {
-                return inAppInking.InkingFolder;
-            }
-        }
-
         /// <summary>
         /// A dictioary used to cache the inking
         /// </summary>
@@ -37,12 +29,16 @@ namespace Libra.Class
             }
         }
 
-        public InkStrokeContainer loadInking(int pageNumber)
+        public async Task<InkStrokeContainer> loadInking(int pageNumber)
         {
-            // Load inking if exist
+            // Load inking from Ink Dictionary if exist
             InkStrokeContainer inkStrokeContainer;
-            if(!InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
-                inkStrokeContainer = new InkStrokeContainer();
+            if (!InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+                // Try to load inking from app data folder if inking not found in Ink Dictionary.
+                // A new ink stroke container will be returned if no inking found.
+                inkStrokeContainer = await inAppInking.LoadInkingFromFile(pageNumber);
+                // Add In-File inking to the ink container
+
             return inkStrokeContainer;
         }
 
@@ -101,16 +97,12 @@ namespace Libra.Class
 
         public async Task RemoveInAppInking()
         {
-            foreach (StorageFile inkFile in await InkingFolder.GetFilesAsync())
+            foreach (StorageFile inkFile in await inAppInking.InkingFolder.GetFilesAsync())
             {
                 await inkFile.DeleteAsync();
             }
             inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
             inAppInking = await InAppInking.InitializeInking(appFolder);
-            //foreach (List<InkStroke> list in inAppInkStrokes.Values)
-            //{
-            //    list.Clear();
-            //}
         }
     }
 }

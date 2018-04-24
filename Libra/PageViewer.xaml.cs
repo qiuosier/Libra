@@ -596,7 +596,7 @@ namespace Libra
                 else
                     await AddPageImage(pageNumber, Math.Min(renderWidth, (uint)(standardWidth)));
                 // Add ink canvas
-                LoadInkCanvas(pageNumber);
+                await LoadInkCanvas(pageNumber);
             }
             this.isRenderingPage = false;
         }
@@ -688,7 +688,7 @@ namespace Libra
         }
 
         
-        private void LoadInkCanvas(int pageNumber)
+        private async Task LoadInkCanvas(int pageNumber)
         {
             Grid grid = (Grid)this.imagePanel.Children[pageNumber - 1];
             if (grid == null)
@@ -728,7 +728,7 @@ namespace Libra
 
                 this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                InkStrokeContainer inkStrokesContainer = inkManager.loadInking(pageNumber);
+                InkStrokeContainer inkStrokesContainer = await inkManager.loadInking(pageNumber);
                 if (inkStrokesContainer != null)
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokesContainer;
                 // Add ink canvas page

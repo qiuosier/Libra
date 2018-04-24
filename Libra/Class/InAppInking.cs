@@ -20,7 +20,7 @@ namespace Libra.Class
         public StorageFolder InkingFolder { get; private set; }
 
         /// <summary>
-        /// A dictioary used to cache the inking
+        /// A dictioary used to cache the inking, this will be updated when savingInking is called.
         /// </summary>
         public Dictionary<int, InkStrokeContainer> InkDictionary { get; private set; }
 
@@ -32,11 +32,24 @@ namespace Libra.Class
             this.inkingChangedPagesQueue = new Queue<int>();
         }
 
-        public static async Task<InkStrokeContainer> LoadInkingFromFile(int pageNumber, StorageFolder dataFolder)
+        public static async Task<InAppInking> InitializeInking(StorageFolder dataFolder)
+        {
+            InAppInking inking = new InAppInking(dataFolder);
+            inking.InkingFolder = await getInkingFolder(dataFolder);
+            inking.InkDictionary = new Dictionary<int, InkStrokeContainer>();
+            // await inking.LoadInkDictionary();
+            return inking;
+        }
+
+        /// <summary>
+        /// Loads inking from file in the app data folder.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <returns></returns>
+        public async Task<InkStrokeContainer> LoadInkingFromFile(int pageNumber)
         {
             InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-            StorageFolder inkingFolder = await getInkingFolder(dataFolder);
-            StorageFile inkFile = await inkingFolder.TryGetItemAsync(pageNumber.ToString() + EXT_INKING) as StorageFile;
+            StorageFile inkFile = await InkingFolder.TryGetItemAsync(pageNumber.ToString() + EXT_INKING) as StorageFile;
             if (inkFile != null)
             {
                 try
@@ -64,6 +77,7 @@ namespace Libra.Class
             }
             return inkStrokeContainer;
         }
+
 
         private static async Task<StorageFolder> getInkingFolder(StorageFolder dataFolder)
         {
@@ -186,13 +200,7 @@ namespace Libra.Class
             return InkDictionary;
         }
 
-        public static async Task<InAppInking> InitializeInking(StorageFolder dataFolder)
-        {
-            InAppInking inking = new InAppInking(dataFolder);
-            inking.InkingFolder = await getInkingFolder(dataFolder);
-            await inking.LoadInkDictionary();
-            return inking;
-        }
+        
 
         
     }
