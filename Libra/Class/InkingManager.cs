@@ -8,7 +8,7 @@ using Windows.UI.Input.Inking;
 
 namespace Libra.Class
 {
-    public class InkingManager : IInkingManager
+    public class InkingManager
     {
         private Dictionary<int, List<InkStroke>> inAppInkStrokes;
         private Dictionary<int, List<InkStroke>> removedInkStrokes;

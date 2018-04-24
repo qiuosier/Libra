@@ -109,8 +109,6 @@
       <DependentUpon>PageBlank.xaml</DependentUpon>
     </Compile>
     <Compile Include="Class\InAppInking.cs" />
-    <Compile Include="Class\IInkingManager.cs" />
-    <Compile Include="Class\InFileInking.cs" />
     <Compile Include="Class\InkingManager.cs" />
     <Compile Include="Class\IPdfReader.cs" />
     <Compile Include="Class\Messages.cs" />

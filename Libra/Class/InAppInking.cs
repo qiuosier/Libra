@@ -9,7 +9,7 @@ using Windows.UI.Input.Inking;
 
 namespace Libra.Class
 {
-    public class InAppInking : IInkingManager
+    public class InAppInking
     {
         private const string EXT_INKING = ".gif";
         private const string INKING_FOLDER = "Inking";
