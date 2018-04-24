@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Storage;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Input.Inking;
 
 namespace Libra.Class
 {
@@ -63,6 +65,11 @@ namespace Libra.Class
                 PdfModelMS pageDoc = await PdfModelMS.LoadFromFile(storageFile);
                 return await pageDoc.RenderPageImage(1, renderWidth);
             }
+        }
+
+        public List<InkStroke> LoadInkAnnotations(int pageNumber)
+        {
+            return sfPdf.GetInkAnnotations(pageNumber);
         }
 
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile, StorageFolder dataFolder)
