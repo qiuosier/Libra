@@ -15,8 +15,8 @@ namespace Libra.Class
         private Dictionary<int, List<InkStroke>> inFileInkStrokes;
 
         private InAppInking inAppInking;
-
         private StorageFolder appFolder;
+        private PdfModel pdfModel;
 
         /// <summary>
         /// A dictioary used to cache the inking
@@ -29,6 +29,27 @@ namespace Libra.Class
             }
         }
 
+        private InkingManager(StorageFolder dataFolder)
+        {
+            appFolder = dataFolder;
+            inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
+            removedInkStrokes = new Dictionary<int, List<InkStroke>>();
+            inFileInkStrokes = new Dictionary<int, List<InkStroke>>();
+            return;
+        }
+
+        public static async Task<InkingManager> InitializeInking(StorageFolder dataFolder, PdfModel pdfModel)
+        {
+            InkingManager inkManager = new InkingManager(dataFolder);
+            inkManager.inAppInking = await InAppInking.InitializeInking(dataFolder);
+            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
+            {
+                inkManager.inAppInkStrokes[entry.Key] = new List<InkStroke>(entry.Value.GetStrokes());
+            }
+            inkManager.pdfModel = pdfModel;
+            return inkManager;
+        }
+
         public async Task<InkStrokeContainer> loadInking(int pageNumber)
         {
             // Load inking from Ink Dictionary if exist
@@ -37,8 +58,8 @@ namespace Libra.Class
                 // Try to load inking from app data folder if inking not found in Ink Dictionary.
                 // A new ink stroke container will be returned if no inking found.
                 inkStrokeContainer = await inAppInking.LoadInkingFromFile(pageNumber);
-                // Add In-File inking to the ink container
-
+            // Add In-File inking to the ink container
+            inkStrokeContainer.AddStrokes(pdfModel.LoadInFileInkAnnotations(pageNumber));
             return inkStrokeContainer;
         }
 
@@ -67,32 +88,15 @@ namespace Libra.Class
 
         public async Task eraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
-            foreach(InkStroke inkStroke in inkStrokes)
+            List<InkStroke> inAppStrokes;
+            if (inAppInkStrokes.TryGetValue(pageNumber, out inAppStrokes))
             {
-                inAppInkStrokes[pageNumber].Remove(inkStroke);
+                foreach (InkStroke inkStroke in inkStrokes)
+                {
+                    inAppStrokes.Remove(inkStroke);
+                }
+                await saveInking(pageNumber);
             }
-            await saveInking(pageNumber);
-        }
-
-        public static async Task<InkingManager> InitializeInking(StorageFolder dataFolder)
-        {
-            InkingManager inkManager = new InkingManager(dataFolder);
-            inkManager.inAppInking = await InAppInking.InitializeInking(dataFolder);
-            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
-            {
-                inkManager.inAppInkStrokes[entry.Key] = new List<InkStroke>(entry.Value.GetStrokes());
-            }
-            // TODO: Initialize in-file strokes
-            return inkManager;
-        }
-
-        private InkingManager(StorageFolder dataFolder)
-        {
-            appFolder = dataFolder;
-            inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
-            removedInkStrokes = new Dictionary<int, List<InkStroke>>();
-            inFileInkStrokes = new Dictionary<int, List<InkStroke>>();
-            return;
         }
 
         public async Task RemoveInAppInking()

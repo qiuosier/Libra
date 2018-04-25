@@ -441,7 +441,7 @@ namespace Libra
             await LoadViewerState();
             RestoreViewerState();
             // Load inking
-            inkManager = await InkingManager.InitializeInking(dataFolder);
+            inkManager = await InkingManager.InitializeInking(dataFolder, pdfModel);
             // Make sure about the visible page range
             this._visiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
@@ -506,7 +506,7 @@ namespace Libra
                     if (this.fileLoaded)
                     {
                         this.dataFolder = await ApplicationData.Current.LocalFolder.GetFolderAsync(this.futureAccessToken);
-                        this.inkManager = await InkingManager.InitializeInking(dataFolder);
+                        this.inkManager = await InkingManager.InitializeInking(dataFolder, pdfModel);
                         RefreshViewer();
                     }
                 }

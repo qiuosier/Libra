@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Threading.Tasks;
 using Windows.Data.Pdf;
 using Windows.Foundation;
@@ -11,7 +10,6 @@ using Windows.UI.Input.Inking;
 using Syncfusion.Pdf;
 using Syncfusion.Pdf.Graphics;
 using Syncfusion.Pdf.Interactive;
-using Syncfusion.Pdf.Parsing;
 
 
 namespace Libra.Class
@@ -41,7 +39,7 @@ namespace Libra.Class
         }
 
         /// <summary>
-        /// Return the page size ratio of SF Model / MS model
+        /// Return the page width ratio of SF Model / MS model
         /// </summary>
         /// <param name="pdfDoc"></param>
         /// <returns></returns>
@@ -62,7 +60,7 @@ namespace Libra.Class
             return msPdf.PageCount();
         }
 
-        public Windows.Foundation.Size PageSize(int pageNumeber)
+        public Size PageSize(int pageNumeber)
         {
             return msPdf.PageSize(pageNumeber);
         }
@@ -80,9 +78,23 @@ namespace Libra.Class
             }
         }
 
-        public List<InkStroke> LoadInkAnnotations(int pageNumber)
+        public List<InkStroke> LoadInFileInkAnnotations(int pageNumber)
         {
-            return sfPdf.GetInkAnnotations(pageNumber);
+            List<PdfLoadedInkAnnotation> inkAnnotations = sfPdf.GetInkAnnotations(pageNumber);
+            List<InkStroke> strokes = new List<InkStroke>();
+            // pageNumber is 1-based. Page index is 0-based.
+            int pageIndex = pageNumber - 1;
+            // Get page information from SF model
+            PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+            // Get page information from MS model
+            Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+            // Calculate page mapping
+            PageMapping mapping = new PageMapping(msPage, sfPage);
+            foreach (PdfLoadedInkAnnotation annotation in inkAnnotations)
+            {
+                strokes.Add(InkAnnotation2InkStroke(annotation, mapping));
+            }
+            return strokes;
         }
 
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile, StorageFolder dataFolder)
@@ -114,9 +126,15 @@ namespace Libra.Class
         /// </summary>
         /// <param name="color">Windows UI Color</param>
         /// <returns>System Drawing Color</returns>
-        private Color ColorFromUI(Windows.UI.Color color)
+        private System.Drawing.Color ColorFromUI(Windows.UI.Color color)
         {
-            return Color.FromArgb(color.A, color.R, color.G, color.B);
+            return System.Drawing.Color.FromArgb(color.A, color.R, color.G, color.B);
+        }
+
+        private Windows.UI.Color ColorToUI(PdfColor color)
+        {
+            Windows.UI.Color c = Windows.UI.Color.FromArgb(255, color.R, color.G, color.B);
+            return c;
         }
 
         /// <summary> 
@@ -142,6 +160,10 @@ namespace Libra.Class
                 PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
                 // Get page information from MS model
                 Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+
+                PageMapping mapping = new PageMapping(msPage, sfPage);
+
+
                 int rotation = (int)msPage.Rotation;
                 // The page size returned from Syncfusion pdf is the media box size.
                 double scaleRatio = sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
@@ -151,48 +173,11 @@ namespace Libra.Class
                 // There will be an offset if the crop box is smaller than the media box.
                 double xOffset = msPage.Dimensions.CropBox.Left * scaleRatio;
                 double yOffset = msPage.Dimensions.CropBox.Top * scaleRatio;
-                RectangleF rectangle = new RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
+                System.Drawing.RectangleF rectangle = new System.Drawing.RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
                 // Add each ink stroke to the page
                 foreach (InkStroke stroke in entry.Value.GetStrokes())
                 {
-                    List<float> strokePoints = new List<float>();
-                    foreach (InkPoint p in stroke.GetInkPoints())
-                    {
-                        float X = (float)(p.Position.X * scaleRatio + xOffset);
-                        float Y = (float)(p.Position.Y * scaleRatio + yOffset);
-                        switch (rotation)
-                        {
-                            case 0: // No rotation
-                                {
-                                    strokePoints.Add(X);
-                                    strokePoints.Add(sfPage.Size.Height - Y);
-                                    break;
-                                }
-                            case 1: // 90-degree rotation
-                                {
-                                    strokePoints.Add(Y);
-                                    strokePoints.Add(X);
-                                    break;
-                                }
-                            case 2: // 180-degree rotation
-                                {
-                                    strokePoints.Add(sfPage.Size.Width - X);
-                                    strokePoints.Add(Y);
-                                    break;
-                                }
-                            case 3: // 270-degree rotation
-                                {
-                                    strokePoints.Add(sfPage.Size.Height - Y);
-                                    strokePoints.Add(sfPage.Size.Width - X);
-                                    break;
-                                }
-                        }
-                    }
-                    PdfInkAnnotation inkAnnotation = new PdfInkAnnotation(rectangle, strokePoints);
-                    // Color
-                    inkAnnotation.Color = new PdfColor(ColorFromUI(stroke.DrawingAttributes.Color));
-                    // Size
-                    inkAnnotation.BorderWidth = (int)Math.Round(stroke.DrawingAttributes.Size.Width * scaleRatio);
+                    PdfInkAnnotation inkAnnotation = InkStroke2InkAnnotation(stroke, mapping);
                     sfPage.Annotations.Add(inkAnnotation);
                     fileChanged = true;
                 }
@@ -217,6 +202,134 @@ namespace Libra.Class
         public async Task ReloadFile()
         {
             msPdf = await PdfModelMS.LoadFromFile(pdfFile);
+        }
+
+        private PdfInkAnnotation InkStroke2InkAnnotation(InkStroke stroke, PageMapping mapping)
+        {
+            List<float> strokePoints = new List<float>();
+            foreach (InkPoint p in stroke.GetInkPoints())
+            {
+                float X = (float)(p.Position.X * mapping.ScaleRatio + mapping.Offset.X);
+                float Y = (float)(p.Position.Y * mapping.ScaleRatio + mapping.Offset.Y);
+                switch (mapping.Rotation)
+                {
+                    case 0: // No rotation
+                        {
+                            strokePoints.Add(X);
+                            strokePoints.Add(mapping.PageSize.Height - Y);
+                            break;
+                        }
+                    case 1: // 90-degree rotation
+                        {
+                            strokePoints.Add(Y);
+                            strokePoints.Add(X);
+                            break;
+                        }
+                    case 2: // 180-degree rotation
+                        {
+                            strokePoints.Add(mapping.PageSize.Width - X);
+                            strokePoints.Add(Y);
+                            break;
+                        }
+                    case 3: // 270-degree rotation
+                        {
+                            strokePoints.Add(mapping.PageSize.Height - Y);
+                            strokePoints.Add(mapping.PageSize.Width - X);
+                            break;
+                        }
+                }
+            }
+            PdfInkAnnotation inkAnnotation = new PdfInkAnnotation(mapping.Rectangle, strokePoints)
+            {
+                // Color
+                Color = new PdfColor(ColorFromUI(stroke.DrawingAttributes.Color)),
+                // Size
+                BorderWidth = (int)Math.Round(stroke.DrawingAttributes.Size.Width * mapping.ScaleRatio)
+            };
+            return inkAnnotation;
+        }
+
+        private InkStroke InkAnnotation2InkStroke(PdfLoadedInkAnnotation inkAnnotation, PageMapping mapping)
+        {
+            List<float> strokePoints = inkAnnotation.InkList;
+            InkStrokeBuilder builder = new InkStrokeBuilder();
+            List<Point> InkPoints = new List<Point>();
+            // Construct ink points
+            for (int i = 0; i < strokePoints.Count; i = i + 2)
+            {
+                if ((i + 1) >= strokePoints.Count) {
+                    // TODO: Something must be wrong.
+                    break;
+                }
+                double X = 0, Y = 0;
+                float W = strokePoints[i];
+                float Z = strokePoints[i + 1];
+                switch (mapping.Rotation)
+                {
+                    case 0: // No rotation
+                        {
+                            X = W;
+                            Y = mapping.PageSize.Height - Z;
+                            break;
+                        }
+                    case 1: // 90-degree rotation
+                        {
+                            X = Z;
+                            Y = W;
+                            break;
+                        }
+                    case 2: // 180-degree rotation
+                        {
+                            X = mapping.PageSize.Width - W;
+                            Y = Z;
+                            break;
+                        }
+                    case 3: // 270-degree rotation
+                        {
+                            X = mapping.PageSize.Width - Z;
+                            Y = mapping.PageSize.Height - W;
+                            break;
+                        }
+                }
+                double pointX = (X - mapping.Offset.X) / mapping.ScaleRatio;
+                double pointY = (Y - mapping.Offset.Y) / mapping.ScaleRatio;
+                InkPoints.Add(new Point(pointX, pointY));
+            }
+            InkStroke stroke = builder.CreateStroke(InkPoints);
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
+            drawingAttributes.FitToCurve = true;
+            drawingAttributes.Color = ColorToUI(inkAnnotation.Color);
+            stroke.DrawingAttributes = drawingAttributes;
+            return stroke;
+        }
+
+        private class PageMapping
+        {
+            public Point Offset { get; private set; }
+            public System.Drawing.SizeF PageSize { get; private set; }
+            public System.Drawing.RectangleF Rectangle { get; private set; }
+            // 0 = No Rotation
+            // 1 = Rotated 90 degrees
+            // 2 = Rotated 180 degrees
+            // 3 = Rotated 270 degrees
+            public int Rotation { get; private set; }
+            public double ScaleRatio { get; private set; }
+
+            public PageMapping(Windows.Data.Pdf.PdfPage msPage, PdfLoadedPage sfPage)
+            {
+                Rotation = (int)msPage.Rotation;
+                // The page size returned from Syncfusion pdf is the media box size.
+                ScaleRatio = sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
+
+                // The ink canvas size is the same as crop box
+                // Crop box could be smaller than media box
+                // There will be an offset if the crop box is smaller than the media box.
+                Offset = new Point(
+                    msPage.Dimensions.CropBox.Left * ScaleRatio,
+                    msPage.Dimensions.CropBox.Top * ScaleRatio
+                );
+                Rectangle = new System.Drawing.RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
+            }
         }
     }
 }

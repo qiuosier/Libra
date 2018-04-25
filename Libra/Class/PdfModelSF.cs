@@ -66,25 +66,18 @@ namespace Libra.Class
             return loadedPage.Annotations.Count;
         }
 
-        public List<InkStroke> GetInkAnnotations(int pageNumber)
+        public List<PdfLoadedInkAnnotation> GetInkAnnotations(int pageNumber)
         {
-            List<InkStroke> inkStrokes = new List<InkStroke>();
+            List<PdfLoadedInkAnnotation> inkAnnotations = new List<PdfLoadedInkAnnotation>();
             PdfLoadedPage loadedPage = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
-            InkStrokeBuilder strokeBuilder = new InkStrokeBuilder();
             foreach (PdfLoadedAnnotation annotation in loadedPage.Annotations)
             {
                 if (annotation is PdfLoadedInkAnnotation)
                 {
-                    List<float> strokePoints = ((PdfLoadedInkAnnotation)annotation).InkList;
-                    List<Windows.Foundation.Point> inkPoints = new List<Windows.Foundation.Point>();
-                    for (int i = 0; i < strokePoints.Count; i = i + 2)
-                    {
-                        inkPoints.Add(new Windows.Foundation.Point(strokePoints[i], strokePoints[i + 1]));
-                    }
-                    InkStroke inkStroke = strokeBuilder.CreateStroke(inkPoints);
+                    inkAnnotations.Add((PdfLoadedInkAnnotation)annotation);
                 }
             }
-            return inkStrokes;
+            return inkAnnotations;
         }
 
         public async Task<StorageFile> ExtractPageWithoutInking(int pageNumber, StorageFolder storageFolder)

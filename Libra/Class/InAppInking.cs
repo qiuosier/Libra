@@ -62,6 +62,7 @@ namespace Libra.Class
                 }
                 catch (Exception e)
                 {
+                    // TODO: File in use?
                     string errorMsg = "Error when loading inking for page " + pageNumber.ToString() + "\n Exception: " + e.Message;
                     AppEventSource.Log.Error("In App Inking: " + errorMsg);
                     int userResponse = await App.NotifyUserWithOptions(errorMsg, new string[] { "Remove Inking", "Ignore" });
