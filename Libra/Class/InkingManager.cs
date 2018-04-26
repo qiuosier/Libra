@@ -21,13 +21,7 @@ namespace Libra.Class
         /// <summary>
         /// A dictioary used to cache the inking
         /// </summary>
-        public Dictionary<int, InkStrokeContainer> InkDictionary
-        {
-            get
-            {
-                return inAppInking.InkDictionary;
-            }
-        }
+        public Dictionary<int, InkStrokeContainer> InkDictionary { get; private set; }
 
         private InkingManager(StorageFolder dataFolder)
         {
@@ -42,10 +36,6 @@ namespace Libra.Class
         {
             InkingManager inkManager = new InkingManager(dataFolder);
             inkManager.inAppInking = await InAppInking.InitializeInking(dataFolder);
-            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
-            {
-                inkManager.inAppInkStrokes[entry.Key] = new List<InkStroke>(entry.Value.GetStrokes());
-            }
             inkManager.pdfModel = pdfModel;
             return inkManager;
         }
@@ -57,46 +47,20 @@ namespace Libra.Class
             if (!InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
                 // Try to load inking from app data folder if inking not found in Ink Dictionary.
                 // A new ink stroke container will be returned if no inking found.
-                inkStrokeContainer = await inAppInking.LoadInkingFromFile(pageNumber);
+                inkStrokeContainer = await inAppInking.LoadFromFile(pageNumber);
             // Add In-File inking to the ink container
             inkStrokeContainer.AddStrokes(pdfModel.LoadInFileInkAnnotations(pageNumber));
             return inkStrokeContainer;
         }
 
-        public async Task saveInking(int pageNumber, InkStrokeContainer inkStrokeContainer = null)
+        public void AddStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
-            InkStrokeContainer container = new InkStrokeContainer();
-            List<InkStroke> inAppStrokes = new List<InkStroke>();
-            inAppInkStrokes.TryGetValue(pageNumber, out inAppStrokes);
-            foreach (InkStroke inkStroke in inAppStrokes)
-            {
-                container.AddStroke(inkStroke.Clone());
-            }
-            await inAppInking.saveInking(pageNumber, container);
-            // TODO: Save removed ink strokes
+            inAppInking.AddStrokes(pageNumber, inkStrokeContainer, inkStrokes);
         }
 
-        public async Task addStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
+        public void EraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
-            if (!inAppInkStrokes.ContainsKey(pageNumber))
-            {
-                inAppInkStrokes[pageNumber] = new List<InkStroke>(inkStrokes);
-            }
-            else inAppInkStrokes[pageNumber].AddRange(inkStrokes);
-            await saveInking(pageNumber);
-        }
-
-        public async Task eraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
-        {
-            List<InkStroke> inAppStrokes;
-            if (inAppInkStrokes.TryGetValue(pageNumber, out inAppStrokes))
-            {
-                foreach (InkStroke inkStroke in inkStrokes)
-                {
-                    inAppStrokes.Remove(inkStroke);
-                }
-                await saveInking(pageNumber);
-            }
+            inAppInking.EraseStrokes(pageNumber, inkStrokeContainer, inkStrokes);
         }
 
         public async Task RemoveInAppInking()

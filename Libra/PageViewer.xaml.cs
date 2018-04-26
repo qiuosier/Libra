@@ -740,7 +740,7 @@ namespace Libra
         private async void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
         {
             int p = findPageNumberByInkPresenter(sender);
-            await inkManager.eraseStrokes(p, sender.StrokeContainer, args.Strokes);
+            inkManager.EraseStrokes(p, sender.StrokeContainer, args.Strokes);
         }
 
         private async void InkPresenter_StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args)
@@ -762,7 +762,7 @@ namespace Libra
                 }
             }
             int p = findPageNumberByInkPresenter(sender);
-            await inkManager.addStrokes(p, sender.StrokeContainer, args.Strokes);
+            inkManager.AddStrokes(p, sender.StrokeContainer, args.Strokes);
         }
 
         private int findPageNumberByInkPresenter(InkPresenter sender)

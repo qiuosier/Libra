@@ -15,16 +15,12 @@ namespace Libra.Class
         private const string INKING_FOLDER = "Inking";
 
         private bool isSavingInking = false;
+        private Queue<int> inkingChangedPagesQueue;
 
         private StorageFolder appFolder;
         public StorageFolder InkingFolder { get; private set; }
 
-        /// <summary>
-        /// A dictioary used to cache the inking, this will be updated when savingInking is called.
-        /// </summary>
-        public Dictionary<int, InkStrokeContainer> InkDictionary { get; private set; }
-
-        private Queue<int> inkingChangedPagesQueue;
+        private Dictionary<int, List<InkStroke>> inkStrokesDict;
 
         private InAppInking(StorageFolder dataFolder)
         {
@@ -35,10 +31,14 @@ namespace Libra.Class
         public static async Task<InAppInking> InitializeInking(StorageFolder dataFolder)
         {
             InAppInking inking = new InAppInking(dataFolder);
-            inking.InkingFolder = await getInkingFolder(dataFolder);
-            inking.InkDictionary = new Dictionary<int, InkStrokeContainer>();
-            // await inking.LoadInkDictionary();
+            inking.InkingFolder = await GetInkingFolder(dataFolder);
             return inking;
+        }
+
+        private static async Task<StorageFolder> GetInkingFolder(StorageFolder dataFolder)
+        {
+            StorageFolder inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
+            return inkingFolder;
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace Libra.Class
         /// </summary>
         /// <param name="pageNumber"></param>
         /// <returns></returns>
-        public async Task<InkStrokeContainer> LoadInkingFromFile(int pageNumber)
+        public async Task<InkStrokeContainer> LoadFromFile(int pageNumber)
         {
             InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
             StorageFile inkFile = await InkingFolder.TryGetItemAsync(pageNumber.ToString() + EXT_INKING) as StorageFile;
@@ -58,6 +58,8 @@ namespace Libra.Class
                     {
                         await inkStrokeContainer.LoadAsync(inkStream);
                     }
+                    inkStrokesDict[pageNumber] = new List<InkStroke>();
+                    inkStrokesDict[pageNumber].AddRange(inkStrokeContainer.GetStrokes());
                     AppEventSource.Log.Debug("InAppInking: Inking for page " + pageNumber.ToString() + " loaded.");
                 }
                 catch (Exception e)
@@ -79,33 +81,34 @@ namespace Libra.Class
             return inkStrokeContainer;
         }
 
-
-        private static async Task<StorageFolder> getInkingFolder(StorageFolder dataFolder)
+        public void AddStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
-            StorageFolder inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
-            return inkingFolder;
+            if (!inkStrokesDict.ContainsKey(pageNumber))
+            {
+                inkStrokesDict[pageNumber] = new List<InkStroke>(inkStrokes);
+            }
+            else inkStrokesDict[pageNumber].AddRange(inkStrokes);
+            SaveInking(pageNumber).ContinueWith(
+                t => AppEventSource.Log.Debug("SaveInking Error: " + t.Exception.Message), 
+                TaskContinuationOptions.OnlyOnFaulted);
         }
 
-        public InkStrokeContainer loadInking(int pageNumber)
+        public void EraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
-            // Load inking if exist
-            InkStrokeContainer inkStrokeContainer;
-            if (!InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
-                inkStrokeContainer = new InkStrokeContainer();
-            return inkStrokeContainer;
+            if (inkStrokesDict.TryGetValue(pageNumber, out List<InkStroke> inAppStrokes))
+            {
+                foreach (InkStroke inkStroke in inkStrokes)
+                {
+                    inAppStrokes.Remove(inkStroke);
+                }
+                SaveInking(pageNumber).ContinueWith(
+                t => AppEventSource.Log.Debug("SaveInking Error: " + t.Exception.Message),
+                TaskContinuationOptions.OnlyOnFaulted);
+            }
         }
 
-        public async Task saveInking(int pageNumber, InkStrokeContainer inkStrokeContainer)
+        public async Task SaveInking(int pageNumber)
         {
-            // Remove if there is no strokes.
-            if (inkStrokeContainer.GetStrokes().Count == 0)
-            {
-                InkDictionary.Remove(pageNumber);
-            }
-            else
-            {
-                InkDictionary[pageNumber] = inkStrokeContainer;
-            }
             // Enqueue the page if it is not already in the queue
             if (!this.inkingChangedPagesQueue.Contains(pageNumber))
                 this.inkingChangedPagesQueue.Enqueue(pageNumber);
@@ -115,94 +118,54 @@ namespace Libra.Class
                 await SaveInkingQueue();
         }
 
-        public async Task addStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
-        {
-            await saveInking(pageNumber, inkStrokeContainer); 
-        }
-
-        public async Task eraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
-        {
-            await saveInking(pageNumber, inkStrokeContainer);
-        }
-
-        private async Task saveToFile(int pageNumber)
-        {
-            // Save inking from a page to a file
-            try
-            {
-                StorageFile inkFile;
-                InkStrokeContainer inkStrokeContainer;
-                string filename = pageNumber.ToString() + EXT_INKING;
-                if (InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
-                {
-                    inkFile = await this.InkingFolder.CreateFileAsync(filename, CreationCollisionOption.ReplaceExisting);
-                    using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
-                    {
-                        await inkStrokeContainer.SaveAsync(inkStream);
-                    }
-                }
-                else
-                {
-                    inkFile = await InkingFolder.TryGetItemAsync(filename) as StorageFile;
-                    if (inkFile != null) await inkFile.DeleteAsync();
-                }
-                AppEventSource.Log.Debug("InAppInking: Inking for page " + pageNumber + " saved.");
-            }
-            catch (Exception ex)
-            {
-                App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
-            }
-        }
-
         private async Task SaveInkingQueue()
         {
             this.isSavingInking = true;
             while (this.inkingChangedPagesQueue.Count > 0)
             {
                 int pageNumber = this.inkingChangedPagesQueue.Dequeue();
-                await saveToFile(pageNumber);
+                await SaveToFile(pageNumber);
             }
             this.isSavingInking = false;
         }
 
-        public async Task<Dictionary<int, InkStrokeContainer>> LoadInkDictionary()
+        private async Task SaveToFile(int pageNumber)
         {
-            InkDictionary = new Dictionary<int, InkStrokeContainer>();
-            foreach (StorageFile inkFile in await InkingFolder.GetFilesAsync())
+            // Save inking from a page to a file
+            // Do nothing if ink strokes are not loaded into the inkStrokesDict
+            if (inkStrokesDict.TryGetValue(pageNumber, out List<InkStroke> inkStrokes))
             {
-                int pageNumber = 0;
+                StorageFile inkFile;
+                string filename = pageNumber.ToString() + EXT_INKING;
                 try
                 {
-                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
-                    InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-                    using (var inkStream = await inkFile.OpenSequentialReadAsync())
+                    if (inkStrokes.Count > 0)
                     {
-                        await inkStrokeContainer.LoadAsync(inkStream);
+                        InkStrokeContainer container = new InkStrokeContainer();
+                        foreach (InkStroke stroke in inkStrokes)
+                        {
+                            container.AddStroke(stroke.Clone());
+                        }
+                        inkFile = await this.InkingFolder.CreateFileAsync(filename, CreationCollisionOption.ReplaceExisting);
+                        using (IRandomAccessStream inkStream = await inkFile.OpenAsync(FileAccessMode.ReadWrite))
+                        {
+                            await container.SaveAsync(inkStream);
+                        }
+                        AppEventSource.Log.Debug("InAppInking: Inking for page " + pageNumber + " saved.");
                     }
-                    InkDictionary.Add(pageNumber, inkStrokeContainer);
-
+                    else
+                    {
+                        // Delete the file if there is no ink strokes.
+                        inkFile = await InkingFolder.TryGetItemAsync(filename) as StorageFile;
+                        if (inkFile != null) await inkFile.DeleteAsync();
+                        AppEventSource.Log.Debug("InAppInking: Inking for page " + pageNumber + " removed.");
+                    }
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    string errorMsg = "Error when loading inking for page " + pageNumber.ToString() + "\n Exception: " + e.Message;
-                    AppEventSource.Log.Error("InkManager: " + errorMsg);
-                    int userResponse = await App.NotifyUserWithOptions(errorMsg, new string[] { "Remove Inking", "Ignore" });
-                    switch (userResponse)
-                    {
-                        case 0: // Delete inking file
-                            await inkFile.DeleteAsync();
-                            AppEventSource.Log.Error("InkManager: File deleted.");
-                            break;
-                        default: break;
-                    }
-                    continue;
+                    App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
                 }
             }
-            return InkDictionary;
         }
-
-        
-
-        
     }
 }
