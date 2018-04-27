@@ -24,22 +24,20 @@ namespace Libra.Class
 
         private InAppInking(StorageFolder dataFolder)
         {
-            this.appFolder = dataFolder;
-            this.inkingChangedPagesQueue = new Queue<int>();
+            appFolder = dataFolder;
+            inkingChangedPagesQueue = new Queue<int>();
+            inkStrokesDict = new Dictionary<int, List<InkStroke>>();
         }
 
         public static async Task<InAppInking> InitializeInking(StorageFolder dataFolder)
         {
-            InAppInking inking = new InAppInking(dataFolder);
-            inking.InkingFolder = await GetInkingFolder(dataFolder);
+            InAppInking inking = new InAppInking(dataFolder)
+            {
+                InkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists)
+            };
             return inking;
         }
 
-        private static async Task<StorageFolder> GetInkingFolder(StorageFolder dataFolder)
-        {
-            StorageFolder inkingFolder = await dataFolder.CreateFolderAsync(INKING_FOLDER, CreationCollisionOption.OpenIfExists);
-            return inkingFolder;
-        }
 
         /// <summary>
         /// Loads inking from file in the app data folder.
@@ -49,8 +47,7 @@ namespace Libra.Class
         public async Task<InkStrokeContainer> LoadFromFile(int pageNumber)
         {
             InkStrokeContainer inkStrokeContainer = new InkStrokeContainer();
-            StorageFile inkFile = await InkingFolder.TryGetItemAsync(pageNumber.ToString() + EXT_INKING) as StorageFile;
-            if (inkFile != null)
+            if (await InkingFolder.TryGetItemAsync(pageNumber.ToString() + EXT_INKING) is StorageFile inkFile)
             {
                 try
                 {
@@ -58,8 +55,6 @@ namespace Libra.Class
                     {
                         await inkStrokeContainer.LoadAsync(inkStream);
                     }
-                    inkStrokesDict[pageNumber] = new List<InkStroke>();
-                    inkStrokesDict[pageNumber].AddRange(inkStrokeContainer.GetStrokes());
                     AppEventSource.Log.Debug("InAppInking: Inking for page " + pageNumber.ToString() + " loaded.");
                 }
                 catch (Exception e)
@@ -77,8 +72,34 @@ namespace Libra.Class
                         default: break;
                     }
                 }
+                inkStrokesDict[pageNumber] = new List<InkStroke>(inkStrokeContainer.GetStrokes());
             }
             return inkStrokeContainer;
+        }
+
+        public async Task<Dictionary<int, InkStrokeContainer>> LoadInkDictionary()
+        {
+            Dictionary<int, InkStrokeContainer> inkDictionary = new Dictionary<int, InkStrokeContainer>();
+            Dictionary<int, Task<InkStrokeContainer>> taskDictionary = new Dictionary<int, Task<InkStrokeContainer>>();
+            foreach (StorageFile inkFile in await InkingFolder.GetFilesAsync())
+            {
+                int pageNumber = 0;
+                try
+                {
+                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                }
+                catch (Exception e)
+                {
+                    AppEventSource.Log.Error("In App Inking: Invalid page from file " + inkFile.Name + ". " + e.Message);
+                    continue;
+                }
+                taskDictionary[pageNumber] = LoadFromFile(pageNumber);
+            }
+            foreach (KeyValuePair<int, Task<InkStrokeContainer>> entry in taskDictionary)
+            {
+                inkDictionary[entry.Key] = await entry.Value;
+            }
+            return inkDictionary;
         }
 
         public void AddStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
@@ -115,10 +136,10 @@ namespace Libra.Class
             // Invoke save inking only if SaveInking is not running.
             // This will prevent running multiple saving instance at the same time.
             if (!this.isSavingInking)
-                await SaveInkingQueue();
+                await SaveInkingInQueue();
         }
 
-        private async Task SaveInkingQueue()
+        private async Task SaveInkingInQueue()
         {
             this.isSavingInking = true;
             while (this.inkingChangedPagesQueue.Count > 0)
@@ -166,6 +187,11 @@ namespace Libra.Class
                     App.NotifyUser(typeof(ViewerPage), "An error occurred when saving inking. \n" + ex.Message, true);
                 }
             }
+        }
+
+        ~InAppInking()
+        {
+            while (isSavingInking) Task.Delay(100);
         }
     }
 }

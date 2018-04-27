@@ -728,7 +728,7 @@ namespace Libra
 
                 this.inkCanvasList.Add(pageNumber);
                 // Load inking if exist
-                InkStrokeContainer inkStrokesContainer = await inkManager.loadInking(pageNumber);
+                InkStrokeContainer inkStrokesContainer = await inkManager.LoadInking(pageNumber);
                 if (inkStrokesContainer != null)
                     inkCanvas.InkPresenter.StrokeContainer = inkStrokesContainer;
                 // Add ink canvas page
@@ -737,7 +737,7 @@ namespace Libra
             }
         }
 
-        private async void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
+        private void InkPresenter_StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args)
         {
             int p = findPageNumberByInkPresenter(sender);
             inkManager.EraseStrokes(p, sender.StrokeContainer, args.Strokes);
@@ -1556,7 +1556,7 @@ namespace Libra
                         this.fullScreenCover.Opacity = 0.6;
                         this.fullScreenMessage.Text = "Saving ink annotations to PDF file...";
                         // Save inking to pdf
-                        bool inkSaved = await pdfModel.SaveInkingToPdf(inkManager);
+                        bool inkSaved = await pdfModel.SaveInkingToPdf(await inkManager.InAppInkDictionary());
                         if (inkSaved)
                         {
                             // Ink annotations are saved successfully

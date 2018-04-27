@@ -89,7 +89,6 @@ namespace Libra.Class
             PdfLoadedPage page = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
             foreach (PdfAnnotation annotation in page.Annotations)
             {
-                Type c = annotation.GetType();
                 if (!(annotation is PdfLoadedInkAnnotation))
                     pageDoc.Pages[0].Annotations.Add(annotation);
             }

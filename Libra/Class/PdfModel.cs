@@ -140,7 +140,7 @@ namespace Libra.Class
         /// <summary> 
         /// Save the ink annotations into the pdf file. 
         /// </summary> 
-        /// <param name="inkManager"></param> 
+        /// <param name="inkDictionary"></param> 
         /// <returns></returns> 
         /// <remarks> 
         /// The page size returned from Syncfusion pdf is the media box size. 
@@ -148,12 +148,12 @@ namespace Libra.Class
         /// The size of the ink canvas is the same as the crop box size. 
         /// Syncfusion uses the bottom left corner as the origin, while ink canvas uses the top left corner. 
         /// </remarks> 
-        public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
+        public async Task<bool> SaveInkingToPdf(Dictionary<int, InkStrokeContainer> inkDictionary)
         {
             // Indicate whether any ink annotation is added to the PDF file
             bool fileChanged = false;
             // Add ink annotations for each page
-            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkManager.InkDictionary)
+            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkDictionary)
             {
                 // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
                 int pageIndex = entry.Key - 1;

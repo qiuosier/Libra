@@ -10,7 +10,6 @@ namespace Libra.Class
 {
     public class InkingManager
     {
-        private Dictionary<int, List<InkStroke>> inAppInkStrokes;
         private Dictionary<int, List<InkStroke>> removedInkStrokes;
         private Dictionary<int, List<InkStroke>> inFileInkStrokes;
 
@@ -21,14 +20,14 @@ namespace Libra.Class
         /// <summary>
         /// A dictioary used to cache the inking
         /// </summary>
-        public Dictionary<int, InkStrokeContainer> InkDictionary { get; private set; }
+        private Dictionary<int, InkStrokeContainer> inkDictionary;
 
         private InkingManager(StorageFolder dataFolder)
         {
             appFolder = dataFolder;
-            inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
             removedInkStrokes = new Dictionary<int, List<InkStroke>>();
             inFileInkStrokes = new Dictionary<int, List<InkStroke>>();
+            inkDictionary = new Dictionary<int, InkStrokeContainer>();
             return;
         }
 
@@ -40,16 +39,24 @@ namespace Libra.Class
             return inkManager;
         }
 
-        public async Task<InkStrokeContainer> loadInking(int pageNumber)
+        public async Task<Dictionary<int, InkStrokeContainer>> InAppInkDictionary()
+        {
+            return await inAppInking.LoadInkDictionary();
+        }
+
+        public async Task<InkStrokeContainer> LoadInking(int pageNumber)
         {
             // Load inking from Ink Dictionary if exist
             InkStrokeContainer inkStrokeContainer;
-            if (!InkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+            if (!inkDictionary.TryGetValue(pageNumber, out inkStrokeContainer))
+            {
                 // Try to load inking from app data folder if inking not found in Ink Dictionary.
                 // A new ink stroke container will be returned if no inking found.
                 inkStrokeContainer = await inAppInking.LoadFromFile(pageNumber);
-            // Add In-File inking to the ink container
-            inkStrokeContainer.AddStrokes(pdfModel.LoadInFileInkAnnotations(pageNumber));
+                // Add In-File inking to the ink container
+                inkStrokeContainer.AddStrokes(pdfModel.LoadInFileInkAnnotations(pageNumber));
+                inkDictionary[pageNumber] = inkStrokeContainer;
+            }
             return inkStrokeContainer;
         }
 
@@ -69,7 +76,6 @@ namespace Libra.Class
             {
                 await inkFile.DeleteAsync();
             }
-            inAppInkStrokes = new Dictionary<int, List<InkStroke>>();
             inAppInking = await InAppInking.InitializeInking(appFolder);
         }
     }
