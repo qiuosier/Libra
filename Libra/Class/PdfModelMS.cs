@@ -98,6 +98,16 @@ namespace Libra.Class
             return msPdf;
         }
 
+        public static async Task<PdfModelMS> LoadFromStream(IRandomAccessStream stream, string password = null)
+        {
+            PdfModelMS msPdf = new PdfModelMS();
+            if (password == null)
+                msPdf.PdfDoc = await PdfDocument.LoadFromStreamAsync(stream);
+            else
+                msPdf.PdfDoc = await PdfDocument.LoadFromStreamAsync(stream, password);
+            return msPdf;
+        }
+
         public Size PageSize(int pageNumeber)
         {
             return PdfDoc.GetPage((uint)(pageNumeber - 1)).Size;

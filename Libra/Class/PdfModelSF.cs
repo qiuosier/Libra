@@ -5,6 +5,7 @@ using Syncfusion.Pdf.Parsing;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.UI.Input.Inking;
@@ -80,10 +81,9 @@ namespace Libra.Class
             return inkAnnotations;
         }
 
-        public async Task<StorageFile> ExtractPageWithoutInking(int pageNumber, StorageFolder storageFolder)
+        public MemoryStream ExtractPageWithoutInking(int pageNumber)
         {
             PdfDocument pageDoc = new PdfDocument();
-            StorageFile storageFile = await storageFolder.CreateFileAsync("page_" + pageNumber.ToString() + ".pdf", CreationCollisionOption.ReplaceExisting);
             pageDoc.ImportPageRange(PdfDoc, pageNumber - 1, pageNumber - 1);
             pageDoc.Pages[0].Annotations.Clear();
             PdfLoadedPage page = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
@@ -92,9 +92,10 @@ namespace Libra.Class
                 if (!(annotation is PdfLoadedInkAnnotation))
                     pageDoc.Pages[0].Annotations.Add(annotation);
             }
-            await pageDoc.SaveAsync(storageFile);
+            MemoryStream stream = new MemoryStream();
+            pageDoc.Save(stream);
             pageDoc.Close();
-            return storageFile;
+            return stream;
         }
     }
 }

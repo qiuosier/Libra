@@ -10,7 +10,7 @@ using Windows.UI.Input.Inking;
 using Syncfusion.Pdf;
 using Syncfusion.Pdf.Graphics;
 using Syncfusion.Pdf.Interactive;
-
+using System.IO;
 
 namespace Libra.Class
 {
@@ -72,8 +72,8 @@ namespace Libra.Class
                 return await msPdf.RenderPageImage(pageNumber, renderWidth);
             else
             {
-                StorageFile storageFile = await sfPdf.ExtractPageWithoutInking(pageNumber, cacheFolder);
-                PdfModelMS pageDoc = await PdfModelMS.LoadFromFile(storageFile);
+                MemoryStream stream = sfPdf.ExtractPageWithoutInking(pageNumber);
+                PdfModelMS pageDoc = await PdfModelMS.LoadFromStream(stream.AsRandomAccessStream());
                 return await pageDoc.RenderPageImage(1, renderWidth);
             }
         }
