@@ -1556,7 +1556,7 @@ namespace Libra
                         this.fullScreenCover.Opacity = 0.6;
                         this.fullScreenMessage.Text = "Saving ink annotations to PDF file...";
                         // Save inking to pdf
-                        bool inkSaved = await pdfModel.SaveInkingToPdf(await inkManager.InAppInkDictionary());
+                        bool inkSaved = await pdfModel.SaveInkingToPdf(inkManager);
                         if (inkSaved)
                         {
                             // Ink annotations are saved successfully

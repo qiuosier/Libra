@@ -148,12 +148,14 @@ namespace Libra.Class
         /// The size of the ink canvas is the same as the crop box size. 
         /// Syncfusion uses the bottom left corner as the origin, while ink canvas uses the top left corner. 
         /// </remarks> 
-        public async Task<bool> SaveInkingToPdf(Dictionary<int, InkStrokeContainer> inkDictionary)
+        public async Task<bool> SaveInkingToPdf(InkingManager inkManager)
         {
             // Indicate whether any ink annotation is added to the PDF file
             bool fileChanged = false;
-            // Add ink annotations for each page
-            foreach (KeyValuePair<int, InkStrokeContainer> entry in inkDictionary)
+            // Remove ereased ink annotations
+            
+            // Add new ink annotations
+            foreach (KeyValuePair<int, InkStrokeContainer> entry in await inkManager.InAppInkDictionary())
             {
                 // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
                 int pageIndex = entry.Key - 1;
@@ -162,18 +164,7 @@ namespace Libra.Class
                 Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
 
                 PageMapping mapping = new PageMapping(msPage, sfPage);
-
-
-                int rotation = (int)msPage.Rotation;
-                // The page size returned from Syncfusion pdf is the media box size.
-                double scaleRatio = sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
-
-                // The ink canvas size is the same as crop box
-                // Crop box could be smaller than media box
-                // There will be an offset if the crop box is smaller than the media box.
-                double xOffset = msPage.Dimensions.CropBox.Left * scaleRatio;
-                double yOffset = msPage.Dimensions.CropBox.Top * scaleRatio;
-                System.Drawing.RectangleF rectangle = new System.Drawing.RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
+                
                 // Add each ink stroke to the page
                 foreach (InkStroke stroke in entry.Value.GetStrokes())
                 {
@@ -182,8 +173,9 @@ namespace Libra.Class
                     fileChanged = true;
                 }
             }
-            bool inkSaved = false;
+
             // Save the file only if there are changes.
+            bool inkSaved = false;
             if (fileChanged)
             {
                 try
@@ -195,7 +187,6 @@ namespace Libra.Class
                     App.NotifyUser(typeof(ViewerPage), "Error: \n" + ex.Message, true);
                 }
             }
-            //pdf.Close(true);
             return !(inkSaved ^ fileChanged);
         }
 
