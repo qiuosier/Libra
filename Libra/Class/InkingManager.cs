@@ -35,6 +35,11 @@ namespace Libra.Class
             return inkManager;
         }
 
+        public async Task<Dictionary<int, List<InkStroke>>> ErasedStrokesDictionary()
+        {
+            return await inAppInking.LoadErasedStrokesDictionary();
+        }
+
         public async Task<Dictionary<int, InkStrokeContainer>> InAppInkDictionary()
         {
             return await inAppInking.LoadInkDictionary();
@@ -54,7 +59,7 @@ namespace Libra.Class
                 // Check if any strokes has been deleted.
                 List<InkStroke> erasedStrokes = await inAppInking.LoadErasedStrokes(pageNumber);
                 // Remove erased strokes from in-file strokes.
-                List<InkStroke> remainingStrokes = SubstractInkStrokes(inPageStrokes, erasedStrokes);
+                List<InkStroke> remainingStrokes = SubstractInkStrokes(inPageStrokes, erasedStrokes.Select(item => item.Clone()).ToList());
                 inkStrokeContainer.AddStrokes(remainingStrokes);
                 inkDictionary[pageNumber] = inkStrokeContainer;
             }
@@ -84,29 +89,33 @@ namespace Libra.Class
             List<InkStroke> remainingStrokes = new List<InkStroke>();
             foreach(InkStroke stroke in strokes)
             {
-                bool erased = false;
+                InkStroke matched = null;
                 foreach(InkStroke eStroke in erasedStrokes)
                 {
-                    if (CompareInkStrokes(stroke, eStroke))
+                    if (MatchInkStrokes(stroke, eStroke))
                     {
-                        erased = true;
+                        matched = eStroke;
                         break;
                     }
                 }
-                if (!erased)
+                if (matched == null)
                 {
                     remainingStrokes.Add(stroke);
+                }
+                else
+                {
+                    erasedStrokes.Remove(matched);
                 }
             }
             return remainingStrokes;
         }
 
-        private bool CompareInkStrokes(InkStroke stroke1, InkStroke stroke2)
+        private bool MatchInkStrokes(InkStroke stroke1, InkStroke stroke2)
         {
-            // Check if the strokes have the same color.
+            // Color
             if (!stroke1.DrawingAttributes.Color.Equals(stroke2.DrawingAttributes.Color))
                 return false;
-
+            // Points
             IReadOnlyList<InkPoint> points1 = stroke1.GetInkPoints();
             IReadOnlyList<InkPoint> points2 = stroke2.GetInkPoints();
             if (points1.Count != points2.Count) return false;

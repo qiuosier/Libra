@@ -117,7 +117,7 @@ namespace Libra.Class
                 }
                 catch (Exception e)
                 {
-                    AppEventSource.Log.Error("In App Inking: Invalid page from file " + inkFile.Name + ". " + e.Message);
+                    AppEventSource.Log.Error("In App Inking: Invalid inking file name " + inkFile.Name + ". " + e.Message);
                     continue;
                 }
                 taskDictionary[pageNumber] = LoadInking(pageNumber);
@@ -127,6 +127,51 @@ namespace Libra.Class
                 inkDictionary[entry.Key] = await entry.Value;
             }
             return inkDictionary;
+        }
+
+        public async Task<Dictionary<int, List<InkStroke>>> LoadErasedStrokesDictionary()
+        {
+            Dictionary<int, List<InkStroke>> inkDictionary = new Dictionary<int, List<InkStroke>>();
+            Dictionary<int, Task<List<InkStroke>>> taskDictionary = new Dictionary<int, Task<List<InkStroke>>>();
+            foreach (StorageFile inkFile in await ErasedFolder.GetFilesAsync())
+            {
+                int pageNumber = 0;
+                try
+                {
+                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                }
+                catch (Exception e)
+                {
+                    AppEventSource.Log.Error("In App Inking: Invalid inking file name " + inkFile.Name + ". " + e.Message);
+                    continue;
+                }
+                taskDictionary[pageNumber] = LoadErasedStrokes(pageNumber);
+            }
+            foreach (KeyValuePair<int, Task<List<InkStroke>>> entry in taskDictionary)
+            {
+                inkDictionary[entry.Key] = await entry.Value;
+            }
+            return inkDictionary;
+        }
+
+        public async Task<List<int>> GetPageNumbersWithInking(StorageFolder folder)
+        {
+            List<int> pageNumberList = new List<int>();
+            foreach (StorageFile inkFile in await folder.GetFilesAsync())
+            {
+                int pageNumber = 0;
+                try
+                {
+                    pageNumber = Convert.ToInt32(inkFile.Name.Substring(0, inkFile.Name.Length - 4));
+                }
+                catch (Exception e)
+                {
+                    AppEventSource.Log.Error("In App Inking: Invalid erased inking file name " + inkFile.Name + ". " + e.Message);
+                    continue;
+                }
+                if (pageNumber > 0) pageNumberList.Add(pageNumber);
+            }
+            return pageNumberList;
         }
 
         public void AddStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
@@ -267,6 +312,10 @@ namespace Libra.Class
         public async Task RemoveInking()
         {
             foreach (StorageFile inkFile in await InkingFolder.GetFilesAsync())
+            {
+                await inkFile.DeleteAsync();
+            }
+            foreach (StorageFile inkFile in await ErasedFolder.GetFilesAsync())
             {
                 await inkFile.DeleteAsync();
             }

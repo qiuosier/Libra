@@ -81,6 +81,36 @@ namespace Libra.Class
             return inkAnnotations;
         }
 
+        public bool RemoveInkAnnotations(PdfLoadedPage page, List<PdfInkAnnotation> inkAnnotations)
+        {
+            bool annotationRemoved = false;
+            List<PdfLoadedAnnotation> toBeRemoved = new List<PdfLoadedAnnotation>();
+            foreach (PdfLoadedAnnotation annotation in page.Annotations)
+            {
+                if (annotation is PdfLoadedInkAnnotation)
+                {
+                    PdfLoadedInkAnnotation loadedInk = (PdfLoadedInkAnnotation)annotation;
+                    PdfInkAnnotation matched = null;
+                    foreach (PdfInkAnnotation erasedInk in inkAnnotations)
+                    {
+                        if (MatchInkAnnotations(loadedInk, erasedInk))
+                        {
+                            toBeRemoved.Add(annotation);
+                            matched = erasedInk;
+                            break;
+                        }
+                    }
+                    if (matched != null) inkAnnotations.Remove(matched);
+                }
+            }
+            foreach(PdfLoadedAnnotation a in toBeRemoved)
+            {
+                page.Annotations.Remove(a);
+                annotationRemoved = true;
+            }
+            return annotationRemoved;
+        }
+
         public MemoryStream ExtractPageWithoutInking(int pageNumber)
         {
             PdfDocument pageDoc = new PdfDocument();
@@ -96,6 +126,30 @@ namespace Libra.Class
             pageDoc.Save(stream);
             pageDoc.Close();
             return stream;
+        }
+
+        private bool MatchInkAnnotations(PdfLoadedInkAnnotation loadedInk, PdfInkAnnotation erasedInk)
+        {
+            // Color
+            if (loadedInk.Color.R != erasedInk.Color.R ||
+                loadedInk.Color.G != erasedInk.Color.G ||
+                loadedInk.Color.B != erasedInk.Color.B)
+            {
+                return false;
+            }
+
+            // Points
+            List<float> points1 = loadedInk.InkList;
+            List<float> points2 = erasedInk.InkList;
+            if (points1.Count != points2.Count) return false;
+            for (int i = 0; i < points1.Count; i++)
+            {
+                double threshold = 0.5;
+
+                if (Math.Abs(points1[i] - points2[i]) > threshold)
+                    return false;
+            }
+            return true;
         }
     }
 }

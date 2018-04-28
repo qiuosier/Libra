@@ -152,8 +152,27 @@ namespace Libra.Class
         {
             // Indicate whether any ink annotation is added to the PDF file
             bool fileChanged = false;
-            // Remove ereased ink annotations
-            
+            //// Remove ereased ink annotations
+            //foreach (KeyValuePair<int, List<InkStroke>> entry in await inkManager.ErasedStrokesDictionary())
+            //{
+            //    // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
+            //    int pageIndex = entry.Key - 1;
+            //    PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+            //    // Get page information from MS model
+            //    Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+
+            //    PageMapping mapping = new PageMapping(msPage, sfPage);
+            //    List<PdfInkAnnotation> erasedAnnotations = new List<PdfInkAnnotation>();
+            //    // Add each ink stroke to the page
+            //    foreach (InkStroke stroke in entry.Value)
+            //    {
+            //        PdfInkAnnotation inkAnnotation = InkStroke2InkAnnotation(stroke, mapping);
+            //        erasedAnnotations.Add(inkAnnotation);
+            //    }
+            //    fileChanged = sfPdf.RemoveInkAnnotations(sfPage, erasedAnnotations);
+            //}
+
+
             // Add new ink annotations
             foreach (KeyValuePair<int, InkStrokeContainer> entry in await inkManager.InAppInkDictionary())
             {
