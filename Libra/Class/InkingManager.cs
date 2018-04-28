@@ -10,8 +10,6 @@ namespace Libra.Class
 {
     public class InkingManager
     {
-        private Dictionary<int, List<InkStroke>> removedInkStrokes;
-        private Dictionary<int, List<InkStroke>> inFileInkStrokes;
 
         private InAppInking inAppInking;
         private StorageFolder appFolder;
@@ -25,8 +23,6 @@ namespace Libra.Class
         private InkingManager(StorageFolder dataFolder)
         {
             appFolder = dataFolder;
-            removedInkStrokes = new Dictionary<int, List<InkStroke>>();
-            inFileInkStrokes = new Dictionary<int, List<InkStroke>>();
             inkDictionary = new Dictionary<int, InkStrokeContainer>();
             return;
         }
@@ -52,9 +48,14 @@ namespace Libra.Class
             {
                 // Try to load inking from app data folder if inking not found in Ink Dictionary.
                 // A new ink stroke container will be returned if no inking found.
-                inkStrokeContainer = await inAppInking.LoadFromFile(pageNumber);
-                // Add In-File inking to the ink container
-                inkStrokeContainer.AddStrokes(pdfModel.LoadInFileInkAnnotations(pageNumber));
+                inkStrokeContainer = await inAppInking.LoadInking(pageNumber);
+                // Load in-file ink strokes
+                List<InkStroke> inPageStrokes = pdfModel.LoadInFileInkAnnotations(pageNumber);
+                // Check if any strokes has been deleted.
+                List<InkStroke> erasedStrokes = await inAppInking.LoadErasedStrokes(pageNumber);
+                // Remove erased strokes from in-file strokes.
+                List<InkStroke> remainingStrokes = SubstractInkStrokes(inPageStrokes, erasedStrokes);
+                inkStrokeContainer.AddStrokes(remainingStrokes);
                 inkDictionary[pageNumber] = inkStrokeContainer;
             }
             return inkStrokeContainer;
@@ -63,20 +64,62 @@ namespace Libra.Class
         public void AddStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
             inAppInking.AddStrokes(pageNumber, inkStrokeContainer, inkStrokes);
+            inkDictionary[pageNumber] = inkStrokeContainer;
         }
 
         public void EraseStrokes(int pageNumber, InkStrokeContainer inkStrokeContainer, IReadOnlyList<InkStroke> inkStrokes)
         {
             inAppInking.EraseStrokes(pageNumber, inkStrokeContainer, inkStrokes);
+            inkDictionary[pageNumber] = inkStrokeContainer;
         }
 
         public async Task RemoveInAppInking()
         {
-            foreach (StorageFile inkFile in await inAppInking.InkingFolder.GetFilesAsync())
-            {
-                await inkFile.DeleteAsync();
-            }
+            await inAppInking.RemoveInking();
             inAppInking = await InAppInking.InitializeInking(appFolder);
+        }
+
+        private List<InkStroke> SubstractInkStrokes(List<InkStroke> strokes, List<InkStroke> erasedStrokes)
+        {
+            List<InkStroke> remainingStrokes = new List<InkStroke>();
+            foreach(InkStroke stroke in strokes)
+            {
+                bool erased = false;
+                foreach(InkStroke eStroke in erasedStrokes)
+                {
+                    if (CompareInkStrokes(stroke, eStroke))
+                    {
+                        erased = true;
+                        break;
+                    }
+                }
+                if (!erased)
+                {
+                    remainingStrokes.Add(stroke);
+                }
+            }
+            return remainingStrokes;
+        }
+
+        private bool CompareInkStrokes(InkStroke stroke1, InkStroke stroke2)
+        {
+            // Check if the strokes have the same color.
+            if (!stroke1.DrawingAttributes.Color.Equals(stroke2.DrawingAttributes.Color))
+                return false;
+
+            IReadOnlyList<InkPoint> points1 = stroke1.GetInkPoints();
+            IReadOnlyList<InkPoint> points2 = stroke2.GetInkPoints();
+            if (points1.Count != points2.Count) return false;
+            for (int i = 0; i < points1.Count; i++)
+            {
+                double xDiff = points1[i].Position.X - points2[i].Position.X;
+                double yDiff = points1[i].Position.Y - points2[i].Position.Y;
+                double threshold = 0.5;
+
+                if (Math.Abs(xDiff) > threshold || Math.Abs(yDiff) > threshold)
+                    return false;
+            }
+            return true;
         }
     }
 }
