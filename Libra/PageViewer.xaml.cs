@@ -1563,7 +1563,7 @@ namespace Libra
                             // Remove in app inking
                             await inkManager.RemoveInAppInking();
                             // Reload file
-                            await pdfModel.ReloadFile();
+                            pdfModel = await PdfModel.LoadFromFile(pdfStorageFile, dataFolder);
                             // Re-render pages
                             await reRenderPages();
                         }

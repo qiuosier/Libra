@@ -19,6 +19,7 @@ namespace Libra.Class
         private PdfModelMS msPdf;
         private PdfModelSF sfPdf;
         private StorageFile pdfFile;
+        private StorageFile backupFile;
         private StorageFolder cacheFolder;
         private StorageFolder backupFolder;
 
@@ -100,25 +101,47 @@ namespace Libra.Class
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile, StorageFolder dataFolder)
         {
             PdfModel pdfModel = new PdfModel(pdfStorageFile);
+            await pdfModel.InitializeComponents(dataFolder);
+            if (pdfModel.msPdf == null || pdfModel.sfPdf == null) return null;
+            return pdfModel;
+        }
+
+        private async Task InitializeComponents(StorageFolder dataFolder)
+        {
+            // Create cache and backup folder
+            cacheFolder = await dataFolder.CreateFolderAsync(CACHE_FOLDER, CreationCollisionOption.OpenIfExists);
+            backupFolder = await dataFolder.CreateFolderAsync(BACKUP_FOLDER, CreationCollisionOption.OpenIfExists);
+            // Delete existing backup copies
+            foreach (StorageFile file in await backupFolder.GetFilesAsync())
+            {
+                try
+                {
+                    await file.DeleteAsync();
+                }
+                catch
+                {
+
+                }
+            }
+
+            // Create a backup copy
+            backupFile = await pdfFile.CopyAsync(backupFolder, pdfFile.Name, NameCollisionOption.GenerateUniqueName);
+
+
             // Load the file to Microsoft PDF document model
             // The Microsoft model is used to render the PDF pages.
-            pdfModel.msPdf = await PdfModelMS.LoadFromFile(pdfStorageFile);
+            msPdf = await PdfModelMS.LoadFromFile(backupFile);
             // Return null if failed to load the file to Microsoft model
-            if (pdfModel.msPdf == null) return null;
+            if (msPdf == null) return;
             // Load the file to Syncfusion PDF document model
             // The Syncfusion model is used to save ink annotations.
-            if (pdfModel.msPdf.isPasswordProtected) 
+            if (msPdf.isPasswordProtected)
             {
-                pdfModel.sfPdf = await PdfModelSF.LoadFromFile(pdfStorageFile, pdfModel.msPdf.Password);
+                sfPdf = await PdfModelSF.LoadFromFile(pdfFile, msPdf.Password);
             }
-            else pdfModel.sfPdf = await PdfModelSF.LoadFromFile(pdfStorageFile);
+            else sfPdf = await PdfModelSF.LoadFromFile(pdfFile);
             // Return null if failed to load the file to Syncfusion model
-            if (pdfModel.sfPdf == null) return null;
-            
-            // Create cache and backup folder
-            pdfModel.cacheFolder = await dataFolder.CreateFolderAsync(CACHE_FOLDER, CreationCollisionOption.OpenIfExists);
-            pdfModel.backupFolder = await dataFolder.CreateFolderAsync(BACKUP_FOLDER, CreationCollisionOption.OpenIfExists);
-            return pdfModel;
+            if (sfPdf == null) return;
         }
 
         /// <summary>
@@ -152,25 +175,25 @@ namespace Libra.Class
         {
             // Indicate whether any ink annotation is added to the PDF file
             bool fileChanged = false;
-            //// Remove ereased ink annotations
-            //foreach (KeyValuePair<int, List<InkStroke>> entry in await inkManager.ErasedStrokesDictionary())
-            //{
-            //    // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
-            //    int pageIndex = entry.Key - 1;
-            //    PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
-            //    // Get page information from MS model
-            //    Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+            // Remove ereased ink annotations
+            foreach (KeyValuePair<int, List<InkStroke>> entry in await inkManager.ErasedStrokesDictionary())
+            {
+                // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
+                int pageIndex = entry.Key - 1;
+                PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+                // Get page information from MS model
+                Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
 
-            //    PageMapping mapping = new PageMapping(msPage, sfPage);
-            //    List<PdfInkAnnotation> erasedAnnotations = new List<PdfInkAnnotation>();
-            //    // Add each ink stroke to the page
-            //    foreach (InkStroke stroke in entry.Value)
-            //    {
-            //        PdfInkAnnotation inkAnnotation = InkStroke2InkAnnotation(stroke, mapping);
-            //        erasedAnnotations.Add(inkAnnotation);
-            //    }
-            //    fileChanged = sfPdf.RemoveInkAnnotations(sfPage, erasedAnnotations);
-            //}
+                PageMapping mapping = new PageMapping(msPage, sfPage);
+                List<PdfInkAnnotation> erasedAnnotations = new List<PdfInkAnnotation>();
+                // Add each ink stroke to the page
+                foreach (InkStroke stroke in entry.Value)
+                {
+                    PdfInkAnnotation inkAnnotation = InkStroke2InkAnnotation(stroke, mapping);
+                    erasedAnnotations.Add(inkAnnotation);
+                }
+                fileChanged = sfPdf.RemoveInkAnnotations(sfPage, erasedAnnotations);
+            }
 
 
             // Add new ink annotations
