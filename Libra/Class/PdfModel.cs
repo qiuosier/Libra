@@ -361,6 +361,7 @@ namespace Libra.Class
                     msPage.Dimensions.CropBox.Left * ScaleRatio,
                     msPage.Dimensions.CropBox.Top * ScaleRatio
                 );
+                PageSize = new System.Drawing.SizeF(sfPage.Size.Width, sfPage.Size.Height);
                 Rectangle = new System.Drawing.RectangleF(0, 0, sfPage.Size.Width, sfPage.Size.Height);
             }
         }
