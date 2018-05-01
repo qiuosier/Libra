@@ -26,6 +26,8 @@ namespace Libra.Class
         private const string CACHE_FOLDER = "Cache";
         private const string BACKUP_FOLDER = "Backup";
 
+        public double ScaleRatio { get; private set; }
+
         private PdfModel(StorageFile pdfStorageFile)
         {
             pdfFile = pdfStorageFile;
@@ -37,18 +39,6 @@ namespace Libra.Class
             {
                 return msPdf.PdfDoc;
             }
-        }
-
-        /// <summary>
-        /// Return the page width ratio of SF Model / MS model
-        /// </summary>
-        /// <param name="pdfDoc"></param>
-        /// <returns></returns>
-        public double ScaleRatio()
-        {
-            PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[0] as PdfLoadedPage;
-            Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage(0);
-            return sfPage.Size.Width / msPage.Dimensions.MediaBox.Width;
         }
 
         public Task ExportPageImage(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
@@ -86,7 +76,7 @@ namespace Libra.Class
             // pageNumber is 1-based. Page index is 0-based.
             int pageIndex = pageNumber - 1;
             // Get page information from SF model
-            PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+            PdfLoadedPage sfPage = sfPdf.GetPage(pageNumber);
             // Get page information from MS model
             Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
             // Calculate page mapping
@@ -142,6 +132,9 @@ namespace Libra.Class
             else sfPdf = await PdfModelSF.LoadFromFile(pdfFile);
             // Return null if failed to load the file to Syncfusion model
             if (sfPdf == null) return;
+
+            Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage(0);
+            ScaleRatio = sfPdf.GetPage(1).Size.Width / msPage.Dimensions.MediaBox.Width;
         }
 
         /// <summary>
@@ -180,7 +173,7 @@ namespace Libra.Class
             {
                 // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
                 int pageIndex = entry.Key - 1;
-                PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+                PdfLoadedPage sfPage = sfPdf.GetPage(entry.Key);
                 // Get page information from MS model
                 Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
 
@@ -201,7 +194,7 @@ namespace Libra.Class
             {
                 // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
                 int pageIndex = entry.Key - 1;
-                PdfLoadedPage sfPage = sfPdf.PdfDoc.Pages[pageIndex] as PdfLoadedPage;
+                PdfLoadedPage sfPage = sfPdf.GetPage(entry.Key);
                 // Get page information from MS model
                 Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
 
@@ -222,7 +215,7 @@ namespace Libra.Class
             {
                 try
                 {
-                    inkSaved = await sfPdf.PdfDoc.SaveAsync(pdfFile);
+                    inkSaved = await sfPdf.SaveAsync();
                 }
                 catch (Exception ex)
                 {

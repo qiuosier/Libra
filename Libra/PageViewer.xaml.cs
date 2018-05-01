@@ -1085,7 +1085,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Pencil selected");
             this.Pencil.IsChecked = true;
-            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio());
+            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio);
             this.drawingAttributes.Color = inkingPreference.penColor;
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
@@ -1101,7 +1101,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
-            this.drawingAttributes.Size = inkingPreference.GetHighlighterSize(pdfModel.ScaleRatio());
+            this.drawingAttributes.Size = inkingPreference.GetHighlighterSize(pdfModel.ScaleRatio);
             this.drawingAttributes.Color = inkingPreference.highlighterColor;
             this.drawingAttributes.PenTip = PenTipShape.Rectangle;
             this.drawingAttributes.DrawAsHighlighter = true;
@@ -1117,7 +1117,7 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Eraser selected");
             this.Eraser.IsChecked = true;
-            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio());
+            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio);
             this.drawingAttributes.PenTip = PenTipShape.Circle;
             this.drawingAttributes.DrawAsHighlighter = false;
             this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
@@ -1564,6 +1564,7 @@ namespace Libra
                             await inkManager.RemoveInAppInking();
                             // Reload file
                             pdfModel = await PdfModel.LoadFromFile(pdfStorageFile, dataFolder);
+                            // Failed to load the file again?
                             // Re-render pages
                             await reRenderPages();
                         }

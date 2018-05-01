@@ -13,24 +13,26 @@ using Windows.UI.Input.Inking;
 namespace Libra.Class
 {
     /// <summary>
-    /// Represent the Syncfusion PDF document model
+    /// Represents the Syncfusion PDF document model.
+    /// This class operates directly on the PDF file selected/specified by the user.
     /// </summary>
     public class PdfModelSF
     {
         /// <summary>
-        /// The loaded PDF document.
+        /// The Syncfusion loaded PDF document object loaded from the pdfFile.
         /// </summary>
-        public PdfLoadedDocument PdfDoc { get; private set; }
+        private PdfLoadedDocument PdfDoc;
 
         /// <summary>
-        /// The PDF file.
+        /// The PDF file specified by the user.
         /// </summary>
         private StorageFile pdfFile;
 
         /// <summary>
-        /// Private constructor.
+        /// Private constructor to initialize the properties.
+        /// An instance of this class should be created by calling the LoadFromFile() static method.
         /// </summary>
-        /// <param name="pdfStorageFile"></param>
+        /// <param name="pdfStorageFile">The PDF file specified by the user.</param>
         private PdfModelSF(StorageFile pdfStorageFile)
         {
             pdfFile = pdfStorageFile;
@@ -38,40 +40,72 @@ namespace Libra.Class
 
         /// <summary>
         /// Outputs an asynchronous operation. 
-        /// When the operation completes, a PdfModelSF object, representing the PDF, is returned.
+        /// When the operation completes, a initialized PdfModelSF object, representing the PDF, is returned.
         /// </summary>
         /// <param name="pdfStorageFile">The PDF file</param>
-        /// <returns></returns>
+        /// <returns>An initialized PdfModelSF object.</returns>
         public static async Task<PdfModelSF> LoadFromFile(StorageFile pdfStorageFile, string password = null)
         {
-            PdfModelSF file = new PdfModelSF(pdfStorageFile);
-            file.PdfDoc = new PdfLoadedDocument();
+            PdfModelSF pdfModel = new PdfModelSF(pdfStorageFile);
+            pdfModel.PdfDoc = new PdfLoadedDocument();
             // Load PDF from file
             try
             {
-                if (password == null) await file.PdfDoc.OpenAsync(pdfStorageFile);
-                else await file.PdfDoc.OpenAsync(pdfStorageFile, password);
+                if (password == null) await pdfModel.PdfDoc.OpenAsync(pdfStorageFile);
+                else await pdfModel.PdfDoc.OpenAsync(pdfStorageFile, password);
             }
             catch (Exception ex)
             {
                 // Failed to load the file
+                AppEventSource.Log.Debug("PDFModelSF: " + ex.Message);
+                // Notify the user?
                 App.NotifyUser(typeof(ViewerPage), "Failed to open the file.\n" + ex.Message, true);
-                file = null;
+                pdfModel = null;
             }
-            return file;
+            return pdfModel;
         }
 
+        /// <summary>
+        /// Saves the modified pdf document.
+        /// </summary>
+        /// <returns>If the file is saved successfully, true. Otherwise false.</returns>
+        public async Task<bool> SaveAsync()
+        {
+            return await PdfDoc.SaveAsync(pdfFile);
+        }
+
+        /// <summary>
+        /// Gets a page object from the file.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <returns></returns>
+        public PdfLoadedPage GetPage(int pageNumber)
+        {
+            PdfLoadedPage page = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
+            return page;
+        }
+
+        /// <summary>
+        /// Gets the number of annotations in a page.
+        /// The annotations include not all types of annotations.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number</param>
+        /// <returns>The number of annotations.</returns>
         public int AnnotationCount(int pageNumber)
         {
-            PdfLoadedPage loadedPage = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
+            PdfLoadedPage loadedPage = GetPage(pageNumber);
             return loadedPage.Annotations.Count;
         }
 
+        /// <summary>
+        /// Gets a list of ink annotations in a page
+        /// </summary>
+        /// <param name="pageNumber">1-based page number</param>
+        /// <returns>A list of ink annotations.</returns>
         public List<PdfLoadedInkAnnotation> GetInkAnnotations(int pageNumber)
         {
             List<PdfLoadedInkAnnotation> inkAnnotations = new List<PdfLoadedInkAnnotation>();
-            PdfLoadedPage loadedPage = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
-            foreach (PdfLoadedAnnotation annotation in loadedPage.Annotations)
+            foreach (PdfLoadedAnnotation annotation in GetPage(pageNumber).Annotations)
             {
                 if (annotation is PdfLoadedInkAnnotation)
                 {
@@ -81,15 +115,21 @@ namespace Libra.Class
             return inkAnnotations;
         }
 
+        /// <summary>
+        /// Removes a list of ink annotations from a page.
+        /// </summary>
+        /// <param name="page">1-based page number.</param>
+        /// <param name="inkAnnotations">A list of ink annotations to be removed. 
+        /// Annotation not found in the page will be ignored.</param>
+        /// <returns>If at least one annotation is removed, true. Otherwise false.</returns>
         public bool RemoveInkAnnotations(PdfLoadedPage page, List<PdfInkAnnotation> inkAnnotations)
         {
             bool annotationRemoved = false;
             List<PdfLoadedAnnotation> toBeRemoved = new List<PdfLoadedAnnotation>();
             foreach (PdfLoadedAnnotation annotation in page.Annotations)
             {
-                if (annotation is PdfLoadedInkAnnotation)
+                if (annotation is PdfLoadedInkAnnotation loadedInk)
                 {
-                    PdfLoadedInkAnnotation loadedInk = (PdfLoadedInkAnnotation)annotation;
                     PdfInkAnnotation matched = null;
                     foreach (PdfInkAnnotation erasedInk in inkAnnotations)
                     {
@@ -111,13 +151,17 @@ namespace Libra.Class
             return annotationRemoved;
         }
 
+        /// <summary>
+        /// Extracts a page as a pdf document to a memory stream.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number</param>
+        /// <returns>A memory stream containing the new document from a single page.</returns>
         public MemoryStream ExtractPageWithoutInking(int pageNumber)
         {
             PdfDocument pageDoc = new PdfDocument();
             pageDoc.ImportPageRange(PdfDoc, pageNumber - 1, pageNumber - 1);
             pageDoc.Pages[0].Annotations.Clear();
-            PdfLoadedPage page = PdfDoc.Pages[pageNumber - 1] as PdfLoadedPage;
-            foreach (PdfAnnotation annotation in page.Annotations)
+            foreach (PdfAnnotation annotation in GetPage(pageNumber).Annotations)
             {
                 if (!(annotation is PdfLoadedInkAnnotation))
                     pageDoc.Pages[0].Annotations.Add(annotation);
@@ -128,19 +172,25 @@ namespace Libra.Class
             return stream;
         }
 
-        private bool MatchInkAnnotations(PdfLoadedInkAnnotation loadedInk, PdfInkAnnotation erasedInk)
+        /// <summary>
+        /// Checks if two ink annotations are matched by comparing their colors and ink points.
+        /// </summary>
+        /// <param name="loadedInk">The ink annotation in the pdf file.</param>
+        /// <param name="appInk">The ink annotation constructed by the app.</param>
+        /// <returns>If the two annotations are matched, true. Otherwise false.</returns>
+        private bool MatchInkAnnotations(PdfLoadedInkAnnotation loadedInk, PdfInkAnnotation appInk)
         {
             // Color
-            if (loadedInk.Color.R != erasedInk.Color.R ||
-                loadedInk.Color.G != erasedInk.Color.G ||
-                loadedInk.Color.B != erasedInk.Color.B)
+            if (loadedInk.Color.R != appInk.Color.R ||
+                loadedInk.Color.G != appInk.Color.G ||
+                loadedInk.Color.B != appInk.Color.B)
             {
                 return false;
             }
 
             // Points
             List<float> points1 = loadedInk.InkList;
-            List<float> points2 = erasedInk.InkList;
+            List<float> points2 = appInk.InkList;
             if (points1.Count != points2.Count) return false;
             for (int i = 0; i < points1.Count; i++)
             {
