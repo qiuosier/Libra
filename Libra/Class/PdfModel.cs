@@ -33,27 +33,27 @@ namespace Libra.Class
             pdfFile = pdfStorageFile;
         }
 
-        public Windows.Data.Pdf.PdfDocument PdfDoc
-        {
-            get
-            {
-                return msPdf.PdfDoc;
-            }
-        }
-
         public Task ExportPageImage(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
         {
             return msPdf.ExportPageImage(pageNumber, inkCanvas, saveFile);
         }
 
-        public int PageCount()
+        public int PageCount
         {
-            return msPdf.PageCount();
+            get
+            {
+                return msPdf.PageCount;
+            }
         }
 
         public Size PageSize(int pageNumeber)
         {
             return msPdf.PageSize(pageNumeber);
+        }
+
+        public Windows.Data.Pdf.PdfPage GetPage(int pageNumber)
+        {
+            return msPdf.GetPage(pageNumber);
         }
 
         public async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
@@ -73,12 +73,10 @@ namespace Libra.Class
         {
             List<PdfLoadedInkAnnotation> inkAnnotations = sfPdf.GetInkAnnotations(pageNumber);
             List<InkStroke> strokes = new List<InkStroke>();
-            // pageNumber is 1-based. Page index is 0-based.
-            int pageIndex = pageNumber - 1;
             // Get page information from SF model
             PdfLoadedPage sfPage = sfPdf.GetPage(pageNumber);
             // Get page information from MS model
-            Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+            Windows.Data.Pdf.PdfPage msPage = msPdf.GetPage(pageNumber);
             // Calculate page mapping
             PageMapping mapping = new PageMapping(msPage, sfPage);
             foreach (PdfLoadedInkAnnotation annotation in inkAnnotations)
@@ -133,8 +131,7 @@ namespace Libra.Class
             // Return null if failed to load the file to Syncfusion model
             if (sfPdf == null) return;
 
-            Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage(0);
-            ScaleRatio = sfPdf.GetPage(1).Size.Width / msPage.Dimensions.MediaBox.Width;
+            ScaleRatio = sfPdf.GetPage(1).Size.Width / msPdf.GetPage(1).Dimensions.MediaBox.Width;
         }
 
         /// <summary>
@@ -171,11 +168,11 @@ namespace Libra.Class
             // Remove ereased ink annotations
             foreach (KeyValuePair<int, List<InkStroke>> entry in await inkManager.ErasedStrokesDictionary())
             {
-                // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
-                int pageIndex = entry.Key - 1;
-                PdfLoadedPage sfPage = sfPdf.GetPage(entry.Key);
+                // The key of the dictionary is page number, which is 1-based.
+                int pageNumber = entry.Key;
+                PdfLoadedPage sfPage = sfPdf.GetPage(pageNumber);
                 // Get page information from MS model
-                Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+                Windows.Data.Pdf.PdfPage msPage = msPdf.GetPage(pageNumber);
 
                 PageMapping mapping = new PageMapping(msPage, sfPage);
                 List<PdfInkAnnotation> erasedAnnotations = new List<PdfInkAnnotation>();
@@ -192,11 +189,9 @@ namespace Libra.Class
             // Add new ink annotations
             foreach (KeyValuePair<int, InkStrokeContainer> entry in await inkManager.InAppInkDictionary())
             {
-                // The key of the dictionary is page number, which is 1-based. Page index is 0-based.
-                int pageIndex = entry.Key - 1;
                 PdfLoadedPage sfPage = sfPdf.GetPage(entry.Key);
                 // Get page information from MS model
-                Windows.Data.Pdf.PdfPage msPage = msPdf.PdfDoc.GetPage((uint)pageIndex);
+                Windows.Data.Pdf.PdfPage msPage = msPdf.GetPage(entry.Key);
 
                 PageMapping mapping = new PageMapping(msPage, sfPage);
                 

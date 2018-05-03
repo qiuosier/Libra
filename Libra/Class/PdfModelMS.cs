@@ -19,7 +19,7 @@ namespace Libra.Class
         /// <summary>
         /// The loaded PDF document
         /// </summary>
-        public PdfDocument PdfDoc { get; private set; }
+        private PdfDocument PdfDoc;
 
         /// <summary>
         /// Indicate whether the PDF file is password protected.
@@ -32,6 +32,11 @@ namespace Libra.Class
         public string Password { get; private set; }
 
         /// <summary>
+        /// The number of pages in the PDF document.
+        /// </summary>
+        public int PageCount { get; private set; }
+
+        /// <summary>
         /// Private constructor.
         /// </summary>
         private PdfModelMS()
@@ -39,13 +44,9 @@ namespace Libra.Class
             isPasswordProtected = false;
         }
 
-        /// <summary>
-        /// Returns the number of pages in the PDF document.
-        /// </summary>
-        /// <returns>The number of pages</returns>
-        public int PageCount()
+        public PdfPage GetPage(int pageNumber)
         {
-            return (int)PdfDoc.PageCount;
+            return PdfDoc.GetPage((uint)(pageNumber - 1));
         }
 
         /// <summary>
@@ -95,6 +96,7 @@ namespace Libra.Class
                     return null;
                 }
             }
+            msPdf.PageCount = (int)msPdf.PdfDoc.PageCount;
             return msPdf;
         }
 

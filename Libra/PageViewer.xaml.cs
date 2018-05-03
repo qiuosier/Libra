@@ -400,14 +400,14 @@ namespace Libra
 
             AppEventSource.Log.Info("ViewerPage: Finished loading the file in " + fileLoadingWatch.Elapsed.TotalSeconds.ToString());
             // Total number of pages
-            this.pageCount = pdfModel.PageCount();
+            this.pageCount = pdfModel.PageCount;
             AppEventSource.Log.Debug("ViewerPage: Total pages: " + this.pageCount.ToString());
             // Zoom the first page to fit the viewer window width
             ResetViewer();
             // Load drawing preference
             await LoadDrawingPreference();
             // Initialize thumbnails collection
-            this.pageThumbnails = new PageThumbnailCollection(this.pdfModel.PdfDoc);
+            this.pageThumbnails = new PageThumbnailCollection(this.pdfModel);
             // Render the first page
             AddBlankImage(1);
             await AddPageImage(1, (uint)(this.scrollViewer.ActualWidth));
@@ -1409,11 +1409,11 @@ namespace Libra
             if (zoomFactor == null) zoomFactor = this.scrollViewer.ZoomFactor;
             double pageOffset = 0;
             // Calculate Offset
-            for (uint i = 0; i < pageIndex; i++)
+            for (int i = 0; i < pageIndex; i++)
             {
                 pageOffset += this.imagePanel.Orientation == Orientation.Vertical ?
-                    this.pdfModel.PdfDoc.GetPage(i).Size.Height :
-                    this.pdfModel.PdfDoc.GetPage(i).Size.Width;
+                    this.pdfModel.GetPage(i + 1).Size.Height :
+                    this.pdfModel.GetPage(i + 1).Size.Width;
                 pageOffset += 2 * PAGE_IMAGE_MARGIN;
             }
             pageOffset *= (float)zoomFactor;
@@ -1527,7 +1527,7 @@ namespace Libra
         private void ThumbnailGrid_PointerReleased(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             int releasedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
+                    - (this.pdfModel.PageCount - this.pageThumbnails.Count));
             if (releasedIndex == this.pageThumbnails.PressedIndex) this.pageThumbnails.SelectedIndex = releasedIndex;
         }
 
@@ -1539,7 +1539,7 @@ namespace Libra
         private void ThumbnailGrid_PointerPressed(object sender, Windows.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             this.pageThumbnails.PressedIndex = (int)(((PageDetail)((Grid)sender).DataContext).PageNumber - 1
-                    - (this.pdfModel.PageCount() - this.pageThumbnails.Count));
+                    - (this.pdfModel.PageCount - this.pageThumbnails.Count));
         }
 
         private async void SaveInking_Click(object sender, RoutedEventArgs e)

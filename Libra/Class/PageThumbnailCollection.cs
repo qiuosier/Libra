@@ -18,7 +18,7 @@ namespace Libra.Class
         private const int BUFFER_FACTOR = 5;
 
         private ItemIndexRange visibleRange;
-        private PdfDocument pdfDocument;
+        private PdfModel pdfModel;
         public int SelectedIndex { get; set; }
 
         /// <summary>
@@ -26,9 +26,9 @@ namespace Libra.Class
         /// </summary>
         public int PressedIndex { get; set; }
 
-        public PageThumbnailCollection(PdfDocument pdfDoc)
+        public PageThumbnailCollection(PdfModel pdfModel)
         {
-            this.pdfDocument = pdfDoc;
+            this.pdfModel = pdfModel;
             this.renderPagesQueue = new Queue<int>();
             this.recyclePagesQueue = new Queue<int>();
             this.IsInitialized = false;
@@ -51,17 +51,17 @@ namespace Libra.Class
         /// <returns></returns>
         public async Task InitializeBlankPages()
         {
-            if (this.isInitializing) return;
-            this.isInitializing = true;
-            if (this.Count != this.pdfDocument.PageCount)
+            if (isInitializing) return;
+            isInitializing = true;
+            if (Count != pdfModel.PageCount)
             {
                 this.Clear();
                 await Window.Current.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
                  {
-                     for (int i = 1; i <= this.pdfDocument.PageCount; i++)
+                     for (int i = 1; i <= this.pdfModel.PageCount; i++)
                      {
-                         double width = this.pdfDocument.GetPage((uint)(i - 1)).Size.Width;
-                         double height = this.pdfDocument.GetPage((uint)(i - 1)).Size.Height;
+                         double width = this.pdfModel.GetPage(i).Size.Width;
+                         double height = this.pdfModel.GetPage(i).Size.Height;
                          this.Add(new PageDetail(i, height, width));
                      }
                  });
@@ -172,7 +172,7 @@ namespace Libra.Class
         {
             // Render pdf image
             InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream();
-            PdfPage page = pdfDocument.GetPage(Convert.ToUInt32(pageNumber - 1));
+            PdfPage page = pdfModel.GetPage(pageNumber);
             PdfPageRenderOptions options = new PdfPageRenderOptions();
             options.DestinationWidth = renderWidth;
             await page.RenderToStreamAsync(stream, options);
