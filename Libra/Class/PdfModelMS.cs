@@ -14,7 +14,7 @@ namespace Libra.Class
     /// <summary>
     /// Represent the Microsoft PDF document model
     /// </summary>
-    class PdfModelMS : IPdfReader
+    class PdfModelMS
     {
         /// <summary>
         /// The loaded PDF document
