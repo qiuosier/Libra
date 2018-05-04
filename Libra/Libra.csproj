@@ -105,6 +105,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Class\PageMapping.cs" />
     <Compile Include="PageBlank.xaml.cs">
       <DependentUpon>PageBlank.xaml</DependentUpon>
     </Compile>

@@ -5,12 +5,15 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.UI.Input.Inking;
+using Syncfusion.Pdf;
+using Syncfusion.Pdf.Interactive;
 
 namespace Libra.Class
 {
     public class InkingManager
     {
         public static float HighlighterOpacity = 0.512f;
+
         private InAppInking inAppInking;
         private StorageFolder appFolder;
         private PdfModel pdfModel;
