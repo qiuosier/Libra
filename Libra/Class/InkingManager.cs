@@ -10,7 +10,7 @@ namespace Libra.Class
 {
     public class InkingManager
     {
-
+        public static float HighlighterOpacity = 0.512f;
         private InAppInking inAppInking;
         private StorageFolder appFolder;
         private PdfModel pdfModel;

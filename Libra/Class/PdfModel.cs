@@ -318,6 +318,8 @@ namespace Libra.Class
                 // Size
                 BorderWidth = (int)Math.Round(stroke.DrawingAttributes.Size.Width * mapping.ScaleRatio)
             };
+            if (stroke.DrawingAttributes.DrawAsHighlighter)
+                inkAnnotation.Opacity = InkManager.
             return inkAnnotation;
         }
 
@@ -374,9 +376,15 @@ namespace Libra.Class
                 InkPoints.Add(new Point(pointX, pointY));
             }
             InkStroke stroke = builder.CreateStroke(InkPoints);
-            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
-            drawingAttributes.FitToCurve = true;
-            drawingAttributes.Color = ColorToUI(inkAnnotation.Color);
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes
+            {
+                FitToCurve = true,
+                Color = ColorToUI(inkAnnotation.Color),
+                Size = new Size(inkAnnotation.BorderWidth / ScaleRatio, inkAnnotation.BorderWidth / ScaleRatio),
+                
+            };
+            if (inkAnnotation.Opacity == 0.5f)
+                drawingAttributes.DrawAsHighlighter = true;
             stroke.DrawingAttributes = drawingAttributes;
             return stroke;
         }

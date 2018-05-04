@@ -180,7 +180,18 @@ namespace Libra.Class
             {
                 inkStrokesDict[pageNumber] = new List<InkStroke>(inkStrokes);
             }
-            else inkStrokesDict[pageNumber].AddRange(inkStrokes);
+            else
+            {
+                List<InkStroke> strokesInPage = inkStrokesDict[pageNumber];
+                foreach (InkStroke stroke in inkStrokes)
+                {
+                    if (!strokesInPage.Contains(stroke))
+                    {
+                        strokesInPage.Add(stroke);
+                        inkStrokesDict[pageNumber] = strokesInPage;
+                    }
+                }
+            }
             SaveInking(pageNumber);
         }
 
