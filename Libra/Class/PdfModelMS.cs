@@ -97,7 +97,7 @@ namespace Libra.Class
         }
 
         /// <summary>
-        /// Gets a page from the PDf document.
+        /// Gets a page from the PDF document.
         /// </summary>
         /// <param name="pageNumber">1-based page number.</param>
         /// <returns></returns>

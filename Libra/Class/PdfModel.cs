@@ -22,21 +22,34 @@ namespace Libra.Class
         private StorageFolder cacheFolder;
         private StorageFolder backupFolder;
 
-        private const string CACHE_FOLDER = "Cache";
         private const string BACKUP_FOLDER = "Backup";
 
         public double ScaleRatio { get; private set; }
 
+        /// <summary>
+        /// Private contstructor. Use LoadFromFile() static method to initialize a new instance.
+        /// </summary>
+        /// <param name="pdfStorageFile"></param>
         private PdfModel(StorageFile pdfStorageFile)
         {
             pdfFile = pdfStorageFile;
         }
 
+        /// <summary>
+        /// Exports a PDF page to an image file.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <param name="inkCanvas"></param>
+        /// <param name="saveFile"></param>
+        /// <returns></returns>
         public Task ExportPageImage(int pageNumber, InkCanvas inkCanvas, StorageFile saveFile)
         {
             return msPdf.ExportPageImage(pageNumber, inkCanvas, saveFile);
         }
 
+        /// <summary>
+        /// The number of pages in the PDF document.
+        /// </summary>
         public int PageCount
         {
             get
@@ -45,16 +58,32 @@ namespace Libra.Class
             }
         }
 
+        /// <summary>
+        /// Get's a PDF page's size
+        /// </summary>
+        /// <param name="pageNumeber">1-based page number</param>
+        /// <returns></returns>
         public Size PageSize(int pageNumeber)
         {
             return msPdf.PageSize(pageNumeber);
         }
-
+        
+        /// <summary>
+        /// Gets a MS PDF page from the PDF document.
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <returns></returns>
         public Windows.Data.Pdf.PdfPage GetPage(int pageNumber)
         {
             return msPdf.GetPage(pageNumber);
         }
 
+        /// <summary>
+        /// Renders a page as image in the memory.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <param name="renderWidth">Width of the image.</param>
+        /// <returns></returns>
         public async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
         {
             // Load exiting annotations
@@ -67,6 +96,11 @@ namespace Libra.Class
             }
         }
 
+        /// <summary>
+        /// Loads the ink annotations in the PDF file.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <returns></returns>
         public List<InkStroke> LoadInFileInkAnnotations(int pageNumber)
         {
             List<PdfLoadedInkAnnotation> inkAnnotations = sfPdf.GetInkAnnotations(pageNumber);
@@ -84,6 +118,12 @@ namespace Libra.Class
             return strokes;
         }
 
+        /// <summary>
+        /// Initialize a new PDFModel instance from a PDF file.
+        /// </summary>
+        /// <param name="pdfStorageFile"></param>
+        /// <param name="dataFolder"></param>
+        /// <returns></returns>
         public static async Task<PdfModel> LoadFromFile(StorageFile pdfStorageFile, StorageFolder dataFolder)
         {
             PdfModel pdfModel = new PdfModel(pdfStorageFile);
@@ -92,10 +132,14 @@ namespace Libra.Class
             return pdfModel;
         }
 
+        /// <summary>
+        /// Initializes the components of a new PDFModel instance.
+        /// </summary>
+        /// <param name="dataFolder">The folder storing the in-app user data.</param>
+        /// <returns></returns>
         private async Task InitializeComponents(StorageFolder dataFolder)
         {
-            // Create cache and backup folder
-            cacheFolder = await dataFolder.CreateFolderAsync(CACHE_FOLDER, CreationCollisionOption.OpenIfExists);
+            // Create backup folder
             backupFolder = await dataFolder.CreateFolderAsync(BACKUP_FOLDER, CreationCollisionOption.OpenIfExists);
             // Delete existing backup copies
             foreach (StorageFile file in await backupFolder.GetFilesAsync())
@@ -112,8 +156,6 @@ namespace Libra.Class
 
             // Create a backup copy
             backupFile = await pdfFile.CopyAsync(backupFolder, pdfFile.Name, NameCollisionOption.GenerateUniqueName);
-
-
             // Load the file to Microsoft PDF document model
             // The Microsoft model is used to render the PDF pages.
             msPdf = await PdfModelMS.LoadFromFile(backupFile);
@@ -142,6 +184,11 @@ namespace Libra.Class
             return System.Drawing.Color.FromArgb(color.A, color.R, color.G, color.B);
         }
 
+        /// <summary>
+        /// Converts a Syfusion PDF color to Windows UI color.
+        /// </summary>
+        /// <param name="color"></param>
+        /// <returns></returns>
         private Windows.UI.Color ColorToUI(PdfColor color)
         {
             Windows.UI.Color c = Windows.UI.Color.FromArgb(255, color.R, color.G, color.B);
@@ -223,6 +270,12 @@ namespace Libra.Class
             msPdf = await PdfModelMS.LoadFromFile(pdfFile);
         }
 
+        /// <summary>
+        /// Converts an ink stroke (displaying on the screen) to an ink annotation (to be saved in the file).
+        /// </summary>
+        /// <param name="stroke"></param>
+        /// <param name="mapping"></param>
+        /// <returns></returns>
         private PdfInkAnnotation InkStroke2InkAnnotation(InkStroke stroke, PageMapping mapping)
         {
             List<float> strokePoints = new List<float>();
@@ -268,6 +321,12 @@ namespace Libra.Class
             return inkAnnotation;
         }
 
+        /// <summary>
+        /// Converts an ink annotation (from the PDF file) to an ink stroke (to be displayed on the screen).
+        /// </summary>
+        /// <param name="inkAnnotation"></param>
+        /// <param name="mapping"></param>
+        /// <returns></returns>
         private InkStroke InkAnnotation2InkStroke(PdfLoadedInkAnnotation inkAnnotation, PageMapping mapping)
         {
             List<float> strokePoints = inkAnnotation.InkList;
@@ -322,6 +381,9 @@ namespace Libra.Class
             return stroke;
         }
 
+        /// <summary>
+        /// Contains parameters for mapping between a MS PDF page and a Syfusion PDF page.
+        /// </summary>
         private class PageMapping
         {
             public Point Offset { get; private set; }
