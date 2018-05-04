@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using Windows.Storage;
 using Windows.UI.Input.Inking;
 using Syncfusion.Pdf;
@@ -132,6 +133,36 @@ namespace Libra.Class
                     return false;
             }
             return true;
+        }
+
+        public static InkDrawingAttributes HighlighterDrawingAttributes(Windows.UI.Color color, Size size)
+        {
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes
+            {
+                Color = color,
+                Size = size,
+                PenTip = PenTipShape.Rectangle,
+                DrawAsHighlighter = true,
+                PenTipTransform = System.Numerics.Matrix3x2.Identity,
+                IgnorePressure = true,
+                FitToCurve = false,
+            };
+            return drawingAttributes;
+        }
+
+        public static InkDrawingAttributes PencilDrawingAttributes(Windows.UI.Color color, Size size)
+        {
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes
+            {
+                Color = color,
+                Size = size,
+                PenTip = PenTipShape.Circle,
+                DrawAsHighlighter = false,
+                PenTipTransform = System.Numerics.Matrix3x2.Identity,
+                IgnorePressure = false,
+                FitToCurve = true,
+            };
+            return drawingAttributes;
         }
     }
 }

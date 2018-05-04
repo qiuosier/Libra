@@ -150,20 +150,19 @@ namespace Libra.Class
                 InkPoints.Add(new Point(pointX, pointY));
             }
             InkStroke stroke = builder.CreateStroke(InkPoints);
-            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes
-            {
-                FitToCurve = true,
-                Color = ColorToUI(inkAnnotation.Color),
-                Size = new Size(inkAnnotation.BorderWidth / ScaleRatio, inkAnnotation.BorderWidth / ScaleRatio),
-
-            };
+            Windows.UI.Color color = ColorToUI(inkAnnotation.Color);
+            double width = inkAnnotation.BorderWidth / ScaleRatio;
+            Size size = new Size(width, width);
             if (inkAnnotation.Opacity == InkingManager.HighlighterOpacity)
             {
-                drawingAttributes.DrawAsHighlighter = true;
-                drawingAttributes.FitToCurve = false;
+                stroke.DrawingAttributes = InkingManager.HighlighterDrawingAttributes(color, size);
+            }
+            else
+            {
+                stroke.DrawingAttributes = InkingManager.PencilDrawingAttributes(color, size);
             }
 
-            stroke.DrawingAttributes = drawingAttributes;
+            
             return stroke;
         }
 

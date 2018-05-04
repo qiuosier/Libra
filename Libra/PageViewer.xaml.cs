@@ -1085,13 +1085,10 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Pencil selected");
             this.Pencil.IsChecked = true;
-            this.drawingAttributes.Size = inkingPreference.GetPenSize(pdfModel.ScaleRatio);
-            this.drawingAttributes.Color = inkingPreference.penColor;
-            this.drawingAttributes.PenTip = PenTipShape.Circle;
-            this.drawingAttributes.DrawAsHighlighter = false;
-            this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
-            this.drawingAttributes.IgnorePressure = false;
-            this.drawingAttributes.FitToCurve = true;
+            this.drawingAttributes = InkingManager.PencilDrawingAttributes(
+                inkingPreference.penColor,
+                inkingPreference.GetPenSize(pdfModel.ScaleRatio)
+            );
             this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateInkPresenter();
         }
@@ -1101,13 +1098,10 @@ namespace Libra
             ClearInputTypeToggleBtn();
             AppEventSource.Log.Debug("ViewerPage: Highlighter selected");
             this.Highlighter.IsChecked = true;
-            this.drawingAttributes.Size = inkingPreference.GetHighlighterSize(pdfModel.ScaleRatio);
-            this.drawingAttributes.Color = inkingPreference.highlighterColor;
-            this.drawingAttributes.PenTip = PenTipShape.Rectangle;
-            this.drawingAttributes.DrawAsHighlighter = true;
-            this.drawingAttributes.PenTipTransform = System.Numerics.Matrix3x2.Identity;
-            this.drawingAttributes.IgnorePressure = true;
-            this.drawingAttributes.FitToCurve = false;
+            this.drawingAttributes = InkingManager.HighlighterDrawingAttributes(
+                inkingPreference.highlighterColor, 
+                inkingPreference.GetHighlighterSize(pdfModel.ScaleRatio)
+            );
             this.inkProcessMode = InkInputProcessingMode.Inking;
             UpdateInkPresenter();
         }
