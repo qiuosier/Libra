@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Windows.Data.Pdf;
 using Windows.Foundation;
 using Windows.Storage;
 using Windows.UI.Xaml.Controls;
@@ -64,8 +63,7 @@ namespace Libra.Class
             else
             {
                 MemoryStream stream = sfPdf.ExtractPageWithoutInking(pageNumber);
-                PdfModelMS pageDoc = await PdfModelMS.LoadFromStream(stream.AsRandomAccessStream());
-                return await pageDoc.RenderPageImage(1, renderWidth);
+                return await PdfModelMS.RenderFirstPageFromStream(stream.AsRandomAccessStream(), renderWidth);
             }
         }
 
@@ -123,7 +121,7 @@ namespace Libra.Class
             if (msPdf == null) return;
             // Load the file to Syncfusion PDF document model
             // The Syncfusion model is used to save ink annotations.
-            if (msPdf.isPasswordProtected)
+            if (msPdf.IsPasswordProtected)
             {
                 sfPdf = await PdfModelSF.LoadFromFile(pdfFile, msPdf.Password);
             }

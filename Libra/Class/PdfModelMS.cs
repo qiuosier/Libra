@@ -24,7 +24,7 @@ namespace Libra.Class
         /// <summary>
         /// Indicate whether the PDF file is password protected.
         /// </summary>
-        public bool isPasswordProtected { get; private set; }
+        public bool IsPasswordProtected { get; private set; }
 
         /// <summary>
         /// The password of the PDF file.
@@ -41,17 +41,13 @@ namespace Libra.Class
         /// </summary>
         private PdfModelMS()
         {
-            isPasswordProtected = false;
-        }
-
-        public PdfPage GetPage(int pageNumber)
-        {
-            return PdfDoc.GetPage((uint)(pageNumber - 1));
+            IsPasswordProtected = false;
         }
 
         /// <summary>
         /// Outputs an asynchronous operation. 
         /// When the operation completes, a PdfModelMS object, representing the PDF, is returned.
+        /// Use this method to initialize a MSPdfModel instance.
         /// </summary>
         /// <param name="pdfStorageFile">The PDF file</param>
         /// <returns></returns>
@@ -76,7 +72,7 @@ namespace Libra.Class
                         msPdf.PdfDoc = await PdfDocument.LoadFromFileAsync(pdfStorageFile, passwordDialog.Password);
                         // Store the password of the file
                         msPdf.Password = passwordDialog.Password;
-                        msPdf.isPasswordProtected = true;
+                        msPdf.IsPasswordProtected = true;
                     }
                     catch (Exception ex)
                     {
@@ -100,21 +96,45 @@ namespace Libra.Class
             return msPdf;
         }
 
-        public static async Task<PdfModelMS> LoadFromStream(IRandomAccessStream stream, string password = null)
+        /// <summary>
+        /// Gets a page from the PDf document.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <returns></returns>
+        public PdfPage GetPage(int pageNumber)
         {
-            PdfModelMS msPdf = new PdfModelMS();
-            if (password == null)
-                msPdf.PdfDoc = await PdfDocument.LoadFromStreamAsync(stream);
-            else
-                msPdf.PdfDoc = await PdfDocument.LoadFromStreamAsync(stream, password);
-            return msPdf;
+            return PdfDoc.GetPage((uint)(pageNumber - 1));
         }
 
+        /// <summary>
+        /// Gets the PDF page's size.
+        /// </summary>
+        /// <param name="pageNumeber">1-based page number.</param>
+        /// <returns></returns>
         public Size PageSize(int pageNumeber)
         {
             return PdfDoc.GetPage((uint)(pageNumeber - 1)).Size;
         }
 
+        /// <summary>
+        /// Renders the first page of a PDF document from a stream.
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="renderWidth"></param>
+        /// <returns></returns>
+        public static async Task<BitmapImage> RenderFirstPageFromStream(IRandomAccessStream stream, uint renderWidth)
+        {
+            PdfModelMS msPdf = new PdfModelMS();
+            msPdf.PdfDoc = await PdfDocument.LoadFromStreamAsync(stream);
+            return await msPdf.RenderPageImage(1, renderWidth);
+        }
+
+        /// <summary>
+        /// Renders a page of the loaded PDF document.
+        /// </summary>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <param name="renderWidth">Page width for rendering</param>
+        /// <returns></returns>
         public async Task<BitmapImage> RenderPageImage(int pageNumber, uint renderWidth)
         {
             // Render pdf image
