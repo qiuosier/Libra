@@ -15,7 +15,7 @@ namespace Libra.Class
     {
         public static float HighlighterOpacity = 0.512f;
 
-        private InAppInking inAppInking;
+        private InkingInApp inAppInking;
         private StorageFolder appFolder;
         private PdfModel pdfModel;
 
@@ -34,7 +34,7 @@ namespace Libra.Class
         public static async Task<InkingManager> InitializeInking(StorageFolder dataFolder, PdfModel pdfModel)
         {
             InkingManager inkManager = new InkingManager(dataFolder);
-            inkManager.inAppInking = await InAppInking.InitializeInking(dataFolder);
+            inkManager.inAppInking = await InkingInApp.InitializeInking(dataFolder);
             inkManager.pdfModel = pdfModel;
             return inkManager;
         }
@@ -85,7 +85,7 @@ namespace Libra.Class
         public async Task RemoveInAppInking()
         {
             await inAppInking.RemoveInking();
-            inAppInking = await InAppInking.InitializeInking(appFolder);
+            inAppInking = await InkingInApp.InitializeInking(appFolder);
         }
 
         private List<InkStroke> SubstractInkStrokes(List<InkStroke> strokes, List<InkStroke> erasedStrokes)

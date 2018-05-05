@@ -109,7 +109,7 @@
     <Compile Include="PageBlank.xaml.cs">
       <DependentUpon>PageBlank.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Class\InAppInking.cs" />
+    <Compile Include="Class\InkingInApp.cs" />
     <Compile Include="Class\InkingManager.cs" />
     <Compile Include="Class\Messages.cs" />
     <Compile Include="Class\PdfModelMS.cs" />

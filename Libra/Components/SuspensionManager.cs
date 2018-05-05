@@ -197,6 +197,12 @@ namespace Libra
                     AppEventSource.Log.Debug("NavigationPage: Null Viewer State removed, GUID = " + key.ToString());
                 }
             }
+            // Create a new viewer state dictionary if none is loaded
+            if (ViewerStateDictionary == null || ViewerStateDictionary.Count == 0)
+            {
+                ViewerStateDictionary = new Dictionary<Guid, ViewerState>();
+                ViewerStateDictionary.Add(Guid.NewGuid(), null);
+            }
         }
 
         public static async Task SerializeToFileAsync(Object obj, Type objectType, StorageFile file)

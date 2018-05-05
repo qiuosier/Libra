@@ -31,10 +31,12 @@ namespace Libra
         private const int SIZE_PAGE_BUFFER = 3;
         private const int SIZE_RECYCLE_QUEUE = 10;
         private const int SIZE_PAGE_BATCH = 150;
+        // 1 million second = 10,000 ticks
         private const int REFRESH_TIMER_TICKS = 50 * 10000;
         private const int INITIALIZATION_TIMER_TICKS = 10 * 10000;
         private const int RECYCLE_TIMER_SECOND = 1;
         private const int PAGE_NUMBER_TIMER_SECOND = 2;
+
         private const int MIN_RENDER_WIDTH = 500;
         private const int MIN_WIDTH_TO_SHOW_FILENAME = 850;
         private const int MIN_WIDTH_TO_SHOW_ORIENTATION_BTN = 650;
@@ -56,8 +58,7 @@ namespace Libra
         private StorageFolder dataFolder;
         private Thickness pageMargin;
         private PageRange inkingPageRange;
-        private PageRange _visiblePageRange;
-        public PageRange VisiblePageRange { get { return this._visiblePageRange; } }
+        public PageRange VisiblePageRange { get; private set; }
         private DispatcherTimer refreshTimer;
         private DispatcherTimer initializationTimer;
         private DispatcherTimer recycleTimer;
@@ -71,9 +72,7 @@ namespace Libra
         private InkingPreference inkingPreference;
         private InkingManager inkManager;
         private InkInputProcessingMode inkProcessMode;
-        
-        private Guid _viewerKey;
-        public Guid ViewerKey { get { return this._viewerKey; } }
+        public Guid ViewerKey { get; private set; }
 
         private int pageCount;
         private bool fileLoaded;
@@ -126,8 +125,8 @@ namespace Libra
             this.imagePanel.UpdateLayout();
 
             this.inkingPageRange = new PageRange();
-            this._visiblePageRange = new PageRange();
-            this._viewerKey = new Guid();
+            this.VisiblePageRange = new PageRange();
+            this.ViewerKey = new Guid();
             this.pageCount = 0;
             this.inkCanvasList = new List<int>();
             this.renderedPages = new List<int>();
@@ -220,7 +219,7 @@ namespace Libra
                         key = entry.Key;
                 }
             }
-            this._viewerKey = key;
+            this.ViewerKey = key;
 
             NavigationPage.Current.UpdateViewBtn(this.ViewerKey);
 
@@ -296,73 +295,6 @@ namespace Libra
             return zoomFactor;
         }
 
-        /// <summary>
-        /// Call LoadViewerStateAsync() method in suspension manager to load viewer state from file.
-        /// This method also create a new viewer state if none is loaded.
-        /// </summary>
-        /// <returns></returns>
-        private async Task LoadViewerState()
-        {
-            await SuspensionManager.LoadViewerAsync();
-            // Create a new viewer state dictionary if none is loaded
-            if (SuspensionManager.ViewerStateDictionary == null || SuspensionManager.ViewerStateDictionary.Count == 0)
-            {
-                SuspensionManager.ViewerStateDictionary = new Dictionary<Guid, ViewerState>();
-                SuspensionManager.ViewerStateDictionary.Add(Guid.NewGuid(), null);
-            }
-            // Create navigation buttons for the views
-            NavigationPage.Current.InitializeViewBtn();
-        }
-
-        /// <summary>
-        /// Save inking preference to file.
-        /// </summary>
-        /// <returns></returns>
-        private async Task SaveDrawingPreference()
-        {
-            AppEventSource.Log.Debug("ViewerPage: Saving drawing preference...");
-            try
-            {
-                StorageFile file = await
-                    ApplicationData.Current.LocalFolder.CreateFileAsync(INKING_PREFERENCE_FILENAME, CreationCollisionOption.ReplaceExisting);
-                await SuspensionManager.SerializeToFileAsync(this.inkingPreference, typeof(InkingPreference), file);
-            }
-            catch (Exception ex)
-            {
-                App.NotifyUser(typeof(ViewerPage), "An Error occurred when saving inking preference.\n" + ex.Message);
-            }
-            
-        }
-
-        /// <summary>
-        /// Load inking preference from file. A new one will be created none is loaded.
-        /// This method will also create drawing attributes to be used by ink canvas.
-        /// </summary>
-        /// <returns></returns>
-        private async Task LoadDrawingPreference()
-        {
-            // Check drawing preference file
-            AppEventSource.Log.Debug("ViewerPage: Checking previously saved drawing preference...");
-            StorageFile file = await SuspensionManager.GetSavedFileAsync(INKING_PREFERENCE_FILENAME);
-            this.inkingPreference = await
-                SuspensionManager.DeserializeFromFileAsync(typeof(InkingPreference), file) as InkingPreference;
-            // Discard the inking preference if it is not the current version
-            if (this.inkingPreference != null && this.inkingPreference.version != InkingPreference.CURRENT_INKING_PREF_VERSION)
-                this.inkingPreference = null;
-            // Create drawing preference file if one was not loaded.
-            if (this.inkingPreference == null)
-            {
-                AppEventSource.Log.Debug("ViewerPage: No saved drawing preference loaded. Creating a new one...");
-                this.inkingPreference = new InkingPreference();
-                await SaveDrawingPreference();
-            }
-            // Drawing preference
-            this.drawingAttributes = new InkDrawingAttributes();
-            this.drawingAttributes.FitToCurve = true;
-
-            Pencil_Click(null, null);
-        }
-
         private async void LoadFile(StorageFile pdfFile)
         {
             this.fileLoadingWatch = new System.Diagnostics.Stopwatch();
@@ -405,7 +337,8 @@ namespace Libra
             // Zoom the first page to fit the viewer window width
             ResetViewer();
             // Load drawing preference
-            await LoadDrawingPreference();
+            this.inkingPreference = await InkingPreference.LoadDrawingPreference();
+            Pencil_Click(null, null);
             // Initialize thumbnails collection
             this.pageThumbnails = new PageThumbnailCollection(this.pdfModel);
             // Render the first page
@@ -433,17 +366,20 @@ namespace Libra
             this.pageThumbnails.Add(new PageDetail(pageNumber, image.Height, image.Width));
         }
 
-        private async void FinishInitialization()
+        private async void FinishLoadingFile()
         {
             this.fullScreenCover.Visibility = Visibility.Collapsed;
             this.imagePanel.UpdateLayout();
             // Load viewer state
-            await LoadViewerState();
+            await SuspensionManager.LoadViewerAsync();
+            // Create navigation buttons for the views
+            NavigationPage.Current.InitializeViewBtn();
+            // Restore viewer state, if any.
             RestoreViewerState();
             // Load inking
             inkManager = await InkingManager.InitializeInking(dataFolder, pdfModel);
             // Make sure about the visible page range
-            this._visiblePageRange = FindVisibleRange();
+            this.VisiblePageRange = FindVisibleRange();
             this.fileLoaded = true;
             this.fileLoadingWatch.Stop();
             RefreshViewer();
@@ -455,7 +391,7 @@ namespace Libra
         /// <summary>
         /// This method is not reliable.
         /// This method should only be called either right after getting the future access token, 
-        /// or at the end of FinishInitialization() after fileLoaded has been set to true,
+        /// or at the end of FinishLoadingFile() after fileLoaded has been set to true,
         /// depending on the performance and the size of the future access list.
         /// </summary>
         /// <returns></returns>
@@ -554,13 +490,11 @@ namespace Libra
             }
             // Start rendering pages
             if (!this.isRenderingPage)
-                RenderPages();
+                RenderPagesAsync().ContinueWith(
+                    t => AppEventSource.Log.Debug("Render Page Error: " + t.Exception.Message),
+                    TaskContinuationOptions.OnlyOnFaulted);
         }
 
-        private async void RenderPages()
-        {
-            await RenderPagesAsync();
-        }
 
         private async Task RenderPagesAsync()
         {
@@ -915,7 +849,7 @@ namespace Libra
             // Store current zoom factor
             double factor = scrollViewer.ZoomFactor;
             // Update visible page range
-            this._visiblePageRange = FindVisibleRange();
+            this.VisiblePageRange = FindVisibleRange();
             // Find the max page height and width in the visible pages
             double maxHeight = 0;
             double maxWidth = 0;
@@ -969,7 +903,7 @@ namespace Libra
             if (imagePanel.Children.Count >= pageCount)
             {
                 AppEventSource.Log.Debug("ViewerPage: Blank images add for all pages. Count: " + imagePanel.Children.Count.ToString());
-                FinishInitialization();
+                FinishLoadingFile();
             }
             else this.initializationTimer.Start();
         }
@@ -999,7 +933,7 @@ namespace Libra
         private void scrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             // Determine visible page range
-            this._visiblePageRange = FindVisibleRange();
+            this.VisiblePageRange = FindVisibleRange();
             // Show page number
             this.pageNumberTextBlock.Text = this.VisiblePageRange.ToString() + " / " + this.pageCount.ToString();
             // Show zoom level
@@ -1296,7 +1230,7 @@ namespace Libra
                 if (this.Pencil.IsChecked == true) Pencil_Click(null, null);
                 else if (this.Highlighter.IsChecked == true) Highlighter_Click(null, null);
                 // Save inking preference
-                await SaveDrawingPreference();
+                await inkingPreference.SaveAsync();
             }
         }
 
