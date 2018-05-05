@@ -1234,6 +1234,12 @@ namespace Libra
             }
         }
 
+        private void PencilColor_Click(object sender, RoutedEventArgs e)
+        {
+            inkingPreference.penColor = ((SolidColorBrush)((MenuFlyoutItem)sender).Foreground).Color;
+            Pencil_Click(null, null);
+        }
+
         /// <summary>
         /// Calculate the new vertical offset after zoom factor changed
         /// </summary>

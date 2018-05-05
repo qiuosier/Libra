@@ -21,7 +21,23 @@
                 <TextBlock x:Name="filenameTextBlock" Text="FILENAME" Margin="5,12" Visibility="Collapsed"/>
             </CommandBar.Content>
             <AppBarToggleButton x:Name="Pencil" Icon="Edit" Label="Pencil" Click="Pencil_Click"/>
-            <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Hightlighter" Click="Highlighter_Click"/>
+            <AppBarButton x:Name="PencilColor" Label="Pencil Color">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE133;"/>
+                </AppBarButton.Icon>
+                <AppBarButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Name="pencilRed" Text="&#x25A0; Red" Foreground="Red" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilBlack"  Text="&#x25A0; Black" Foreground="Black" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilBlue"  Text="&#x25A0; Blue" Foreground="Blue" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilYellow"  Text="&#x25A0; Yellow" Foreground="Yellow" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilGreen"  Text="&#x25A0; Green" Foreground="Green" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilMagenta"  Text="&#x25A0; Magenta" Foreground="Magenta" Click="PencilColor_Click"/>
+                        <MenuFlyoutItem x:Name="pencilOrangeRed"  Text="&#x25A0; Orange" Foreground="OrangeRed" Click="PencilColor_Click"/>
+                    </MenuFlyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
+            <AppBarToggleButton x:Name="Highlighter" Icon="Highlight" Label="Highlighter" Click="Highlighter_Click"/>
             <AppBarToggleButton x:Name="Eraser" Label="Eraser" Click="Eraser_Click">
                 <AppBarToggleButton.Icon>
                     <FontIcon Glyph="&#xE75C;"/>

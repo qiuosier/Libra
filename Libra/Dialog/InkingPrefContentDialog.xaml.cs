@@ -12,8 +12,7 @@ namespace Libra.Dialog
 {
     public sealed partial class InkingPrefContentDialog : ContentDialog
     {
-        private InkingPreference _inkingPreference;
-        public InkingPreference InkingPreference { get { return this._inkingPreference; } }
+        public InkingPreference InkingPreference { get; private set; }
 
         private List<Brush> penColors = new List<Brush>()
         {
@@ -32,7 +31,7 @@ namespace Libra.Dialog
         {
             this.InitializeComponent();
             this.MaxWidth = Window.Current.Bounds.Width;
-            this._inkingPreference = inkingPref;
+            this.InkingPreference = inkingPref;
 
             // Assign values from inkingPref
             //this.penSizeLabel.Text = "Pen size: " + this.InkingPreference.penSize.ToString();
@@ -61,12 +60,12 @@ namespace Libra.Dialog
         {
             foreach (SolidColorBrush item in penColorListBox.Items)
             {
-                if (this._inkingPreference.penColor == item.Color)
+                if (this.InkingPreference.penColor == item.Color)
                     ((ListBoxItem)penColorListBox.ContainerFromItem(item)).IsSelected = true;
             }
             foreach (SolidColorBrush item in highlighterColorListBox.Items)
             {
-                if (this._inkingPreference.highlighterColor == item.Color)
+                if (this.InkingPreference.highlighterColor == item.Color)
                     ((ListBoxItem)highlighterColorListBox.ContainerFromItem(item)).IsSelected = true;
             }
         }
@@ -79,11 +78,11 @@ namespace Libra.Dialog
         private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
         {
             // Save size values
-            this._inkingPreference.penSize = (int)this.penSizeSlider.Value;
-            this._inkingPreference.highlighterSize = (int)this.highlighterSizeSlider.Value;
+            this.InkingPreference.penSize = (int)this.penSizeSlider.Value;
+            this.InkingPreference.highlighterSize = (int)this.highlighterSizeSlider.Value;
             // Save color values
-            this._inkingPreference.penColor = ((SolidColorBrush)penColorListBox.SelectedItem).Color;
-            this._inkingPreference.highlighterColor = ((SolidColorBrush)highlighterColorListBox.SelectedItem).Color;
+            this.InkingPreference.penColor = ((SolidColorBrush)penColorListBox.SelectedItem).Color;
+            this.InkingPreference.highlighterColor = ((SolidColorBrush)highlighterColorListBox.SelectedItem).Color;
         }
 
         /// <summary>
