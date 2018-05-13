@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap mp">
-  <Identity Name="60159QiuQin.QPDFPages" Publisher="CN=FEFC60E4-8380-4995-ACFD-644C0834BA3B" Version="1.2.14.0" />
-  <mp:PhoneIdentity PhoneProductId="19957f3f-f48d-4042-8acd-f0ee5196394f" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+  <Identity Name="60159QiuQin.QPDFPages" Publisher="CN=Qiu" Version="1.3.21.0" />
+  <mp:PhoneIdentity PhoneProductId="79dc5611-aef2-4e3d-9bba-bc96ee1f003f" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>Q PDF Pages</DisplayName>
     <PublisherDisplayName>Qiu Qin</PublisherDisplayName>

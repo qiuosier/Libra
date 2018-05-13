@@ -53,10 +53,10 @@ namespace Libra
 
             // Get the license info
             // The next line is commented out for testing.
-            // licenseInformation = CurrentApp.LicenseInformation;
+            licenseInformation = CurrentApp.LicenseInformation;
 
             // The next line is commented out for production/release.       
-            licenseInformation = CurrentApp.LicenseInformation;
+            // licenseInformation = CurrentAppSimulator.LicenseInformation;
 
             // Initialize App settings
             AppSettings = new Dictionary<string, object>();
