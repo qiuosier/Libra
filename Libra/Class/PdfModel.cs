@@ -19,6 +19,7 @@ namespace Libra.Class
         private PdfModelSF sfPdf;
         private StorageFile pdfFile;
         private StorageFile backupFile;
+        private StorageFile sfFile;
         private StorageFolder backupFolder;
 
         private const string BACKUP_FOLDER = "Backup";
@@ -155,6 +156,7 @@ namespace Libra.Class
 
             // Create a backup copy
             backupFile = await pdfFile.CopyAsync(backupFolder, pdfFile.Name, NameCollisionOption.GenerateUniqueName);
+            sfFile = await pdfFile.CopyAsync(backupFolder, "SF_" + pdfFile.Name, NameCollisionOption.GenerateUniqueName);
             // Load the file to Microsoft PDF document model
             // The Microsoft model is used to render the PDF pages.
             msPdf = await PdfModelMS.LoadFromFile(backupFile);
@@ -164,9 +166,9 @@ namespace Libra.Class
             // The Syncfusion model is used to save ink annotations.
             if (msPdf.IsPasswordProtected)
             {
-                sfPdf = await PdfModelSF.LoadFromFile(pdfFile, msPdf.Password);
+                sfPdf = await PdfModelSF.LoadFromFile(sfFile, msPdf.Password);
             }
-            else sfPdf = await PdfModelSF.LoadFromFile(pdfFile);
+            else sfPdf = await PdfModelSF.LoadFromFile(sfFile);
             // Return null if failed to load the file to Syncfusion model
             if (sfPdf == null) return;
 
@@ -234,10 +236,24 @@ namespace Libra.Class
                 try
                 {
                     inkSaved = await sfPdf.SaveAsync();
+                    // Copy and replace the actual file
+                    await sfFile.CopyAndReplaceAsync(pdfFile);
                 }
                 catch (Exception ex)
                 {
-                    App.NotifyUser(typeof(ViewerPage), "Error: \n" + ex.Message, true);
+                    // Try to save the file by extracting the pages.
+                    StorageFile newFile = await backupFolder.CreateFileAsync("COPY_" + pdfFile.Name, CreationCollisionOption.GenerateUniqueName);
+                    try
+                    {
+                        await sfPdf.CopyPages(newFile);
+                        inkSaved = true;
+                        // Copy and replace the actual file
+                        await newFile.CopyAndReplaceAsync(pdfFile);
+                    }
+                    catch
+                    {
+                        App.NotifyUser(typeof(ViewerPage), "Error: \n" + ex.Message, true);
+                    }
                 }
             }
             return !(inkSaved ^ fileChanged);

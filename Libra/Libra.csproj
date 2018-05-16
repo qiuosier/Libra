@@ -17,9 +17,8 @@
     <EnableDotNetNativeCompatibleProfile>true</EnableDotNetNativeCompatibleProfile>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <PackageCertificateKeyFile>
-    </PackageCertificateKeyFile>
-    <PackageCertificateThumbprint>17755617F9EB2002E56CB25D2CCB308B98CFDD03</PackageCertificateThumbprint>
+    <PackageCertificateKeyFile>Libra_StoreKey.pfx</PackageCertificateKeyFile>
+    <PackageCertificateThumbprint>AE2FDBE72872F31ACDEF18F7F09F2F4CBCB97ED3</PackageCertificateThumbprint>
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <AppxBundle>Always</AppxBundle>
     <AppxBundlePlatforms>x86|x64|arm</AppxBundlePlatforms>

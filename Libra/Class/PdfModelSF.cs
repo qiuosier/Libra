@@ -201,5 +201,21 @@ namespace Libra.Class
             }
             return true;
         }
+
+        public void Close()
+        {
+            PdfDoc.Close();
+        }
+
+        public async Task CopyPages(StorageFile newFile)
+        {
+            PdfDocument newDoc = new PdfDocument();
+            newDoc.ImportPageRange(PdfDoc, 0, PdfDoc.PageCount - 1);
+            using (Stream stream = await newFile.OpenStreamForWriteAsync())
+            {
+                newDoc.Save(stream);
+            }
+            newDoc.Close();
+        }
     }
 }
