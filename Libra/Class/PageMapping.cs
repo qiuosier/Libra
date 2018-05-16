@@ -89,6 +89,7 @@ namespace Libra.Class
                 // Color
                 Color = new PdfColor(ColorFromUI(stroke.DrawingAttributes.Color)),
                 // Size
+                // TODO: Possible 0-width
                 BorderWidth = (int)Math.Round(stroke.DrawingAttributes.Size.Width * ScaleRatio)
             };
             if (stroke.DrawingAttributes.DrawAsHighlighter)
@@ -151,7 +152,9 @@ namespace Libra.Class
             }
             InkStroke stroke = builder.CreateStroke(InkPoints);
             Windows.UI.Color color = ColorToUI(inkAnnotation.Color);
-            double width = inkAnnotation.BorderWidth / ScaleRatio;
+            double width = inkAnnotation.BorderWidth;
+            if (width < InkingPreference.MIN_PEN_SIZE) width = InkingPreference.MIN_PEN_SIZE;
+            width = width / ScaleRatio;
             Size size = new Size(width, width);
             if (inkAnnotation.Opacity == InkingManager.HighlighterOpacity)
             {

@@ -13,6 +13,7 @@ namespace Libra.Class
     public class InkingPreference
     {
         public const int CURRENT_INKING_PREF_VERSION = 2;
+        public const double MIN_PEN_SIZE = 0.4;
         private const string INKING_PREFERENCE_FILENAME = "_inkingPreference.xml";
 
         public InkingPreference()
@@ -34,7 +35,7 @@ namespace Libra.Class
 
         public Size GetPenSize(double scale)
         {
-            if (penSize == 0) return new Size(0.4 / scale, 0.4 / scale);
+            if (penSize == 0) return new Size(MIN_PEN_SIZE / scale, MIN_PEN_SIZE / scale);
             else return new Size(penSize / scale, penSize / scale);
         }
 
