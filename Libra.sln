@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2037
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Libra", "Libra\Libra.csproj", "{4637911D-81FA-4FB2-BF2C-A43E0694C77C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LibraTests", "LibraTests\LibraTests.csproj", "{24507489-4FBC-4BB8-9710-7E90ED07D9B2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -37,8 +39,31 @@ Global
 		{4637911D-81FA-4FB2-BF2C-A43E0694C77C}.Release|x86.ActiveCfg = Release|x86
 		{4637911D-81FA-4FB2-BF2C-A43E0694C77C}.Release|x86.Build.0 = Release|x86
 		{4637911D-81FA-4FB2-BF2C-A43E0694C77C}.Release|x86.Deploy.0 = Release|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|ARM.ActiveCfg = Debug|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|ARM.Build.0 = Debug|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|ARM.Deploy.0 = Debug|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x64.ActiveCfg = Debug|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x64.Build.0 = Debug|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x64.Deploy.0 = Debug|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x86.ActiveCfg = Debug|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x86.Build.0 = Debug|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Debug|x86.Deploy.0 = Debug|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|Any CPU.ActiveCfg = Release|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|ARM.ActiveCfg = Release|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|ARM.Build.0 = Release|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|ARM.Deploy.0 = Release|ARM
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x64.ActiveCfg = Release|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x64.Build.0 = Release|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x64.Deploy.0 = Release|x64
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x86.ActiveCfg = Release|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x86.Build.0 = Release|x86
+		{24507489-4FBC-4BB8-9710-7E90ED07D9B2}.Release|x86.Deploy.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3D785D2E-3F6D-4A51-B5D0-FFBC96DE83EE}
 	EndGlobalSection
 EndGlobal
