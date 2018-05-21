@@ -52,11 +52,13 @@ namespace Libra
             this.UnhandledException += OnUnhandledException;
 
             // Get the license info
-            // The next line is commented out for testing.
+# if DEBUG
+            // The next line is for debug only.       
+            licenseInformation = CurrentAppSimulator.LicenseInformation;
+#else
+            // The next line is release only.
             licenseInformation = CurrentApp.LicenseInformation;
-
-            // The next line is commented out for production/release.       
-            //licenseInformation = CurrentAppSimulator.LicenseInformation;
+#endif
 
             // Initialize App settings
             AppSettings = new Dictionary<string, object>();

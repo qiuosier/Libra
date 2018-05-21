@@ -1502,7 +1502,7 @@ namespace Libra
                             // Re-render pages
                             await reRenderPages();
                         }
-                        else App.NotifyUser(typeof(ViewerPage), "Failed to save the annotations.", true);
+                        else App.NotifyUser(typeof(ViewerPage), "Failed to save the annotations. Is the file opened by another program?", true);
                         this.fullScreenCover.Opacity = 1.0;
                         this.fullScreenCover.Visibility = Visibility.Collapsed;
                         this.fullScreenMessage.Text = "";

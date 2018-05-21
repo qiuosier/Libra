@@ -1,2 +1,0 @@
-MainPackage=G:\Astrology\Libra\Libra\bin\x86\Release\Upload\Libra_1.3.25.0_x86.appx
-SymbolPackage=G:\Astrology\Libra\Libra\bin\x86\Release\Upload\Libra_1.3.25.0\Libra_1.3.25.0_x86.appxsym

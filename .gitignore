@@ -230,3 +230,19 @@ _Pvt_Extensions
 .fake/
 /Test Files
 /Documents
+
+Libra/BundleArtifacts/arm\.txt
+
+Libra/BundleArtifacts/Upload/arm\.txt
+
+Libra/BundleArtifacts/Upload/x64\.txt
+
+Libra/BundleArtifacts/Upload/x86\.txt
+
+Libra/BundleArtifacts/x64\.txt
+
+Libra/BundleArtifacts/x86\.txt
+
+Libra/BundleArtifacts/
+
+Libra/_pkginfo\.txt

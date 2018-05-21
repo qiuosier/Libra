@@ -1,4 +1,0 @@
-MainPackage=G:\Astrology\Libra\Libra\bin\ARM\Release\Upload\Libra_1.3.25.0_ARM.appx
-SymbolPackage=G:\Astrology\Libra\Libra\bin\ARM\Release\Upload\Libra_1.3.25.0\Libra_1.3.25.0_ARM.appxsym
-ResourcePack=G:\Astrology\Libra\Libra\bin\ARM\Release\Libra_1.3.25.0_scale-100.appx
-ResourcePack=G:\Astrology\Libra\Libra\bin\ARM\Release\Libra_1.3.25.0_scale-400.appx
